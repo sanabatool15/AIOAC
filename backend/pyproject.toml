@@ -1,0 +1,11 @@
+[project]
+name = "aioac-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["fastapi", "uvicorn[standard]", "sqlalchemy>=2.0", "pydantic>=2", "pydantic-settings", "httpx", "scikit-learn", "pandas"]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
