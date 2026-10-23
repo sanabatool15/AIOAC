@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: aioac-backend
-Version: 0.1.0
+Version: 0.2.0
 Requires-Python: >=3.11
 Requires-Dist: fastapi
 Requires-Dist: uvicorn[standard]
@@ -8,8 +8,8 @@ Requires-Dist: sqlalchemy>=2.0
 Requires-Dist: pydantic>=2
 Requires-Dist: pydantic-settings
 Requires-Dist: httpx
-Requires-Dist: scikit-learn
+Requires-Dist: numpy
 Requires-Dist: pandas
+Requires-Dist: scikit-learn
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
-Requires-Dist: pytest-asyncio; extra == "dev"

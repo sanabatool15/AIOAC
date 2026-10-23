@@ -41,11 +41,11 @@ Payment code, webhook verification, the ledger, secrets handling and spend caps.
 - UI follows the 8 Figma wireframes (describe, data, readiness, quote, pay, train, result, fund-stretch). Funding screen is a stretch goal and its ledger is simulated.
 
 ## Commands
-Fill these in when the project is scaffolded (do not invent them):
-- Run backend: TBD
-- Run frontend: TBD
-- Run tests: TBD
-- Demo check: TBD
+Run from `backend/` after `pip install -e '.[dev]'`:
+- Run backend: `uvicorn app.main:app --reload`
+- Run frontend: TBD (not scaffolded yet)
+- Run tests: `pytest`
+- Demo check: `pytest tests/test_payments_and_demo.py` (full flow on the mock payment provider, no network)
 
 ## Submission checklist
 Public repo with LICENSE (MIT) visible in About; README with setup and run steps and sandbox test instructions; demo video under 3 minutes on YouTube; clear text on how PayPal and AI are used.
