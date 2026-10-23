@@ -11,6 +11,7 @@ Detailed specs (read the one you need, not all of them):
 - @specs/payments.md : PayPal flow, ledger, webhooks, refunds, funding stretch
 - @specs/db.md : database schema
 - @specs/testing.md : test strategy and demo check
+- @specs/status.md : what is built, stubbed or not started, decisions, known gaps (read this first)
 
 ## Stack
 - Frontend: Next.js (TypeScript) in `frontend/`
