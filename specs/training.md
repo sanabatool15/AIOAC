@@ -26,7 +26,13 @@ GPU is a documented future path, not part of the MVP.
 - **S3 holds everything we need to keep in AWS:** the chosen dataset, the packaged training script, and the trained model and output files. Temporary dataset candidates stay on the app's local storage until one is chosen, so nothing unneeded is uploaded. The database stays local (SQLite).
 - **Instance:** one CPU instance (`ml.m5.xlarge`) first. The estimator may later choose the cheapest of a short CPU list that meets a time target. GPU is out of scope for the MVP: scikit-learn does not use it, new accounts typically start with a GPU quota of zero, and it costs about three times as much. It stays a documented future path.
 - **Spot training:** not for the MVP. It adds interruption handling and a second time limit.
-- **To verify in current AWS docs before writing code:** the SDK call and supported scikit-learn framework and Python versions; the exact training-job quota name for `ml.m5.xlarge`; billing granularity.
+- **Verified in AWS docs (2026-10-23):**
+  - The SageMaker scikit-learn container lists version `1.4-2` (Python 3.10) as supported, with a `1.4-2-py312` variant (end of patch 2026-10-30). The support-policy page also lists `1.9-0` (released 2026-07-16). We should pick a current version and use the same scikit-learn version locally, because a trained model is a pickled file and loading it under a different version can fail or warn. Confirm the exact image is available in our region when we first run a job.
+  - A training job's stopping condition ends the job when its time limit is reached. SageMaker sends SIGTERM first and waits up to 120 seconds, so the script can save the model. Those extra seconds may be billed, so the safety margin for the cap must include them.
+  - A finished training job reports `BillableTimeInSeconds`, which is what actual cost is computed from.
+  - A training job can take an ordered list of up to 5 instance types and starts on the first with capacity. Useful later for hardware choice.
+- **Still to verify:** the exact Service Quotas entry for `ml.m5.xlarge` training-job usage (check the Service Quotas console), and the current SDK call shape (SageMaker Python SDK v3 uses model trainers; v2 estimators may be deprecated).
+- **Tool access:** the AWS plugins (`aws-core`, `sagemaker-ai`) are installed and can search documentation. They have no AWS credentials in this cloud session, so they cannot touch an account. The `terraform` plugin server failed to connect.
 
 ## 3. Infrastructure as code
 

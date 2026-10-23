@@ -65,7 +65,7 @@ For the MVP: one CPU instance type, chosen in config. The agent does not pick in
 ## 4. Spend control
 
 1. **Cap per job.** Set from the high end of the range, and never above a global per-job maximum.
-2. **Hard stop.** The cap is turned into a maximum runtime (cap minus fixed fees, divided by the hourly price, minus a safety margin) and given to SageMaker as the job's `MaxRuntimeInSeconds`. AWS ends the job when it is reached, so the stop does not depend on our code running. Our own check on a timer is only a backstop.
+2. **Hard stop.** The cap is turned into a maximum runtime (cap minus fixed fees, divided by the hourly price, minus a safety margin that includes the 120 seconds SageMaker allows after the stop signal) and given to SageMaker as the job's `MaxRuntimeInSeconds`. AWS ends the job when it is reached, so the stop does not depend on our code running. Our own check on a timer is only a backstop.
 3. **Refund.** After the job, any difference between what was charged and the actual cost is refunded through PayPal. The refund is recorded in the ledger.
 4. **Global budget guard.** A running total of actual AWS spend. Above a warning level the app warns the team; above a ceiling it refuses to start new paid jobs. This keeps testing money available for the demo.
 
