@@ -18,6 +18,16 @@ A training request carries: the chosen dataset version, the target, and the spen
 
 GPU is a documented future path, not part of the MVP.
 
+## 2a. AWS architecture (decided 2026-10-23)
+
+- **Account:** brand-new AWS account with $160 of promotional credit. SageMaker was first used on 2026-10-22, so any SageMaker free-tier allowance (50 hours per month of `m4.xlarge` or `m5.xlarge` training for the first two months, as listed on AWS's pricing page; not yet verified against the Billing console) would run from that date. Check the Credits and Free Tier pages in the Billing console for the real expiry dates and exclusions.
+- **Where the app runs:** locally. AWS provides only storage and training. No hosted servers.
+- **Training:** a SageMaker training job using AWS's own scikit-learn container image and our training script (script mode). No custom Docker image and no ECR.
+- **S3 holds everything we need to keep in AWS:** the chosen dataset, the packaged training script, and the trained model and output files. Temporary dataset candidates stay on the app's local storage until one is chosen, so nothing unneeded is uploaded. The database stays local (SQLite).
+- **Instance:** one CPU instance (`ml.m5.xlarge`) first. The estimator may later choose the cheapest of a short CPU list that meets a time target. GPU is out of scope for the MVP: scikit-learn does not use it, new accounts typically start with a GPU quota of zero, and it costs about three times as much. It stays a documented future path.
+- **Spot training:** not for the MVP. It adds interruption handling and a second time limit.
+- **To verify in current AWS docs before writing code:** the SDK call and supported scikit-learn framework and Python versions; the exact training-job quota name for `ml.m5.xlarge`; billing granularity.
+
 ## 3. Infrastructure as code
 
 Terraform describes the long-lived pieces:
@@ -40,7 +50,7 @@ Training jobs themselves are started by the application as runtime actions, not 
 1. The server confirms payment.
 2. The system starts the job with the cap attached.
 3. Progress is reported in plain language.
-4. A timer checks accumulated cost; at the cap the job is stopped.
+4. The cap is enforced by AWS itself: the job's maximum runtime is set so it cannot run past the cap. Our own timer is only a backstop.
 5. The result is stored; actual cost is recorded in the ledger.
 6. Unused money is refunded.
 7. Temporary resources are cleaned up.

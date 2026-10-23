@@ -121,6 +121,11 @@ There is no login. Anyone who can reach the API can call everything. That is a d
 | Database | SQLite for the demo, Postgres-compatible |
 | Branching | Everything on `main` |
 | Frontend | Placeholder until the API is stable |
+| AWS money | $160 of new-account promotional credit (check expiry in the Billing console) |
+| Where the app runs for the demo | Locally. AWS used only for S3 and SageMaker |
+| Training on SageMaker | AWS scikit-learn image plus our script, no custom Docker image |
+| Instance type | CPU only for the MVP; GPU later |
+| Cap enforcement | Cap becomes SageMaker's maximum runtime, enforced by AWS |
 
 ## 5. What real-data testing found
 
@@ -148,6 +153,6 @@ Current result on the real data: about 78% right against 73.5% for a simple gues
 11. **Unused tables** exist for funding, users and agent runs.
 12. **Hugging Face rate limits** apply, and we send no token unless one is configured.
 
-## 7. Next decisions
+## 7. Next steps
 
-AWS architecture: where data and models live, how SageMaker jobs are started and capped, whether the demo job uses CPU or GPU, and how to get a trustworthy cost estimate on a $160 budget. These are being decided next; see the discussion that follows this document.
+AWS architecture is decided (section 4 and `training.md` section 2a). Remaining: verify the SageMaker SDK details in current AWS docs, write the Terraform (bucket, expiry rules, roles, budget alert), write the SageMaker training backend with mocked tests, then run the calibration jobs. Terraform cannot be applied from this cloud session: it needs AWS credentials you create yourself, ideally a limited IAM user, never the root account.
