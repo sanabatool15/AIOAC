@@ -4,6 +4,6 @@ __pycache__/
 .venv/
 node_modules/
 .next/
-storage/
+/backend/storage/
 *.egg-info/
 .pytest_cache/
