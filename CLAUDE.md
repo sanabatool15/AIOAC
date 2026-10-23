@@ -2,12 +2,15 @@
 
 A user describes a prediction problem in plain words. An AI agent checks the data, runs a free baseline, quotes a cost, asks for approval, takes payment through PayPal (sandbox), trains the model on AWS SageMaker, and refunds any unused amount. Built for the PayPal AI Hackathon (submit by Nov 12, 2026, 12:00 pm PT; our internal target is Nov 11).
 
-Detailed docs (read the one you need, not all of them):
-- @docs/brief.md : what we build, demo flow, what we are NOT building
-- @docs/requirements.md : must-haves, tied to the 5 judging criteria
-- @docs/architecture.md : components, interfaces, data model, API
-- @docs/payments.md : PayPal flow, ledger, webhooks, refunds, spend caps
-- @docs/agent.md : agent tools, limits, prompts
+Detailed specs (read the one you need, not all of them):
+- @specs/spec1.md : vision, scope, user journey, system overview, decisions
+- @specs/agent.md : agent loop, tools, skills, permission levels, limits
+- @specs/cost.md : cost estimation formula, quotes, caps, budget guard
+- @specs/data.md : dataset search, storage lifecycle, insights, readiness
+- @specs/training.md : training backends, Terraform, SageMaker
+- @specs/payments.md : PayPal flow, ledger, webhooks, refunds, funding stretch
+- @specs/db.md : database schema
+- @specs/testing.md : test strategy and demo check
 
 ## Stack
 - Frontend: Next.js (TypeScript) in `frontend/`
