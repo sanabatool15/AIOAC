@@ -55,6 +55,15 @@ Tools are grouped by risk. The permission level for each group is described in s
 - **Plan infrastructure.** May run a Terraform plan. A plan changes nothing.
 - **Apply and destroy** are performed only by the system, only for an approved and paid job, and always followed by teardown.
 
+### 3.6 Implemented dataset tools (MVP)
+
+- `search_datasets`: bundled samples plus Hugging Face. Hugging Face is searched twice (tagged as tabular classification first, then untagged) and merged, because good datasets are often untagged.
+- `look_at_dataset`: size, columns, and whether it is a plain table, before anything is downloaded.
+- `fetch_dataset`: download into temporary storage, within row and size limits. Gated, non-table and oversized datasets are refused with a plain explanation.
+- `inspect_candidate`, `select_dataset`, `run_readiness`, `run_baseline`, `create_quote`, `request_payment`, `start_training`, `load_skill`.
+
+Hugging Face is called directly through its public API, not through MCP. The runtime agent needs tools that are easy to test offline and that pass through our permission gate. MCP servers (Hugging Face, Kaggle) remain useful for developers working with Claude Code, and an MCP client can be added later behind the same tool interface. Kaggle is not part of the MVP.
+
 ## 4. Permission model
 
 Three levels, enforced by code outside the model.
@@ -93,6 +102,17 @@ Planned skills:
 - **Cost quote.** How to call the estimator and explain the result honestly.
 - **Plain language.** Word choices for the user-facing flow.
 - **PayPal.** Payment rules, taken from PayPal's toolkit documentation.
+
+## 5.1 Context engineering
+
+The agent works from a small, rebuilt-every-step context instead of the full history:
+
+1. **Short base prompt** with the rules.
+2. **Live state block** (status, chosen dataset, grade, free test result, quote, and the next step) rebuilt from the database on every step, so the model never has to remember it.
+3. **Skill index only.** Skill bodies load on demand with `load_skill`.
+4. **Tools offered by status.** Only the tools relevant to the project's current step are shown. The gate still enforces everything, so a tool outside the list is refused even if the model asks for it.
+5. **Trimmed tool results.** Long lists are cut to 5 items and long text is cut, with a note.
+6. **Windowed history.** Only the last 20 messages are kept, starting on a user turn.
 
 ## 6. Conversation behavior
 

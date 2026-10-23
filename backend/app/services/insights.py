@@ -4,6 +4,8 @@ Numbers come from code, never from a model. Same input gives the same grade.
 """
 import pandas as pd
 
+from .features import id_like_columns, numeric_like_columns
+
 GRADES = [(95, "A"), (90, "A-"), (85, "B+"), (80, "B"), (75, "B-"), (70, "C+"), (65, "C"), (55, "D")]
 
 
@@ -16,6 +18,9 @@ def grade_for(score: int) -> str:
 
 def analyze(df: pd.DataFrame, target: str) -> dict:
     rows, cols = df.shape
+    ids = id_like_columns(df, target)
+    texty_numbers = numeric_like_columns(df, target)
+    df = df.drop(columns=ids)
     feats = df.drop(columns=[target])
     missing_pct = float(df.isna().sum().sum() / max(df.size, 1) * 100)
     dupes = int(df.duplicated().sum())
@@ -37,6 +42,10 @@ def analyze(df: pd.DataFrame, target: str) -> dict:
         score -= penalty
         findings.append({"kind": kind, "text": text})
 
+    if ids:
+        add("NOTE", f"{len(ids)} column(s) look like row labels (such as an ID) and will be ignored")
+    if texty_numbers:
+        add("NOTE", f"{len(texty_numbers)} column(s) hold numbers stored as text; they are read as numbers")
     if rows < 300:
         add("NOTE", f"Only {rows:,} rows, which is small for a reliable model", 30)
     elif rows < 1000:
@@ -63,7 +72,8 @@ def analyze(df: pd.DataFrame, target: str) -> dict:
     return {
         "measurements": {"rows": rows, "columns": cols, "missing_pct": round(missing_pct, 2),
                          "duplicates": dupes, "minority_share": round(minority, 4),
-                         "constant_columns": constant, "leaky_columns": leaky},
+                         "constant_columns": constant, "leaky_columns": leaky,
+                         "id_columns": ids, "numbers_stored_as_text": texty_numbers},
         "findings": findings,
         "score": max(score, 0),
         "grade": grade_for(max(score, 0)),

@@ -8,6 +8,10 @@ The second most important area after cost. Most testing time goes here.
 2. **Open datasets.** Found by the agent through web search and dataset catalogs, including Hugging Face.
 3. **Curated fallback list.** A short, hand-checked list of datasets (for example the three in the wireframe) so the demo never depends on live search.
 
+Implemented sources (MVP): Hugging Face (public datasets, called directly through the Hub and dataset-viewer APIs) and the bundled sample. Tables are downloaded as Parquet files, converted to CSV, and capped at 50,000 rows and 50 MB. Label columns stored as numbers are converted back to their names. Datasets with no stated license are allowed but flagged.
+
+Known behavior found by testing on real data: row-ID columns (for example `customerID`) and numbers stored as text (for example `TotalCharges`) are common. Both are handled before readiness and training, and reported as NOTE findings. Duplicate rows are removed before training.
+
 ## 2. Dataset search
 
 The agent looks for datasets that fit the user's stated goal.

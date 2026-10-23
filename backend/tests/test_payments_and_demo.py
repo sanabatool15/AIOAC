@@ -102,3 +102,19 @@ def test_webhook_with_wrong_amount_is_rejected(session, storage, chosen, provide
     q, pay = ready_to_pay(session, storage, chosen, provider)
     with pytest.raises(payments.PaymentError):
         payments.handle_webhook(session, provider, {"x-mock-signature": "valid"}, hook("E3", pay, 1))
+
+
+def test_baseline_ignores_row_id_columns(session, storage, project):
+    """Regression from the real Telco data: a unique customerID column must not be one-hot encoded."""
+    import io
+    import pandas as pd
+    from app.samples import churn_csv
+    from app.services import datasets
+    df = pd.read_csv(io.BytesIO(churn_csv(1500)))
+    df.insert(0, "customerID", [f"C{i:05d}" for i in range(len(df))])
+    c = datasets.add_candidate(session, storage, project, "withid", "bundled", df.to_csv(index=False).encode())
+    datasets.select_candidate(session, storage, project, c.id, "left")
+    analysis.readiness(session, storage, project)
+    run = analysis.baseline(session, storage, project)
+    assert run.accuracy > run.simple_guess_accuracy + 0.05
+    assert project.trust_level in {"Medium", "High"}

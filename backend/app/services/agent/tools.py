@@ -8,11 +8,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models import DatasetCandidate, Project
+from ...config import settings
+from ...providers.datasets.base import DatasetSource, SourceError
 from ...providers.payments.base import PaymentProvider
 from ...providers.storage.base import Storage
 from ...providers.training.base import TrainingBackend
 from ...samples import CATALOG
 from .. import analysis, datasets, gate, payments, quotes, training
+from . import skills
 from ..insights import analyze
 
 
@@ -24,6 +27,7 @@ class ToolContext:
     provider: PaymentProvider
     provider_name: str
     backend: TrainingBackend
+    source: DatasetSource
     approved: set[str] = field(default_factory=set)  # L1 actions the user approved this turn
 
 
@@ -45,18 +49,52 @@ def _obj(**props):
 
 def search_datasets(ctx, a):
     q = a["query"].lower()
-    hits = [{"id": c["id"], "name": c["name"], "rows": c["rows"], "license": c["license"]}
-            for c in CATALOG if any(k in q for k in c["keywords"]) or q in c["name"].lower()]
-    return {"results": hits, "note": "web search is not available yet; only bundled datasets are listed"}
+    out = [{"id": c["id"], "name": c["name"], "source": "bundled sample", "license": c["license"]}
+           for c in CATALOG if any(k in q for k in c["keywords"]) or q in c["name"].lower()]
+    try:
+        for h in ctx.source.search(a["query"], limit=6):
+            out.append({"id": f"hf:{h.id}", "name": h.id, "source": "Hugging Face", "about": h.description,
+                        "license": h.license or "not stated", "downloads": h.downloads, "gated": h.gated})
+    except SourceError as exc:
+        return {"results": out, "warning": str(exc)}
+    return {"results": out[:8]}
+
+
+def look_at_dataset(ctx, a):
+    """Preview a dataset before fetching it: size, columns, whether it is a plain table."""
+    did = a["dataset_id"]
+    if not did.startswith("hf:"):
+        entry = next((c for c in CATALOG if c["id"] == did), None)
+        return {"name": entry["name"], "rows": entry["rows"], "tabular": True, "license": entry["license"]} if entry else {"error": "unknown dataset id"}
+    try:
+        i = ctx.source.info(did[3:])
+    except SourceError as exc:
+        return {"error": str(exc)}
+    return {"rows": i.rows, "tabular": i.tabular, "gated": i.gated, "license": i.license or "not stated",
+            "columns": [f"{c['name']} ({c['dtype']})" for c in i.columns[:25]], "notes": i.notes}
 
 
 def fetch_dataset(ctx, a):
-    entry = next((c for c in CATALOG if c["id"] == a["dataset_id"]), None)
+    did = a["dataset_id"]
+    if did.startswith("hf:"):
+        try:
+            f = ctx.source.fetch_csv(did[3:], settings.max_fetch_rows, settings.max_fetch_bytes)
+        except SourceError as exc:
+            return {"error": str(exc)}
+        cand = datasets.add_candidate(ctx.session, ctx.storage, ctx.project, did[3:], "Hugging Face", f.csv_bytes,
+                                      source_url=f"https://huggingface.co/datasets/{did[3:]}", license=f.license)
+        return {"candidate_id": cand.id, "rows": f.rows, "truncated": f.truncated, "license": f.license or "not stated"}
+    entry = next((c for c in CATALOG if c["id"] == did), None)
     if entry is None:
         return {"error": "unknown dataset id"}
     cand = datasets.add_candidate(ctx.session, ctx.storage, ctx.project, entry["name"], "bundled", entry["build"](),
                                   license=entry["license"])
     return {"candidate_id": cand.id, "rows": cand.rows, "suggested_target": entry["target"]}
+
+
+def load_skill(ctx, a):
+    body = skills.load(a["name"])
+    return {"playbook": body} if body else {"error": f"unknown skill; available: {skills.names()}"}
 
 
 def inspect_candidate(ctx, a):
@@ -107,7 +145,10 @@ def start_training(ctx, a):
 
 TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("search_datasets", "Find datasets that fit the user's goal.", _obj(query={"type": "string"}), gate.Action.SEARCH, search_datasets),
+    Tool("look_at_dataset", "Preview a found dataset (size, columns, plain table or not) before fetching it.",
+         _obj(dataset_id={"type": "string"}), gate.Action.SEARCH, look_at_dataset),
     Tool("fetch_dataset", "Download a found dataset into temporary storage.", _obj(dataset_id={"type": "string"}), gate.Action.FETCH, fetch_dataset),
+    Tool("load_skill", "Load a playbook before doing what it covers.", _obj(name={"type": "string"}), gate.Action.SEARCH, load_skill),
     Tool("inspect_candidate", "Check a candidate dataset: grade, findings, preview.",
          _obj(candidate_id={"type": "string"}, target={"type": "string"}), gate.Action.ANALYZE, inspect_candidate),
     Tool("select_dataset", "Choose the dataset to use (user must approve). Deletes the other candidates.",

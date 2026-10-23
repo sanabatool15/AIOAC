@@ -2,10 +2,16 @@
 name = "aioac-backend"
 version = "0.2.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn[standard]", "sqlalchemy>=2.0", "pydantic>=2", "pydantic-settings", "httpx", "numpy", "pandas", "scikit-learn"]
+dependencies = ["fastapi", "uvicorn[standard]", "sqlalchemy>=2.0", "pydantic>=2", "pydantic-settings", "httpx", "numpy", "pandas", "scikit-learn", "pyarrow"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["skills/*.md"]

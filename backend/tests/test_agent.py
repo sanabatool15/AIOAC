@@ -3,10 +3,11 @@ from app.providers.llm.fake import FakeLLM
 from app.providers.training.local import LocalBackend
 from app.services.agent.loop import run_agent
 from app.services.agent.tools import ToolContext
+from tests.fakes import FakeSource
 
 
-def ctx(session, storage, provider, project, approved=()):
-    return ToolContext(session, project, storage, provider, "mock", LocalBackend(), set(approved))
+def ctx(session, storage, provider, project, approved=(), source=None):
+    return ToolContext(session, project, storage, provider, "mock", LocalBackend(), source or FakeSource(), set(approved))
 
 
 def call(name, **args):
@@ -33,13 +34,22 @@ def test_selecting_a_dataset_stops_for_user_approval(session, storage, provider,
     assert r3.status == "reply" and project.status == "data_chosen"
 
 
-def test_agent_cannot_start_training_without_payment(session, storage, provider, project):
+def test_tools_not_offered_at_this_step_are_refused(session, storage, provider, project):
     llm = FakeLLM([call("start_training"), LLMResponse(text="I can't start yet.")])
     r = run_agent(ctx(session, storage, provider, project), llm, "train it now")
     assert r.status == "reply"
     from app.repositories.traces import TraceRepository
     res = [s.content["result"] for s in TraceRepository(session).steps(project.id, ("tool_result",))]
-    assert "not allowed" in res[0]["error"] and project.status == "described"
+    assert "not available" in res[0]["error"] and project.status == "described"
+
+
+def test_gate_still_blocks_training_even_when_status_says_paid(session, storage, provider, project):
+    project.status = "paid"  # wrongly marked paid, no quote and no verified payment exist
+    session.commit()
+    r = run_agent(ctx(session, storage, provider, project), FakeLLM([call("start_training"), LLMResponse(text="no")]), "go")
+    from app.repositories.traces import TraceRepository
+    res = [s.content["result"] for s in TraceRepository(session).steps(project.id, ("tool_result",))]
+    assert "not allowed" in res[0]["error"] and project.status == "paid"
 
 
 def test_step_limit(session, storage, provider, project):

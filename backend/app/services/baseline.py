@@ -14,6 +14,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
+from .features import prepare_features
+
 SAMPLE_FRACTIONS = (0.05, 0.1, 0.2)
 MIN_SAMPLE_ROWS = 30
 
@@ -47,7 +49,7 @@ def _split(df: pd.DataFrame, target: str):
 
 
 def fit_and_score(path: str, target: str, n_estimators: int = 100) -> BaselineOutcome:
-    df = pd.read_csv(path).dropna(subset=[target])
+    df = prepare_features(pd.read_csv(path).dropna(subset=[target]), target)
     Xtr, Xte, ytr, yte = _split(df, target)
     model = _pipeline(Xtr, n_estimators)
     t0 = time.perf_counter()
@@ -63,7 +65,7 @@ def fit_and_score(path: str, target: str, n_estimators: int = 100) -> BaselineOu
 def run_baseline(path: str, target: str) -> BaselineOutcome:
     """Held-out accuracy plus timings on small samples (the cost estimator's input)."""
     out = fit_and_score(path, target)
-    df = pd.read_csv(path).dropna(subset=[target])
+    df = prepare_features(pd.read_csv(path).dropna(subset=[target]), target)
     samples: dict[int, float] = {}
     for frac in SAMPLE_FRACTIONS:
         n = min(len(df), max(int(len(df) * frac), MIN_SAMPLE_ROWS))
