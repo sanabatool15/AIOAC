@@ -19,13 +19,15 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Hugging Face dataset tools | Done, verified against the live service |
 | Dataset storage lifecycle | Done (local folder storage) |
 | Insights, readiness grade, free baseline | Done, verified on real data |
-| Training backends | Local done. SageMaker is a stub |
+| Training backends | Local done (reports progress, honours stop). SageMaker is a stub |
+| Background training, progress, Stop, crash recovery | Done on the inline runner (tested). Inngest Cloud runner written against SDK 0.5.19, never run against real Inngest Cloud |
+| Database | SQLite default. Postgres/Supabase configurable, never connected to a real database |
 | Terraform, AWS storage | Not started |
 | Web app | Not started (placeholder folder) |
-| Funding stretch, Stop button, login | Not started |
+| Funding stretch, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 77, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
+Tests: 97, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
 
 ## 2. Repository layout
 
@@ -73,7 +75,7 @@ Prices in `prices.py` are placeholders (one instance type, 25 cents per hour, 24
 ### 3.5 Training (`services/training.py`, `providers/training/`)
 After the gate allows it: run the backend, cap the cost at the quote's cap, store the model, add the cost to the global spend, settle and refund. If the backend fails, the project goes to failed and then refunded, with the full amount returned. By default the backend is `local`, which costs nothing, so the default demo refunds the entire cap. The `sagemaker` backend is a stub.
 
-Training runs inside the HTTP request (synchronous). That is fine for the demo with small jobs and will need to move to a background job for 10 to 15 minute runs.
+Training runs in the background (see `training.md` section 7): `/train` returns a run id, `GET /projects/{id}/training` shows progress, `POST /projects/{id}/training/stop` stops it. Exception: the agent's `start_training` tool still blocks on `training.run_training`.
 
 ### 3.6 Datasets (`services/datasets.py`, `providers/storage/`, `providers/datasets/`)
 - Candidates are stored temporarily with an expiry time. Selecting one copies it to permanent storage and deletes the others. Expired candidates are purged by a function that nothing calls on a schedule yet. An orphan report lists stored files the database does not know about.
@@ -102,7 +104,8 @@ Readiness grade from a documented scoring (rows, duplicates, missing values, lop
 - `POST /projects/{id}/chat` (runs the agent; accepts approvals)
 - `POST /projects/{id}/data` (upload CSV text)
 - `POST /projects/{id}/quote/approve`
-- `POST /projects/{id}/train`
+- `POST /projects/{id}/train` (background; returns run id)
+- `GET /projects/{id}/training`, `POST /projects/{id}/training/stop`
 - `GET /projects/{id}/trace`
 - `POST /payments/orders`, `POST /payments/{id}/capture`
 - `POST /webhooks/paypal`
@@ -145,9 +148,9 @@ Current result on the real data: about 78% right against 73.5% for a simple gues
 3. **The OpenRouter client has never been run.** The loop is tested only with scripted replies. Real models may call tools in ways we have not seen.
 4. **No agent evaluation set yet** (a fixed list of goals with expected outcomes, run repeatedly).
 5. **Search quality is untested at scale.** For "customer churn" the top Hugging Face results were mostly Telco copies with no stated license.
-6. **Synchronous training** will block a request for long jobs.
+6. **Inngest Cloud and Supabase are unverified.** The Inngest runner needs a public API URL (tunnel) and real keys; Postgres support is tested only by building the engine and compiling the schema for Postgres. Neither can be checked from this container.
 7. **No scheduled cleanup** for expired candidates or leftover cloud resources.
-8. **No Stop button, no progress reporting during training.**
+8. **Stop on the local backend** only takes effect between stages. The web app has no Stop button yet. The agent tool `start_training` is still blocking.
 9. **No authentication.** Anyone can call any endpoint.
 10. **Charging the cap** is a proposal, not yet confirmed.
 11. **Unused tables** exist for funding, users and agent runs.
