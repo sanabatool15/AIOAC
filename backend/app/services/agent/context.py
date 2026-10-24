@@ -4,7 +4,7 @@ import json
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ...models import DatasetVersion, Project
+from ...models import DatasetCandidate, DatasetVersion, Project
 from .. import gate
 from . import skills
 
@@ -51,6 +51,11 @@ def state_block(session: Session, project: Project) -> str:
     if project.chosen_dataset_version_id:
         v = session.get(DatasetVersion, project.chosen_dataset_version_id)
         lines.append(f"Dataset: {v.source}, {v.rows:,} rows, answer column '{v.target_column}', license {v.license or 'not stated'}")
+    else:
+        # tool results are not kept between turns, so the model needs the candidate ids here (e.g. to propose select_dataset again after approval)
+        cands = session.scalars(select(DatasetCandidate).where(DatasetCandidate.project_id == project.id, DatasetCandidate.status == "candidate")).all()
+        for c in cands[:5]:
+            lines.append(f"Fetched candidate: id {c.id}, {c.name}, {c.rows or '?'} rows, license {c.license or 'not stated'}")
     if project.readiness_grade:
         lines.append(f"Readiness grade: {project.readiness_grade}")
     if project.baseline_result:

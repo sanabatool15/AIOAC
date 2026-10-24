@@ -158,6 +158,11 @@ class AgentRun(Stamped, Base):
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     status: Mapped[str] = mapped_column(String, default="running")
     steps_used: Mapped[int] = mapped_column(Integer, default=0)
+    # limits used (specs/db.md): model tokens and model cost for this turn. Cost is in millionths of a US dollar.
+    tokens_used: Mapped[int] = mapped_column(Integer, default=0)
+    llm_cost_micros: Mapped[int] = mapped_column(Integer, default=0)
+    stop_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AgentStep(Stamped, Base):

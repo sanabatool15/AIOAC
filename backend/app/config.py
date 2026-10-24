@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     quote_ttl_minutes: int = 60
     candidate_ttl_hours: int = 24
     agent_max_steps: int = 12
+    # Agent limits (specs/agent.md section 2). Not money the user pays: this is our own model bill.
+    agent_max_tokens_per_turn: int = 80_000
+    agent_max_tokens_per_project: int = 600_000
+    agent_llm_cost_ceiling_usd: float = 1.00   # per project, only enforced when the model service reports cost
+    agent_tool_timeout_s: float = 60.0         # free tools only; paid tools are never cut off by this
 
 
 settings = Settings()
