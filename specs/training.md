@@ -72,3 +72,16 @@ The trained model is stored with its dataset version and result. The user can tr
 - Which model families does the first job try?
 - Do we give users progress based on real training steps or on time?
 - How long are trained models kept?
+
+## 7. Background training, progress and Stop (proposed, not built)
+
+Today training runs inside the HTTP request. A 10 to 15 minute job needs this instead.
+
+1. **Start.** `POST /projects/{id}/train` runs the gate, moves the project to `training`, creates the run with status `running`, hands the job to a background runner and returns at once with the run id.
+2. **Runner.** A single worker thread in the API process for the MVP (one paid job at a time, as cost.md requires). It owns its own database session. A queue or separate worker is a later step.
+3. **Progress.** The runner updates the run record: elapsed seconds, spend so far, and a plain-language stage ("preparing data", "training", "saving the model"). Progress is based on elapsed time against the quoted time, because training has no honest step count. `GET /projects/{id}/training` returns it.
+4. **Stop.** `POST /projects/{id}/training/stop` sets a stop flag on the run. The local backend checks it between stages. The SageMaker backend calls `StopTrainingJob`. The run ends as `stopped`, the project moves to `stopped`, cost is what was used so far (billable time for SageMaker, capped), and the normal settle and refund path runs.
+5. **Crash safety.** On API start, any run still `running` with no live worker is marked `failed` and refunded in full through the same path.
+6. **Interface change.** `TrainingBackend.run` gains a progress callback and a stop check, so both backends report the same way.
+
+Open: how long a stopped SageMaker job keeps billing after the stop signal (up to 120 seconds is assumed, and counted in the cost).

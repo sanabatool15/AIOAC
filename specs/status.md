@@ -7,7 +7,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Area | State |
 |---|---|
 | Repository setup (license, ignore rules, env template, README) | Done |
-| Specs (`specs/`) | Done, draft 1 |
+| Specs (`specs/`) | Draft 1. Gaps: async training and Stop, SageMaker backend contract, web app (see section 6a) |
 | Database schema | Done, matches `db.md` |
 | Project lifecycle (state machine) | Done |
 | Permission gate | Done |
@@ -40,7 +40,7 @@ backend/app/
   providers/       swappable parts: payments, training, storage, datasets, llm
   routes/          HTTP endpoints
   skills/          markdown playbooks the agent loads on demand
-backend/tests/     77 tests
+backend/tests/     90 tests
 frontend/          placeholder only
 ```
 
@@ -122,7 +122,7 @@ There is no login. Anyone who can reach the API can call everything. That is a d
 | Dataset sources for the MVP | Hugging Face plus bundled sample. Kaggle later |
 | First paid job | CPU, scikit-learn on SageMaker |
 | Database | SQLite for the demo, Postgres-compatible |
-| Branching | Everything on `main` |
+| Branching | Work on the session branch, merged to `main` when reviewed |
 | Frontend | Placeholder until the API is stable |
 | AWS money | $160 of new-account promotional credit (check expiry in the Billing console) |
 | Where the app runs for the demo | Locally. AWS used only for S3 and SageMaker |
@@ -155,6 +155,15 @@ Current result on the real data: about 78% right against 73.5% for a simple gues
 10. **Charging the cap** is a proposal, not yet confirmed.
 11. **Unused tables** exist for funding, users and agent runs.
 12. **Hugging Face rate limits** apply, and we send no token unless one is configured.
+
+## 6a. Spec gaps found by audit (2026-10-24)
+
+- `stopped` is a lifecycle state but nothing can set it yet (see `training.md` section 7).
+- `agent.md` lists tools that do not exist: web search, a sandboxed analysis-code runner, a Terraform plan tool, a clean tool, a PayPal skill. Data analysis uses fixed functions, not model-written scripts.
+- Agent limits for tokens per project, per-tool timeout and LLM cost ceiling are not implemented. Only the 12-step limit is.
+- The cost backstop timer in `cost.md` and `training.md` is not implemented.
+- No web app spec exists yet: screens, endpoints per screen, approval card payload, PayPal return and cancel pages.
+- No SageMaker backend contract yet: script inputs and outputs, S3 layout, cost from billable time.
 
 ## 7. Next steps
 

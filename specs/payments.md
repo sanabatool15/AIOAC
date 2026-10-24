@@ -45,4 +45,4 @@ Payment code, webhook verification, the ledger and spend caps are reviewed by a 
 
 ## 8. Status
 
-PayPal sandbox credentials are not yet created. Work begins on the mock provider and moves to the sandbox when credentials exist. The PayPal plugin is installed; its connection needs a sandbox token.
+The PayPal provider is written and tested on mocked HTTP only. The sandbox credentials supplied so far were rejected, so it has never run against the real sandbox. The PayPal plugin is installed; its connection needs a working sandbox token.

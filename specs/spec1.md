@@ -105,7 +105,7 @@ The AWS account has about $160. Every design choice that touches AWS assumes thi
 1. **Demo job duration.** The wireframe shows "about 2 hrs" for a small dataset, which is unrealistic for 4,812 rows. We need a demo task that genuinely takes 10 to 15 minutes on CPU, or the quote must reflect real small numbers. Decide before the video.
 2. **Charge the cap or the estimate.** Charging the cap and refunding the difference is safest, but the buyer sees a larger charge first. To confirm.
 3. **Dataset search reliability.** Open dataset search can return unsuitable results. The mitigation is testing, plus a short curated fallback list.
-4. **PayPal credentials are not yet created.** Payment work starts with the mock provider and moves to the sandbox once credentials exist.
+4. **PayPal sandbox credentials do not work yet.** The provider is written and tested on mocked HTTP. It has not run against the real sandbox, because the credentials supplied so far were rejected.
 5. **Estimate accuracy.** Unknown until measured. The estimator ships with an error log so we can see how wrong it is.
 
 ## 9. Specification files
