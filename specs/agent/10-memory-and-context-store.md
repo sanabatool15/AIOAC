@@ -1,4 +1,6 @@
-# Memory: keeping the whole conversation (PROPOSED)
+# Memory: keeping the whole conversation (BUILT 2026-10-24)
+
+Sections 2 to 7 are built (`services/agent/memory.py`, tests in `tests/test_memory.py`); section 9 lists what differs from the design. The summary of the oldest part (section 4) is **not built**: the column exists and is sent if set, but nothing writes it. Section 1 describes the code before this change.
 
 Goal: the agent never loses what happened. Every user message, every model reply, every tool call and its result, every skill it loaded, and every gate decision is stored, and is given back to the model on the next turn, until the work is done.
 
@@ -70,3 +72,15 @@ Everything is stored forever; only what is sent is limited.
 1. One conversation per project, or many? Recommendation: many allowed, one active.
 2. Keep full tool results in `messages` forever, or only stubs after the project ends? Recommendation: forever for evals, 30 days for users.
 3. Summaries by model call or by code? Recommendation: code first (state changes list), model summary later.
+
+## 9. Built: what differs from the design (2026-10-24)
+
+- **Tables:** `conversations` (`project_id`, `source` app|eval|notebook, `meta` JSON, `status`, `summary`, `summary_upto_seq`), `messages` (`conversation_id`, `seq` unique per conversation, `run_id`, `role`, `content`, `tool_calls`, `tool_call_id`, `tool_name`, `kind` chat|skill|card|note, `stub`, `tokens`), and `agent_runs.conversation_id`. `agent_steps` stays the audit log. Delete any old local `aioac.db`.
+- **What is stored:** every user message; each assistant message with its tool calls and any text; each tool result in full, plus a one-line `stub`; loaded skills as `kind=skill`; the approval card as the result of the waiting call (`kind=card`); calls that were not run (because an earlier call in the same step needed approval, or the turn was stopped) get a `kind=note` result so the history never has an unanswered call. `limit` and `error` endings are saved as assistant messages with `kind=note` (W17).
+- **Each step's input:** base prompt, state block (now with the pending approval and the approvals given this turn; the chosen answer column was already there), optional summary, then history within `agent_history_token_budget` (default 30,000 estimated tokens, 4 characters per token). Over budget: old large tool results become stubs (oldest first), then the oldest whole groups are dropped, and the history always opens on a user message. The newest user turn is always sent. A loaded playbook is never stubbed; if its group has to be dropped, its text moves into the system message. Tool results are still trimmed to 2,500 characters when sent (8,000 for playbooks).
+- **Repair:** a call with no stored result is given an error result when the input is built; a result with no call is not sent.
+- **Seq safety:** `seq` is max+1 inside the per-project turn lock; the unique key plus a retry is the backstop for several processes.
+- **Evals and notebook** use the same store (`source` eval or notebook, `meta.case_id`). The eval runner exports `conversation.json` per run; `python -m evals.replay <folder>` rebuilds the model input before each reply without a model, and `memory.ReplayLLM` plays the stored assistant messages back through `run_agent`.
+- **Removed:** `context.window()` (the 20-message window). Fallback is not needed because history always comes from `messages`.
+- **Turn lock (W8):** a process-local lock per project (`loop.TurnInProgress`; `/chat` answers HTTP 409). It does not help across several API processes.
+- **Untrusted text:** dataset descriptions, column names and sample rows reach the model inside `<untrusted_dataset_text>` blocks, and the base prompt says they are data. Licenses are reduced to a single short tag or "unrecognised license text" before storing (T4). Residual risk: readiness findings and error messages can contain column names, which are not wrapped.

@@ -26,6 +26,12 @@ Settings in `config.py`. Every turn is stored as an `agent_runs` row (steps, tok
 
 When a limit is hit, the agent stops and tells the user in plain words (`status: limit` with a `reason`). If the model service fails, the turn ends with `status: error` and a plain message. The OpenRouter client retries once on timeouts, rate limits and 5xx errors.
 
+### Memory, logging and turn lock (built 2026-10-24)
+
+- Every message is stored in `conversations` / `messages` (user text, assistant text with tool calls, full tool results with a one-line stub, loaded skills, approval cards). Each model step rebuilds its input from those rows inside a token budget (default 30,000), never splitting a call from its results. Details: `specs/agent/10-memory-and-context-store.md`. A code-built summary of old history is not built.
+- `RunLog` (`services/agent/runlog.py`) writes one event stream to console, JSON Lines, a Markdown transcript and `agent_steps`, with secrets scrubbed. View a run: `python -m evals.show <log id or folder>`; from the app database: `python scripts/show_run.py <run or project id>`. Details: `specs/agent/06-observability-and-logging.md`.
+- Only one turn per project runs at a time; a second `/chat` gets HTTP 409. Tool crashes give the model a generic message (detail in the log only). Dataset descriptions, column names, sample rows and licenses are wrapped as untrusted data.
+
 ### Guards on what the model says (built, cheap, not a security boundary)
 
 - Arguments are checked against the tool's schema before anything runs. Unreadable JSON, missing or wrongly typed arguments, and unknown tools come back to the model as errors.
@@ -126,7 +132,7 @@ The agent works from a small, rebuilt-every-step context instead of the full his
 3. **Skill index only.** Skill bodies load on demand with `load_skill`.
 4. **Tools offered by status.** Only the tools relevant to the project's current step are shown. The gate still enforces everything, so a tool outside the list is refused even if the model asks for it.
 5. **Trimmed tool results.** Long lists are cut to 5 items and long text is cut, with a note.
-6. **Windowed history.** Only the last 20 messages are kept, starting on a user turn.
+6. **Stored history within a token budget.** Recent messages from the `messages` table (tool calls and results included), old large results shrunk to stubs, never splitting a call from its results (replaces the old 20-message window).
 
 ## 6. Conversation behavior
 

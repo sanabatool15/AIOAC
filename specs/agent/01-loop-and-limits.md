@@ -1,6 +1,6 @@
 # Loop, limits and guards
 
-Source: `backend/app/services/agent/loop.py`, `guards.py`, `config.py`. Everything in sections 1 to 4 is **BUILT**. Section 5 lists weak spots found by reading the code. Section 6 is **PROPOSED**.
+Source: `backend/app/services/agent/loop.py`, `guards.py`, `memory.py`, `runlog.py`, `config.py`. Everything in sections 1 to 4 is **BUILT**. Since 2026-10-24 the loop also stores every message (`memory.py`), logs events (`runlog.py`) and refuses a second simultaneous turn; step 6 below describes the older in-memory conversation, now read from the `messages` table each step. Section 5 lists weak spots found by reading the code. Section 6 is **PROPOSED**.
 
 ## 1. Step order inside one model step (BUILT, `loop._turn`)
 
@@ -73,7 +73,7 @@ So it is a rough alarm, not a safety control. The gate is the real control.
 
 Each item: what happens, evidence, impact. Numbering is used by other files.
 
-**W1. Tool results vanish between turns.** `_history` keeps only `user` and `assistant` trace steps (`loop._history`). Search results, previews, findings and the chosen target are not in the next turn's context. The state block only lists fetched candidate ids. After an approval card (turn 2), the model must recall the target column from its own earlier text, and that text may not exist: the card turn saves no assistant message. Impact: wrong or missing `target` on re-proposal; "use the second one" has no ids to refer to.
+**W1. Tool results vanish between turns.** **FIXED 2026-10-24** (see file 10). History now comes from the `messages` table, tool results included; the approval card is stored; the state block shows the pending approval. Original description: `_history` keeps only `user` and `assistant` trace steps (`loop._history`). Search results, previews, findings and the chosen target are not in the next turn's context. The state block only lists fetched candidate ids. After an approval card (turn 2), the model must recall the target column from its own earlier text, and that text may not exist: the card turn saves no assistant message. Impact: wrong or missing `target` on re-proposal; "use the second one" has no ids to refer to.
 
 **W2. Approval is not bound to the thing shown.** `ChatIn.approve` is a list of action names from the client. `ctx.approved` unlocks every `select_dataset` call in that turn, with any `candidate_id` and `target` the model chooses. The card carries args, but the approval does not check that the executed args equal the card args. Also a client can send `approve` with no card pending (pre-approval). Impact: the model could select a different candidate than the one the user saw. Money is not at risk; data choice is.
 
@@ -87,7 +87,7 @@ Each item: what happens, evidence, impact. Numbering is used by other files.
 
 **W7. Non-English input.** Prompt, skills, claim guard and eval jargon checks are English only. The claim guard cannot see an Urdu or Hindi false claim. The language of the reply is not specified.
 
-**W8. Two turns racing.** No per-project lock. Two `/chat` calls at once run two loops on one project with separate sessions. `TraceRepository.add` computes `seq` as max+1 then commits: duplicates are possible. The end-of-turn stamp `UPDATE agent_steps SET run_id=... WHERE run_id IS NULL` (project wide) can stamp the other turn's gate steps. Two `create_quote` calls make two quotes. Not tested.
+**W8. Two turns racing.** **FIXED 2026-10-24.** Per-project turn lock (HTTP 409) and a unique message `seq`. `agent_steps.seq` is also safe inside the lock. Original description: No per-project lock. Two `/chat` calls at once run two loops on one project with separate sessions. `TraceRepository.add` computes `seq` as max+1 then commits: duplicates are possible. The end-of-turn stamp `UPDATE agent_steps SET run_id=... WHERE run_id IS NULL` (project wide) can stamp the other turn's gate steps. Two `create_quote` calls make two quotes. Not tested.
 
 **W9. Claim guard is keyword based.** See the table above. It also checks only the final reply. Text the model writes next to tool calls is neither shown nor checked (it is dropped: not traced, not returned).
 
@@ -97,15 +97,15 @@ Each item: what happens, evidence, impact. Numbering is used by other files.
 
 **W12. Tool timeout shares the session.** Free tools run in a worker thread with the same SQLAlchemy `Session` (`loop._call_with_timeout`). After a timeout the thread keeps running and may still write (for example a slow `fetch_dataset` still creating a candidate). `fetch_dataset` can take over 60 s for a 50 MB table. Sessions are not thread safe.
 
-**W13. Wrong bundled matches.** `search_datasets` returns the bundled churn sample first when the query contains any keyword (`churn, customer, leave, stop buying, retention`) as a substring. "customer complaints text" matches "customer". The synthetic sample can be recommended for an unrelated goal.
+**W13. Wrong bundled matches.** **FIXED 2026-10-24.** Whole-word matching; results are labelled `sample_data`. Original description: `search_datasets` returns the bundled churn sample first when the query contains any keyword (`churn, customer, leave, stop buying, retention`) as a substring. "customer complaints text" matches "customer". The synthetic sample can be recommended for an unrelated goal.
 
-**W14. Id format traps.** Dataset ids need the `hf:` prefix for `look_at_dataset` and `fetch_dataset`. Without it the tool returns "unknown dataset id" with no hint. Models often drop prefixes.
+**W14. Id format traps.** **FIXED 2026-10-24.** The error now says dataset ids start with `hf:`. Original description: Dataset ids need the `hf:` prefix for `look_at_dataset` and `fetch_dataset`. Without it the tool returns "unknown dataset id" with no hint. Models often drop prefixes.
 
 **W15. Target type is not checked.** `inspect_candidate` and `select_dataset` accept any existing column. I found no check that the target is a small set of categories. Only the skill `choosing-the-target-column` says to avoid price-like columns. A numeric target with hundreds of values reaches the baseline, where the model is a classifier.
 
-**W16. Errors leak internals to the model.** `f"{type(exc).__name__}: {exc}"` is passed back. It may contain file paths or SQL. The model may repeat it to the user.
+**W16. Errors leak internals to the model.** **FIXED 2026-10-24.** The model gets a generic message; the detail goes to the run log only. Original description: `f"{type(exc).__name__}: {exc}"` is passed back. It may contain file paths or SQL. The model may repeat it to the user.
 
-**W17. Lost messages after limit/error.** On `limit` and `error`, nothing is saved as an assistant message. The next turn may show two user messages in a row.
+**W17. Lost messages after limit/error.** **FIXED 2026-10-24.** `limit` and `error` endings are saved as assistant messages. Original description: On `limit` and `error`, nothing is saved as an assistant message. The next turn may show two user messages in a row.
 
 **W18. Empty first turn.** `run_agent` with `message=None` on a new project sends an empty history (only the system message). Some model providers may reject a request with no user message (not verified).
 
@@ -115,13 +115,13 @@ Each item: what happens, evidence, impact. Numbering is used by other files.
 
 ## 6. PROPOSED fixes (ordered by value)
 
-1. Per-project turn lock (reject a second `/chat` while one runs: HTTP 409). Fixes W8.
-2. Save a compact "tool memory" line per tool result in history, for example `search_datasets -> [hf:a/b (7,043 rows), ...]`. Fixes W1 and the "second one" case.
-3. Add the chosen target and any pending approval to the state block. Fixes the W1 re-proposal gap.
+1. Per-project turn lock (reject a second `/chat` while one runs: HTTP 409). Fixes W8. **Done 2026-10-24.**
+2. Save a compact "tool memory" line per tool result in history, for example `search_datasets -> [hf:a/b (7,043 rows), ...]`. Fixes W1 and the "second one" case. **Done 2026-10-24.**
+3. Add the chosen target and any pending approval to the state block. Fixes the W1 re-proposal gap. **Done 2026-10-24.**
 4. Bind approvals: the client sends `{action, candidate_id, target}` and the gate compares with the call. Fixes W2.
 5. Make the card carry a human sentence built by code from the DB (dataset name, rows, target). Fixes W3.
 6. A `change_dataset` / restart path with its own gate rule (only before quote approval). Fixes W4, W5.
 7. Replace the claim regexes with a check against state: only block when the reply asserts something and the DB says the opposite, and test both directions with a phrase list (see file 07). Keep it labelled as a rough alarm.
 8. Run free tools without the shared session, or give them a fresh session. Fixes W12.
-9. Add `reason` plain text to `AgentRun` and save an assistant message for `limit` and `error`. Fixes W17.
-10. Tighten search matching (word match, not substring) and mark bundled results as "sample data". Fixes W13.
+9. Add `reason` plain text to `AgentRun` and save an assistant message for `limit` and `error`. Fixes W17. **Done 2026-10-24.**
+10. Tighten search matching (word match, not substring) and mark bundled results as "sample data". Fixes W13. **Done 2026-10-24.**

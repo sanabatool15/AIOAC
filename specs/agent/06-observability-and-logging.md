@@ -1,6 +1,19 @@
 # Observability and logging
 
-Sections 1 and 2 describe what exists (**BUILT**, verified in code). Sections 3 to 9 are a **PROPOSED** design. Nothing in them is implemented.
+Sections 1 and 2 describe the code before 2026-10-24. Sections 3 to 9 are now **BUILT** (2026-10-24, `services/agent/runlog.py`) with the deviations listed in section 11. Section 10 and browser events are still proposed.
+
+## 0. How to see a log (BUILT)
+
+- **Live, in a terminal:** `cd backend && python -m evals.run --fake --repeats 1 --cases churn-subscription -v` prints one line per event to stderr (`-vv` adds debug lines such as the state block summary). With a real model: `python -m evals.run --model <id> -v`.
+- **Live, in the notebook:** `notebooks/agent_playground.ipynb` passes a `RunLog` with a console sink; every model call, gate decision and tool result prints as it happens.
+- **A past eval run:** every run writes a folder `backend/logs/eval-<time>/<case>/r<n>/` with `events.jsonl`, `transcript.md` and `conversation.json`, plus `index.json` in the batch folder. Failed runs print their folder at the end of `evals.run`.
+  - `python -m evals.show eval-20261101-101500` lists the runs of a batch (PASS or FAIL, folder).
+  - `python -m evals.show eval-20261101-101500/churn-subscription/r1 [--tools] [--md] [--raw] [--level WARN|DEBUG]`.
+  - `python -m evals.replay <run folder> [--full]` rebuilds, from `conversation.json`, what the model was shown before each reply (no model, no network).
+- **A turn from the app database:** `cd backend && python scripts/show_run.py <agent_run_id or project_id> [--tools]`. It prints the audit steps (`agent_steps`) in the same console format.
+- **Notebook helpers:** `from evals.show import show_run, tail`; `show_run("nb-<time>/t1", tools=True, display=True)`; `tail(20)`.
+- Logs are git-ignored (`backend/logs/`).
+
 
 ## 1. What exists today (BUILT)
 
@@ -32,7 +45,7 @@ Sections 1 and 2 describe what exists (**BUILT**, verified in code). Sections 3 
 5. Nothing is printed live while an eval runs except `<case> #n: pass/FAIL ...`.
 6. Tool results contain real cell values (`inspect_candidate` preview, 3 rows). They are stored in the database trace.
 
-## 3. Requirements (PROPOSED)
+## 3. Requirements (BUILT)
 
 - (a) A live console line per event, with levels.
 - (b) For every eval case run and every notebook turn: a JSON Lines file with all events and a Markdown transcript, under a stable run id.
@@ -40,7 +53,7 @@ Sections 1 and 2 describe what exists (**BUILT**, verified in code). Sections 3 
 - (d) Never log secrets. Log personal data and dataset rows only as a few truncated sample values.
 - (e) The same events must map onto `agent_steps` and `agent_runs`, so the web app can show the same log later.
 
-## 4. Design (PROPOSED)
+## 4. Design (BUILT)
 
 One small interface, called from the loop at the points where it already writes trace steps:
 
@@ -72,7 +85,7 @@ backend/logs/                              (git-ignored)
                       t1/transcript.md
 ```
 
-## 5. Event schema (PROPOSED, version 1)
+## 5. Event schema (BUILT, version 1)
 
 One JSON object per line. Common fields on every event:
 
@@ -124,7 +137,7 @@ Example lines:
 - `context`, `turn_start`, `turn_end`, `run_end`, `tool_refused` need not be stored in the DB. Files are enough for evals; the app can derive them from `agent_runs`.
 - Fixes needed so the DB trace is usable as the source: write the model's side text, stamp gate steps with the run id at write time (pass `run_id` into `gate.authorize`), record the approval card.
 
-## 6. Console format (PROPOSED)
+## 6. Console format (BUILT)
 
 One line, fixed columns, so it can be read live and `grep`-ed. Default level `INFO`; `-v` shows `DEBUG`.
 
@@ -143,7 +156,7 @@ One line, fixed columns, so it can be read live and `grep`-ed. Default level `IN
 
 Levels: DEBUG = context, full prompts (if enabled). INFO = normal events. WARN = refusals, guard hits, limits, approvals, tool errors the model can recover from. ERROR = model service failure, tool crash, harness crash.
 
-## 7. Transcript (PROPOSED, `transcript.md`)
+## 7. Transcript (BUILT, `transcript.md`)
 
 Readable by a person with no code open. Per turn: a heading, the user text, then for each step a short block.
 
@@ -164,7 +177,7 @@ Readable by a person with no code open. Per turn: a heading, the user text, then
 **Guards:** none fired
 ```
 
-## 8. How to view a past run (PROPOSED)
+## 8. How to view a past run (BUILT)
 
 - Command: `python -m evals.show <log_id or folder> [--tools] [--md] [--raw] [--level WARN]`. `--tools` prints only tool calls and results. Reads `events.jsonl`.
 - App database: `python backend/scripts/show_run.py <agent_run_id or project_id>` reads `agent_steps` and prints the same console format.
@@ -172,7 +185,7 @@ Readable by a person with no code open. Per turn: a heading, the user text, then
 - The notebook's `Watching` wrapper is replaced by passing a `RunLog` with the console sink, so tool calls and gate decisions print live, not only model replies.
 - Eval runner: `--log-dir` (default `backend/logs/`) and `-v`. The summary table prints the folder of every failed run.
 
-## 9. Redaction rules (PROPOSED)
+## 9. Redaction rules (BUILT)
 
 1. **Secrets never enter an event.** Events are built from fields listed in the schema, not from raw HTTP objects. No request headers, no environment values, no `settings` dump. A final scrub on every string removes patterns: `sk-[A-Za-z0-9_-]{16,}`, `Bearer \S+`, `eyJ[A-Za-z0-9_-]{20,}`, `AKIA[0-9A-Z]{16}`, 13 to 19 digit runs (cards). A unit test feeds fake keys through every sink and asserts they never appear.
 2. **Dataset rows:** `preview` and any list of row dicts keep at most 3 rows, each value cut to 40 characters, and the file notes `"rows_truncated": true`. Whole tables are never logged.
@@ -186,3 +199,17 @@ Readable by a person with no code open. Per turn: a heading, the user text, then
 - Smallest first version: `RunLog` with console and JSONL sinks, hooked at the existing `trace.add` calls in `loop.py` plus `llm_call` timing. About 150 lines. Then the Markdown sink and `show`.
 - Do not change gate decisions or tool behaviour. Logging must never raise: wrap every sink call in try/except and drop the event.
 - Test: run the fake-model eval; assert `events.jsonl` has one `tool_call` per entry of `result["tools"]`, every `tool_call` has a matching `tool_result` or `approval_card`, and no fake secret appears.
+
+## 11. Built: deviations from the design above (2026-10-24)
+
+- `RunLog.emit(type, level, **fields)` with sinks `ConsoleSink`, `JsonlSink`, `MarkdownSink`, `DbSink`. `run_agent(..., log=None)` defaults to a log with no sinks. Every redaction and sink call is wrapped; a failure drops the event and never reaches the turn. The log also keeps its events in `log.events` (used by tests and the notebook).
+- `DbSink` writes only the events that have no other trace row: `approval_card` and `tool_refused` become `agent_steps` rows. The loop still writes the other rows itself (`user`, `llm`, `tool_call`, `tool_result`, `gate`, `assistant`, `claim_blocked`, `limit`), so nothing is stored twice. The `llm` row gained `step` and `ms`.
+- The `guard` event is written for the reply (claim) guard. The repeat guard shows up as a `limit` event and bad arguments as `tool_refused`.
+- `tool_result` events carry `error_detail` (type and message of a crashed tool, secrets scrubbed, paths kept). The model and the stored trace get only a generic message (W16).
+- The console hides `tool_call` lines (the `MODEL` line already shows the call) unless the level is DEBUG.
+- `agent_runs` did not get `model` or `turn_ms` columns; the model id and turn time are in the `turn_start` and `turn_end` events.
+- `run_end` is emitted by the eval runner and the notebook (`log.run_end(final_status)`), not by the loop.
+- Settings: `LOG_USER_TEXT` (default true). Full prompts: `RunLog(log_prompts=True)` or `evals.run --log-prompts`, written to `prompts.jsonl`.
+- Secret scrub: the patterns in section 9 plus any non-empty secret value in settings (OpenRouter, PayPal secret, Hugging Face, Inngest) and `api_key=`, `secret:`, `password=` pairs. The 13 to 19 digit rule can hit long numeric ids; that is accepted.
+- Not built: browser events, redaction on `GET /projects/{id}/trace` (still needed before any public use), the PROPOSED `model` and `turn_ms` columns.
+- Tests: `tests/test_runlog.py`.

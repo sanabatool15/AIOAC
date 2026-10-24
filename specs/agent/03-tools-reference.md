@@ -15,7 +15,7 @@ Common rules (BUILT):
 - Output: `{results: [...up to 8], warning?}`. Each item: bundled `{id, name, source:"bundled sample", license}` or Hugging Face `{id:"hf:<name>", name, source, about (<=200 chars), license, downloads, gated}`. Bundled items come first.
 - DB changes: none.
 - Failure: Hugging Face down -> bundled results plus `warning`. No error raised.
-- Notes: bundled match is a substring test on keywords (W13). `about` is untrusted text (W10).
+- Notes: bundled match is a whole-word test on keywords and name words, results carry `sample_data: true` (W13 fixed). `about` is wrapped in `<untrusted_dataset_text>` (W10 mitigated).
 
 ## look_at_dataset
 - Purpose: preview size, columns and whether it is a plain table before downloading. `SEARCH`, level 0.
@@ -66,7 +66,7 @@ Common rules (BUILT):
 - Offered in: `data_chosen`.
 - Input: none. Output: `{grade, findings}`.
 - DB changes: `InsightReport` row, `project.readiness_grade`, status -> `readiness_done`.
-- Failure: any exception -> `{error:"<Type>: <msg>"}` (W16).
+- Failure: any exception -> a generic error text; the detail goes to the run log only (W16 fixed).
 
 ## run_baseline
 - Purpose: free test on held-out rows; also saves the timings used by the quote. `BASELINE`, level 0.

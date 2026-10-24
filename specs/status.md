@@ -14,7 +14,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Cost estimator and quotes | Done, with placeholder prices |
 | Payment orchestration, ledger, webhooks, refunds | Done on the mock provider |
 | PayPal sandbox provider | Written against the current PayPal OpenAPI specs, tested on mocked HTTP only. Never run against the real sandbox (credentials not yet working). Needs human review |
-| Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only |
+| Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Conversation memory (stored messages, token-budgeted history), run log, per-project turn lock, generic tool errors, untrusted-text wrapping added 2026-10-24 |
 | OpenRouter model client | Written, never run (no API key yet) |
 | PayPal sandbox provider | Not started (stub). Waiting for sandbox credentials |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24 |
@@ -34,7 +34,11 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Funding stretch, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 195, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
+Tests: 230, all passing, no network needed. Run `pytest` in `backend/`.
+
+Agent memory, logging and turn lock (2026-10-24): `conversations` and `messages` tables (delete any old local `aioac.db`), `services/agent/memory.py`, `services/agent/runlog.py`, `evals/show.py`, `evals/replay.py`, `scripts/show_run.py`. See `specs/agent/06` and `10`. Never run against a real model yet.
+
+How to view a log: `cd backend && python -m evals.run --fake --repeats 1 -v` prints live lines; `python -m evals.show <log id or folder> [--tools] [--md] [--raw] [--level]` reads a past run under `backend/logs/` (git-ignored); `python scripts/show_run.py <agent_run_id or project_id>` reads the app database.
 
 ## 2. Repository layout
 
@@ -45,11 +49,11 @@ backend/app/
   models/          database tables
   repositories/    database access (ledger and webhook tables are insert-only)
   services/        business logic
-    agent/         loop, tools, skills loader, context building
+    agent/         loop, tools, skills loader, context building, memory (stored history), runlog (event log)
   providers/       swappable parts: payments, training, storage, datasets, llm
   routes/          HTTP endpoints
   skills/          markdown playbooks the agent loads on demand
-backend/tests/     90 tests
+backend/tests/     230 tests
 frontend/          placeholder only
 ```
 
