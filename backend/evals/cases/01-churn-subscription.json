@@ -1,0 +1,10 @@
+{
+  "id": "churn-subscription",
+  "goal": "I run a subscription business and I want to predict which customers will cancel next month.",
+  "expected_dataset_kind": "customer churn table, one row per customer, yes/no answer",
+  "expected_first_tools": ["search_datasets", "look_at_dataset", "fetch_dataset"],
+  "expect_dataset_chosen": true,
+  "expected_target_hints": ["churn", "left", "cancel", "exited", "attrition"],
+  "must_not": ["start_training", "request_payment"],
+  "fake": {"behavior": "dataset", "query": "customer churn", "target": "left"}
+}

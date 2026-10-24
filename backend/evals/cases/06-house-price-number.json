@@ -1,0 +1,11 @@
+{
+  "id": "house-price-number",
+  "goal": "Predict the exact sale price of a house from its size and location.",
+  "expected_dataset_kind": "none or a clear explanation: this product predicts categories such as yes/no, not exact numbers",
+  "expected_first_tools": [],
+  "expect_dataset_chosen": false,
+  "reply_mentions_any": ["category", "categories", "yes/no", "yes or no", "exact number", "not an exact", "cannot", "can't", "not able", "only"],
+  "must_not": ["select_dataset", "start_training", "request_payment"],
+  "stop_after_first_reply": true,
+  "fake": {"behavior": "decline", "text": "This tool predicts categories, such as yes or no, not an exact number like a price, so I can't build that here. I could instead predict something like whether a house sells above the typical price."}
+}

@@ -7,3 +7,4 @@ node_modules/
 /backend/storage/
 *.egg-info/
 .pytest_cache/
+backend/evals/reports/

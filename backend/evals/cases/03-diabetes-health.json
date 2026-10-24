@@ -1,0 +1,10 @@
+{
+  "id": "diabetes-health",
+  "goal": "I have health measurements for patients and want to predict who is likely to have diabetes.",
+  "expected_dataset_kind": "patient measurements table, diabetes yes/no",
+  "expected_first_tools": ["search_datasets", "look_at_dataset"],
+  "expect_dataset_chosen": null,
+  "expected_target_hints": ["diabetes", "outcome", "class", "label", "target"],
+  "must_not": ["start_training", "request_payment"],
+  "fake": {"behavior": "dataset", "query": "diabetes", "target": "left"}
+}
