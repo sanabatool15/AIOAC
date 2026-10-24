@@ -1,0 +1,11 @@
+{
+  "id": "vague-goal",
+  "goal": "Help me predict stuff for my business.",
+  "expected_dataset_kind": "none yet: the agent should ask one short question first",
+  "expected_first_tools": [],
+  "expect_clarifying_question": true,
+  "expect_dataset_chosen": false,
+  "must_not": ["select_dataset", "fetch_dataset", "start_training", "request_payment"],
+  "stop_after_first_reply": true,
+  "fake": {"behavior": "ask"}
+}

@@ -16,6 +16,11 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | PayPal sandbox provider | Written against the current PayPal OpenAPI specs, tested on mocked HTTP only. Never run against the real sandbox (credentials not yet working). Needs human review |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only |
 | OpenRouter model client | Written, never run (no API key yet) |
+| PayPal sandbox provider | Not started (stub). Waiting for sandbox credentials |
+| Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24 |
+| OpenRouter model client | Rewritten against the current OpenRouter docs: argument parsing, null content, several calls per reply, retry once, usage and cost. Tested on mocked HTTP only; never run against the real service (no API key yet) |
+| Agent evaluation harness (`backend/evals/`) | Built and tested offline (`--fake`). Never run with a real model |
+| Agent playground notebook (`backend/notebooks/`) | Built, runs on the fake model |
 | Hugging Face dataset tools | Done, verified against the live service |
 | Dataset storage lifecycle | Done (local folder storage) |
 | Insights, readiness grade, free baseline | Done, verified on real data |
@@ -29,7 +34,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Funding stretch, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 137, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
+Tests: 195, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
 
 ## 2. Repository layout
 
@@ -99,8 +104,11 @@ Readiness grade from a documented scoring (rows, duplicates, missing values, lop
 - Context engineering: short base prompt, state block rebuilt every step, skill index only, tools offered by project status, trimmed tool results, last 20 messages only.
 - The gate runs before every tool. A tool not offered for the current status is refused even if the model asks for it.
 - Loop limit: 12 steps per turn.
-- Skills (`backend/app/skills/`): dataset-search, data-insights, cost-quote, plain-language.
-- Not used yet: `agent_runs` table (steps are traced with no run id).
+- Skills (`backend/app/skills/`): dataset-search, data-insights, cost-quote, plain-language, plus data-leakage, lopsided-classes, choosing-the-target-column, suspiciously-good-baseline, too-little-data, explaining-results-plainly. No money rules in skills.
+- `agent_runs` is used: one row per turn with steps, tokens, model cost and stop reason. Added columns (`tokens_used`, `llm_cost_micros`, `stop_reason`, `ended_at`): delete any old local `aioac.db`. Gate steps get the run id when the turn ends.
+- Limits: 12 steps, 80,000 tokens per turn, 600,000 per project, USD 1.00 model cost per project (only when the service reports cost), 60 s per free tool, repeat guard. Plain-language messages when hit.
+- The state block now lists fetched candidate ids, because tool results are not kept between turns and the model needs the id to propose `select_dataset` again after the user approves.
+- Reply guard: replies that claim payment, training or a refund the state does not support are replaced with a correction (keyword-based, imperfect).
 
 ### 3.9 HTTP endpoints
 - `GET /health`
@@ -151,8 +159,8 @@ Current result on the real data: about 78% right against 73.5% for a simple gues
 
 1. **Quotes are not realistic yet.** With placeholder prices and a small dataset, the quote is about 53 cents with a 52 to 53 cent range, because fixed fees dominate. The wireframe's "about 2 hours, $5" cannot appear until we choose a demo job that really takes 10 to 15 minutes, and measure real SageMaker timings and prices.
 2. **Estimator accuracy is unknown.** There is no real cloud measurement to compare against, so the speed factor and startup time are guesses.
-3. **The OpenRouter client has never been run.** The loop is tested only with scripted replies. Real models may call tools in ways we have not seen.
-4. **No agent evaluation set yet** (a fixed list of goals with expected outcomes, run repeatedly).
+3. **The OpenRouter client has never been run for real.** It is tested on mocked HTTP, including malformed outputs. Real models may behave in ways we have not seen. Run `python -m evals.run --model <id> --repeats 3` with a key.
+4. **Agent evaluation set exists but has no real results yet.** 7 cases in `backend/evals/cases/`. Real pass rates are unknown, and the keyword checks will need tuning after the first real runs.
 5. **Search quality is untested at scale.** For "customer churn" the top Hugging Face results were mostly Telco copies with no stated license.
 6. **Inngest Cloud and Supabase are unverified.** The Inngest runner needs a public API URL (tunnel) and real keys; Postgres support is tested only by building the engine and compiling the schema for Postgres. Neither can be checked from this container.
 7. **No scheduled cleanup** for expired candidates or leftover cloud resources.

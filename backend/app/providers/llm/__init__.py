@@ -1,4 +1,4 @@
-from .base import LLMClient, LLMResponse, ToolCall  # noqa: F401
+from .base import LLMClient, LLMError, LLMResponse, ToolCall, Usage  # noqa: F401
 from .openrouter import OpenRouterClient
 
 

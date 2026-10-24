@@ -1,0 +1,11 @@
+{
+  "id": "photos-not-tables",
+  "goal": "I want a model that looks at photos of my products and tells me which ones are damaged.",
+  "expected_dataset_kind": "none: images are not supported, the agent should say so honestly",
+  "expected_first_tools": [],
+  "expect_dataset_chosen": false,
+  "reply_mentions_any": ["table", "spreadsheet", "photo", "image", "not able", "cannot", "can't", "only"],
+  "must_not": ["select_dataset", "start_training", "request_payment"],
+  "stop_after_first_reply": true,
+  "fake": {"behavior": "decline", "text": "I can only work with tables of data, like a spreadsheet, not photos, so I can't build this one. If you have a table describing each product, I can help with that."}
+}

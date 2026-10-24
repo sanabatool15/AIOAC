@@ -13,3 +13,4 @@ node_modules/
 
 # Claude Code temporary agent worktrees
 .claude/worktrees/
+backend/evals/reports/
