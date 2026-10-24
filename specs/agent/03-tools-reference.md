@@ -110,7 +110,7 @@ Common rules (BUILT):
 | `restart_project` / `change_dataset` | Let the user change their mind before a quote is approved | **Build now.** Fixes W4, W5 |
 | `kaggle_search`, `kaggle_fetch` | Second dataset source | **Later**, after real credentials exist. See file 08 |
 | `fetch_from_url` (paste-a-link) | Download a CSV from a user-provided link | **Later.** Needs SSRF protection (block private addresses), size limit, content check |
-| `web_search` | Find datasets outside Hugging Face | **Never for now.** Open-ended web text is a large prompt-injection surface; use named sources |
+| `web_search` | Find datasets outside Hugging Face | **Superseded by `11-dataset-discovery.md`:** later, capped, links only (no page text to the model). Open-ended web text is still a prompt-injection surface |
 | `run_analysis_code` (sandbox) | Model-written analysis scripts | **Never for the MVP.** Fixed functions are testable and safe |
 | `explain_result` (read stored result) | Give the agent training results in `done` | **Build now** (read-only). Today only `load_skill` is offered in `done`, so the agent cannot read the result |
 | `refund_unused`, `apply_infrastructure` | Money or cloud actions | **Never as agent tools.** The system does these (`agent.md` section 4) |

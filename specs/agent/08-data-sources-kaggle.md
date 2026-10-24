@@ -1,5 +1,7 @@
 # Data sources and Kaggle
 
+> **Note (2026-10-24):** Finding data for the user is a core feature. See `11-dataset-discovery.md` for the source ranking, web search, pipeline and safety design. Where this file conflicts: Kaggle is now ranked after the curated list, UCI, OpenML and Hugging Face (section 6 below is superseded), and `web_search` is no longer "never" (it becomes a capped late fallback, see file 11 section 4). The Kaggle facts here still stand.
+
 Sections 1 and 2 are **BUILT**. Sections 3 onward are **PROPOSED**. Kaggle facts in section 3 come from the Kaggle API docs read on 2026-10-24 (source files in the `Kaggle/kaggle-api` GitHub repo). Anything not found there is marked UNVERIFIED.
 
 ## 1. Current state (BUILT)

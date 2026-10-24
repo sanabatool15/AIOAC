@@ -1,5 +1,7 @@
 # Open questions and build plan
 
+> Dataset discovery is a core feature, not an extra. Its design, decisions and build plan are in `11-dataset-discovery.md`. That file supersedes Step 7 below (source order) and decisions 12 and 13 where they differ: UCI and OpenML (no keys) come before Kaggle, and web search is a late, capped fallback.
+
 Everything here is **PROPOSED**. Weak-spot ids (W1 to W20) are in file 01. Threat ids (T1 to T16) are in file 04.
 
 ## 1. Decisions needed from you

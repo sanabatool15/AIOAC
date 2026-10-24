@@ -132,6 +132,8 @@ The model writes a plain reply and the turn ends (`reply`).
 | `07-testing-and-evaluation.md` | proposed robustness test plan |
 | `08-data-sources-kaggle.md` | data sources, Kaggle design |
 | `09-open-questions-and-plan.md` | decisions needed, build plan |
+| `10-memory-and-context-store.md` | memory and context store |
+| `11-dataset-discovery.md` | PROPOSED: finding datasets for the user's goal (sources, web search, pipeline, safety, evals, fallback list) |
 
 ## 7. Spec disagreements found (MISMATCH)
 
