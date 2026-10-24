@@ -23,11 +23,13 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Background training, progress, Stop, crash recovery | Done on the inline runner (tested). Inngest Cloud runner written against SDK 0.5.19, never run against real Inngest Cloud |
 | Database | SQLite default. Postgres/Supabase configurable, never connected to a real database |
 | Terraform, AWS storage | Not started |
+| Training backends | Local done. SageMaker backend, training script and cap math written and tested on mocked boto3 only; never run against AWS |
+| Terraform, AWS storage | Written in `infra/terraform/` (bucket, roles, app policy, budget alert). Not validated (terraform not installed) and never applied. No S3 storage provider for the app yet; the SageMaker backend uploads its own job files |
 | Web app | Not started (placeholder folder) |
 | Funding stretch, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 110, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
+Tests: 136, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
 
 ## 2. Repository layout
 
@@ -75,7 +77,7 @@ Prices in `prices.py` are placeholders (one instance type, 25 cents per hour, 24
 - `mock.py` is complete. `paypal.py` implements create order, capture, refund and webhook signature verification (Orders v2, Payments v2, verify-webhook-signature). It refuses any host but the sandbox and sends the webhook body to PayPal byte-for-byte. Tests use a mocked transport (`tests/test_paypal_provider.py`). Not yet exercised against the real sandbox.
 
 ### 3.5 Training (`services/training.py`, `providers/training/`)
-After the gate allows it: run the backend, cap the cost at the quote's cap, store the model, add the cost to the global spend, settle and refund. If the backend fails, the project goes to failed and then refunded, with the full amount returned. By default the backend is `local`, which costs nothing, so the default demo refunds the entire cap. The `sagemaker` backend is a stub.
+After the gate allows it: run the backend, cap the cost at the quote's cap, store the model, add the cost to the global spend, settle and refund. If the backend fails, the project goes to failed and then refunded, with the full amount returned. By default the backend is `local`, which costs nothing, so the default demo refunds the entire cap. The `sagemaker` backend is implemented against mocked clients (see `training.md` section 2b) and has never talked to AWS.
 
 Training runs in the background (see `training.md` section 7): `/train` returns a run id, `GET /projects/{id}/training` shows progress, `POST /projects/{id}/training/stop` stops it. Exception: the agent's `start_training` tool still blocks on `training.run_training`.
 
@@ -172,3 +174,7 @@ Current result on the real data: about 78% right against 73.5% for a simple gues
 ## 7. Next steps
 
 AWS architecture is decided (section 4 and `training.md` section 2a). Remaining: verify the SageMaker SDK details in current AWS docs, write the Terraform (bucket, expiry rules, roles, budget alert), write the SageMaker training backend with mocked tests, then run the calibration jobs. Terraform cannot be applied from this cloud session: it needs AWS credentials you create yourself, ideally a limited IAM user, never the root account.
+
+## 8. SageMaker backend update (2026-10-24)
+
+Built without AWS credentials: `providers/training/sagemaker.py`, `sagemaker_script/train.py`, `services/sagemaker_cost.py` (cap to `MaxRuntimeInSeconds`, cost from billable seconds), `services/cost_report.py`, `infra/terraform/`, `backend/scripts/sagemaker_smoke.py`, and 28 mocked tests. Contract in `training.md` section 2b. Everything touching real AWS is unverified. A human must: create a limited IAM user (not root), review and apply the Terraform, check the `ml.m5.xlarge` training quota, pick the scikit-learn image version available in the region (default `1.4-2` does not match local 1.9.x), then run the smoke script once and use its output to calibrate `prices.py`. The backend expects the new `run(..., on_progress, should_stop)` signature; `services/training.py` and the interface in `base.py` are not changed here. With placeholder prices, caps under about 53 cents are refused as too small to run.

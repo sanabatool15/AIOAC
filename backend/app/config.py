@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     paypal_return_url: str = "http://localhost:3000/pay/return"
     paypal_cancel_url: str = "http://localhost:3000/pay/cancel"
 
+    # SageMaker backend (specs/training.md 2a). Values come from .env; no real defaults for account-specific items.
+    sagemaker_region: str = "us-east-1"
+    sagemaker_bucket: str = ""
+    sagemaker_role_arn: str = ""
+    sagemaker_instance_type: str = "ml.m5.xlarge"   # must exist in services/prices.py
+    sagemaker_sklearn_version: str = "1.4-2"        # AWS scikit-learn container version (image tag is <version>-cpu-py3)
+    sagemaker_image_uri: str = ""                   # optional full override of the container image URI
+    sagemaker_poll_seconds: float = 15.0
+    sagemaker_max_pending_seconds: int = 900        # waiting for capacity is not billed, but do not wait forever
+
     # Budget policy (specs/cost.md). All money in cents.
     aws_budget_cents: int = 16000
     reserve_cents: int = 4000            # kept untouched for demo and recording

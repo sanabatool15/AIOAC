@@ -2,7 +2,7 @@
 name = "aioac-backend"
 version = "0.2.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn[standard]", "sqlalchemy>=2.0", "pydantic>=2", "pydantic-settings", "httpx", "numpy", "pandas", "scikit-learn", "pyarrow"]
+dependencies = ["fastapi", "uvicorn[standard]", "sqlalchemy>=2.0", "pydantic>=2", "pydantic-settings", "httpx", "numpy", "pandas", "scikit-learn", "pyarrow", "boto3"]
 
 [project.optional-dependencies]
 dev = ["pytest", "inngest>=0.5"]
@@ -16,4 +16,4 @@ testpaths = ["tests"]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["skills/*.md"]
+app = ["skills/*.md", "providers/training/sagemaker_script/*.py"]
