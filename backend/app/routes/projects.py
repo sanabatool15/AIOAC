@@ -11,7 +11,8 @@ from ..providers.payments.base import ProviderError
 from ..providers.storage import get_storage
 from ..repositories.traces import TraceRepository
 from ..services import datasets, gate, lifecycle, payments, quotes, training
-from ..services.agent.loop import run_agent
+from ..services.agent.loop import TurnInProgress, run_agent
+from ..services.agent.runlog import DbSink, RunLog
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -58,7 +59,10 @@ def read(pid: str, s: Session = Depends(get_session)):
 @router.post("/{pid}/chat")
 def chat(pid: str, body: ChatIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
     p = _project(s, pid)
-    r = run_agent(make(p, body.approve), get_llm(), body.message)
+    try:
+        r = run_agent(make(p, body.approve), get_llm(), body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
+    except TurnInProgress as e:
+        raise HTTPException(409, str(e))
     return {"status": r.status, "text": r.text, "card": r.card}
 
 

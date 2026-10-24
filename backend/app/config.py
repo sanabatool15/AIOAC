@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     agent_max_tokens_per_project: int = 600_000
     agent_llm_cost_ceiling_usd: float = 1.00   # per project, only enforced when the model service reports cost
     agent_tool_timeout_s: float = 60.0         # free tools only; paid tools are never cut off by this
+    agent_history_token_budget: int = 30_000   # estimated tokens of conversation history sent to the model each step
+    log_user_text: bool = True                 # false: run logs keep only the length and a hash of what the user typed
 
 
 settings = Settings()

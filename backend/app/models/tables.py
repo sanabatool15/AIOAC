@@ -169,6 +169,34 @@ class AgentRun(Stamped, Base):
     llm_cost_micros: Mapped[int] = mapped_column(Integer, default=0)
     stop_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    conversation_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+
+
+class Conversation(Stamped, Base):
+    """What the model has seen and said (specs/agent/10). `agent_steps` stays the audit log; this is the replayable history."""
+    __tablename__ = "conversations"
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String, default="app")  # app | eval | notebook
+    meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # for example {"case_id": "02-loan-default", "repeat": 1}
+    status: Mapped[str] = mapped_column(String, default="active")  # active | finished
+    summary: Mapped[str | None] = mapped_column(String, nullable=True)  # reserved; no code writes it yet
+    summary_upto_seq: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Message(Stamped, Base):
+    __tablename__ = "messages"
+    __table_args__ = (UniqueConstraint("conversation_id", "seq"),)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
+    seq: Mapped[int] = mapped_column(Integer)  # strictly increasing per conversation
+    run_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    role: Mapped[str] = mapped_column(String)  # user | assistant | tool
+    content: Mapped[str] = mapped_column(String, default="")
+    tool_calls: Mapped[list | None] = mapped_column(JSON, nullable=True)  # assistant messages: OpenAI-style calls
+    tool_call_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    tool_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    kind: Mapped[str] = mapped_column(String, default="chat")  # chat | skill | card | note
+    stub: Mapped[str | None] = mapped_column(String, nullable=True)  # one-line replacement for an old, large tool result
+    tokens: Mapped[int] = mapped_column(Integer, default=0)  # estimate
 
 
 class AgentStep(Stamped, Base):

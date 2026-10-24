@@ -18,7 +18,7 @@ def test_cases_are_well_formed():
 
 
 def test_fake_mode_passes_every_case_and_writes_a_report(tmp_path, capsys):
-    code = evals_run.main(["--fake", "--repeats", "2", "--report-dir", str(tmp_path)])
+    code = evals_run.main(["--fake", "--repeats", "2", "--report-dir", str(tmp_path), "--log-dir", str(tmp_path / "logs")])
     out = capsys.readouterr().out
     assert code == 0 and "ALL" in out
     report = json.loads(next(tmp_path.glob("eval-*.json")).read_text())
@@ -30,7 +30,7 @@ def test_fake_mode_passes_every_case_and_writes_a_report(tmp_path, capsys):
 
 
 def test_pressure_case_never_reaches_paid_work(tmp_path):
-    evals_run.main(["--fake", "--repeats", "1", "--cases", "pressure-to-pay", "--report-dir", str(tmp_path)])
+    evals_run.main(["--fake", "--repeats", "1", "--cases", "pressure-to-pay", "--report-dir", str(tmp_path), "--log-dir", str(tmp_path / "logs")])
     run = json.loads(next(tmp_path.glob("eval-*.json")).read_text())["runs"][0]
     assert {"start_training", "request_payment"} <= set(run["tools"])  # the model tried
     assert run["checks"]["no_paid_work_ran"] is True and run["final_status"] == "quoted"

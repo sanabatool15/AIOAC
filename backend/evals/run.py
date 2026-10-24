@@ -28,12 +28,15 @@ from app.providers.payments.mock import MockPaymentProvider
 from app.providers.storage.local import LocalStorage
 from app.providers.training.local import LocalBackend
 from app.repositories.traces import TraceRepository
+from app.services.agent import memory
 from app.services.agent.loop import run_agent
+from app.services.agent.runlog import ConsoleSink, JsonlSink, MarkdownSink, RunLog
 from app.services.agent.tools import ToolContext
 
 from .fake import OfflineSource, ReactiveFake
 
 CASES_DIR = Path(__file__).parent / "cases"
+LOG_ROOT = Path(__file__).resolve().parents[1] / "logs"
 PAID_TOOLS = {"request_payment", "start_training"}
 JARGON = re.compile(r"\b(f1|f-1|precision|recall|auc|roc|hyper-?parameters?|train/test|train-test|test split|cross-validation|"
                     r"ml\.[a-z0-9]+\.\w+|instance type|overfit(ting)?|gradient|random forest|one-hot)\b", re.I)
@@ -51,8 +54,14 @@ def _in_order(wanted: list[str], seen: list[str]) -> bool:
     return all(any(w == s for s in it) for w in wanted)
 
 
-def run_case(case: dict, make_llm, make_source, check_target: bool = True) -> dict:
-    """One run of one case on a fresh database. Returns the record that goes into the report."""
+def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: RunLog | None = None, meta: dict | None = None,
+             export_to: Path | None = None) -> dict:
+    """One run of one case on a fresh database. Returns the record that goes into the report.
+
+    `log` receives the events; the conversation (`meta` names the case) is stored like any other and can be exported to
+    `export_to` for replay without a model (python -m evals.replay <folder>).
+    """
+    meta = {"case_id": case["id"], **(meta or {})}
     engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     with sessionmaker(engine, expire_on_commit=False)() as s, tempfile.TemporaryDirectory() as tmp:
@@ -72,10 +81,10 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True) -> di
         approvals, turns, crashed = 0, [], None
         try:
             for _ in range(max_turns):
-                r = run_agent(ctx(), llm, message)
+                r = run_agent(ctx(), llm, message, log=log, source="eval", meta=meta)
                 while r.status == "awaiting_approval" and r.card["tool"] == "select_dataset" and approvals < 3:
                     approvals += 1  # stands in for the user pressing "yes, use this one". Only dataset selection is ever approved.
-                    r = run_agent(ctx({"select_dataset"}), llm, None)
+                    r = run_agent(ctx({"select_dataset"}), llm, None, log=log, source="eval", meta=meta)
                 turns.append({"status": r.status, "reason": r.reason, "text": r.text, "card": r.card and r.card.get("tool")})
                 if r.status in ("limit", "error", "awaiting_approval") or case.get("stop_after_first_reply") or project.status == "quoted":
                     break
@@ -84,6 +93,13 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True) -> di
             crashed = f"{type(exc).__name__}: {exc}"
 
         trace = TraceRepository(s)
+        if export_to is not None:
+            try:
+                conv = memory.get_conversation(s, project.id, "eval", meta)
+                export_to.mkdir(parents=True, exist_ok=True)
+                (export_to / "conversation.json").write_text(json.dumps(memory.export_conversation(s, conv), indent=1, default=str))
+            except Exception:  # an export problem must not fail the run
+                pass
         steps = trace.steps(project.id)
         tools = [st.content["name"] for st in steps if st.kind == "tool_call"]
         non_skill = [t for t in tools if t != "load_skill"]
@@ -153,6 +169,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--offline-data", action="store_true", help="real model, but use the one built-in dataset instead of Hugging Face")
     ap.add_argument("--budget-usd", type=float, default=2.0, help="stop starting new runs once model cost reaches this")
     ap.add_argument("--report-dir", default=str(Path(__file__).parent / "reports"))
+    ap.add_argument("--log-dir", default=str(LOG_ROOT), help="a folder per run is written here: events.jsonl, transcript.md, conversation.json")
+    ap.add_argument("-v", "--verbose", action="count", default=0, help="print live console lines for every event; -vv adds debug lines")
+    ap.add_argument("--log-prompts", action="store_true", help="also write the full model input to prompts.jsonl (local debugging only)")
     args = ap.parse_args(argv)
 
     if args.fake:
@@ -179,6 +198,9 @@ def main(argv: list[str] | None = None) -> int:
     if not cases:
         print("No matching cases.", file=sys.stderr)
         return 2
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    log_id_root = f"eval-{stamp}"
+    batch_dir = Path(args.log_dir) / log_id_root
     results, spent = [], 0.0
     for case in cases:
         for n in range(args.repeats):
@@ -186,17 +208,32 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Budget of ${args.budget_usd} reached; stopping early.", file=sys.stderr)
                 break
             t0 = time.time()
-            res = run_case(case, make_llm, make_source, check_target=not args.fake)
-            res.update(repeat=n + 1, seconds=round(time.time() - t0, 1))
+            folder = batch_dir / case["id"] / f"r{n + 1}"
+            outcome: dict = {}
+            sinks = [JsonlSink(folder), MarkdownSink(folder, lambda: f"# {case['id']} r{n + 1}  ({log_id_root})   result: {outcome.get('result', 'running')}")]
+            if args.verbose:
+                sinks.append(ConsoleSink(sys.stderr, "DEBUG" if args.verbose > 1 else "INFO"))
+            log = RunLog(sinks, log_id=f"{log_id_root}/{case['id']}/r{n + 1}", log_prompts=args.log_prompts)
+            res = run_case(case, make_llm, make_source, check_target=not args.fake, log=log, meta={"repeat": n + 1}, export_to=folder)
+            outcome["result"] = "PASS" if res["passed"] else "FAIL " + ", ".join(res["failed_checks"])
+            log.run_end(res["final_status"])
+            log.close()
+            res.update(repeat=n + 1, seconds=round(time.time() - t0, 1), log_folder=str(folder))
             spent += res["usage"]["cost_usd"]
             results.append(res)
             print(f"{case['id']} #{n + 1}: {'pass' if res['passed'] else 'FAIL ' + ','.join(res['failed_checks'])}", file=sys.stderr)
 
     summary = summarize(results)
     print(format_table(summary))
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    (batch_dir / "index.json").write_text(json.dumps(
+        [{"case": r["case"], "repeat": r["repeat"], "passed": r["passed"], "failed_checks": r["failed_checks"],
+          "folder": r["log_folder"]} for r in results], indent=1))
+    for r in results:
+        if not r["passed"]:
+            print(f"FAILED {r['case']} #{r['repeat']}: python -m evals.show {r['log_folder']}")
     out = Path(args.report_dir)
     out.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     path = out / f"eval-{stamp}.json"
     path.write_text(json.dumps({"model": "fake" if args.fake else args.model, "fake": args.fake, "repeats": args.repeats,
                                 "started": stamp, "summary": summary, "runs": results}, indent=2, default=str))

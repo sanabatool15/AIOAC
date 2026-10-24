@@ -37,12 +37,6 @@ def test_compact_trims_long_lists_then_text():
     assert context.compact({"a": 1}) == '{"a": 1}'
 
 
-def test_window_keeps_recent_and_starts_on_user_turn():
-    hist = [{"role": "user" if i % 2 == 0 else "assistant", "content": str(i)} for i in range(50)]
-    w = context.window(hist, keep=7)
-    assert len(w) <= 7 and w[0]["role"] == "user" and w[-1]["content"] == "49"
-
-
 def test_state_block_shows_quote_and_next_step(session, project):
     from tests.test_gate import make_quote
     make_quote(session, project, approved=False)

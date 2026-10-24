@@ -70,7 +70,8 @@ class ReactiveFake:
         if self.behavior == "decline":
             return LLMResponse(text=self.text or "I can only work with tables of data, so I can't build that here.")
         last = messages[-1]
-        if self.pending and last["role"] == "tool" and last["tool_call_id"] == self.pending.id:
+        if self.pending and last["role"] == "tool" and last["tool_call_id"] == self.pending.id \
+                and "waiting_for_user" not in last["content"]:
             self._absorb(last["content"])
             self.pending = None
         if self.pending:  # the call was not executed (approval card): propose it again

@@ -59,4 +59,4 @@ def test_inspect_candidate_gives_grade_and_preview(session, storage, provider, p
     c = ctx(session, storage, provider, project)
     cid = run("fetch_dataset", c, dataset_id="hf:good/churn")["candidate_id"]
     r = run("inspect_candidate", c, candidate_id=cid, target="left")
-    assert r["grade"] and r["findings"] and len(r["preview"]) == 3
+    assert r["grade"] and r["findings"] and len(r["preview"]["untrusted_dataset_text"]) == 3  # rows now arrive inside a marked data block (T4)
