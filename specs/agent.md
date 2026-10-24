@@ -1,5 +1,7 @@
 # Agent Specification
 
+> Detailed, code-verified agent documentation (BUILT vs PROPOSED, weak spots, logging and test plans) lives in `specs/agent/`. Start at `specs/agent/00-overview.md`. Where it disagrees with this file, it says so.
+
 The agent is the product. This file describes how it behaves, what it may do, and how it is kept safe and affordable.
 
 ## 1. Role
