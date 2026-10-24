@@ -108,7 +108,7 @@ Per type (extra fields). Column "agent_steps kind" says how it is stored in the 
 | `assistant_reply` | INFO | `text`, `corrected` (bool) | `assistant` |
 | `turn_end` | INFO | `status` (reply, awaiting_approval, limit, error), `reason`, `steps_used`, `tokens_used`, `cost_usd`, `status_after`, `ms` | none (new; same data lives in `agent_runs`) |
 | `run_end` | INFO | `turns`, `final_status`, `tokens`, `cost_usd`, `tools_called: {name: count}` | none |
-| `browser_navigate`, `browser_blocked`, `browser_error`, `browser_excerpt`, `browser_screenshot` | INFO or WARN | PROPOSED with the browser tool: url, domain, title, http status, ms, text tokens, block reason, a 300-character excerpt, screenshot id. Full field list in `11-dataset-discovery.md` section 12.5. They feed the UI "Live view" tab. Never log cookies or headers; screenshots are files, not database rows | new kinds (no migration) |
+| `browser_navigate`, `browser_blocked`, `browser_error`, `browser_excerpt`, `browser_screenshot` | INFO or WARN | PROPOSED with the browser tool: url, domain, title, http status, ms, text tokens, block reason, a 300-character excerpt, screenshot id. See `11-dataset-discovery.md` section 5 (simplified; field list to be written when built). They feed the UI "Live view" tab. Never log cookies or headers; screenshots are files, not database rows | new kinds (no migration) |
 
 Example lines:
 
