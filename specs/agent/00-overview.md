@@ -133,7 +133,7 @@ The model writes a plain reply and the turn ends (`reply`).
 | `08-data-sources-kaggle.md` | data sources, Kaggle design |
 | `09-open-questions-and-plan.md` | decisions needed, build plan |
 | `10-memory-and-context-store.md` | memory and context store |
-| `11-dataset-discovery.md` | PROPOSED: finding datasets for the user's goal (sources, web search, pipeline, safety, evals, fallback list) |
+| `11-dataset-discovery.md` | PROPOSED: finding datasets for the user's goal (sources, pipeline, safety, evals, fallback list, Playwright browser tool in section 12) |
 
 ## 7. Spec disagreements found (MISMATCH)
 

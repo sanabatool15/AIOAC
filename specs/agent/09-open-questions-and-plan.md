@@ -1,8 +1,8 @@
 # Open questions and build plan
 
-> Dataset discovery is a core feature, not an extra. Its design, decisions and build plan are in `11-dataset-discovery.md`. That file supersedes Step 7 below (source order) and decisions 12 and 13 where they differ: UCI and OpenML (no keys) come before Kaggle, and web search is a late, capped fallback.
+> Dataset discovery is a core feature, not an extra. Its design, decisions and build plan are in `11-dataset-discovery.md`. That file supersedes Step 7 below (source order) and decisions 12 and 13 where they differ: UCI and OpenML (no keys) come before Kaggle, and web search is now done by a Playwright browser tool, not a search API (section 12 of that file; the user decided on 2026-10-24).
 
-Everything here is **PROPOSED**. Weak-spot ids (W1 to W20) are in file 01. Threat ids (T1 to T16) are in file 04.
+Everything here is **PROPOSED**. Weak-spot ids (W1 to W20) are in file 01. Threat ids (T1 to T19) are in file 04.
 
 ## 1. Decisions needed from you
 
@@ -19,10 +19,11 @@ Each has my recommendation.
 9. **Real-data eval tier.** Allow manual runs against live Hugging Face (non-deterministic, rate limits) in addition to the offline datasets? Recommend yes, small, labelled "live".
 10. **Logging of user text.** Fine to log full user text and previews (3 truncated rows) locally for our own tests? Recommend yes for evals, `LOG_USER_TEXT=false` for any real users.
 11. **Agent `start_training` tool.** Keep it (blocking) or remove it and let the UI call `/train` only? Recommend remove it from the agent after the web app exists; training start is a user action, not an agent action. Needs your call because it changes the demo.
-12. **Kaggle token.** Will you create a Kaggle token and add it yourself to `backend/.env`? I will never ask for it in chat. Recommend: yes, after the upload and link tools.
+12. **Kaggle token.** Will you create a Kaggle token and add it yourself to `backend/.env`? I will never ask for it in chat. Recommend: yes, after the upload and link tools. Note: the browser tool can read Kaggle search and dataset pages (tested 2026-10-24) but cannot download data, so the token is still needed for fetching.
 13. **Google Drive.** Recommend: skip before the video; show it as "coming soon" or hide it.
 14. **Auth.** Anyone can approve quotes and read traces today. Recommend: keep deferred, but do not expose the API publicly.
 15. **Spec cleanup.** Fix the stale items listed at the end of file 00 (status.md 6a and duplicate rows). Recommend yes, small separate change.
+16. **Browser tool decisions.** Search order, optional install, JavaScript, domain policy, limits, live view. Listed with recommendations in `11-dataset-discovery.md` section 12.8.
 
 ## 2. Build plan
 
@@ -49,7 +50,7 @@ Each step is small. "Works" says how we will know.
 - Works when: off-topic, vague, unsupported and non-English families reach their targets over 5 repeats, and no previously passing family drops.
 
 ### Step 6. Tools that unblock flows (file 03)
-- Change: `use_uploaded_file`, `explain_result` (read-only), `restart_project` / `change_dataset`, then `fetch_from_url` with SSRF protection.
+- Change: `use_uploaded_file`, `explain_result` (read-only), `restart_project` / `change_dataset`, then `fetch_from_url` with SSRF protection. The browser tools (`browser_search`, `browser_open`, `browser_screenshot`) follow the steps B1 to B9 in `11-dataset-discovery.md` section 12.7; they need the safety work of Step 4 and the URL policy shared with `fetch_from_url` first.
 - Works when: eval cases exist for each (upload path, change of mind, link path) and pass; gate tests prove the restart cannot run after a verified payment.
 
 ### Step 7. Source registry, then Kaggle (file 08)
