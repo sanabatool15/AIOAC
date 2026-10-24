@@ -1,0 +1,72 @@
+# Memory: keeping the whole conversation (PROPOSED)
+
+Goal: the agent never loses what happened. Every user message, every model reply, every tool call and its result, every skill it loaded, and every gate decision is stored, and is given back to the model on the next turn, until the work is done.
+
+## 1. What exists today (BUILT, see `models/tables.py`, `services/agent/context.py`)
+
+- `agent_steps` stores each event (`user`, `assistant`, `tool_call`, `tool_result`, `gate`) with `project_id`, `run_id`, `seq`, and a JSON `content`.
+- `agent_runs` stores one row per turn (tokens, cost, stop reason).
+- When a new turn starts, only the last 20 user and assistant messages are sent back. Tool calls, tool results and skill text are NOT sent back. This is weakness W1: after the approval card the model must recall the target column from text that may not exist.
+
+So the data is mostly stored already. What is missing is giving it back, and a clean separation between "what the model sees" and "what we log".
+
+## 2. Decision: one row per message, not one row per session
+
+Do not append everything into one row per session. Reasons: the row grows without limit, every turn rewrites it, two writers can overwrite each other, and you cannot query or trim it. Use rows.
+
+Proposed tables (names can change; shape matters):
+
+- `conversations`: `id`, `project_id` (nullable, so a conversation can exist before a project), `created_at`, `status` (active, finished), `summary` (text, see section 4), `summary_upto_seq`.
+- `messages`: `id`, `conversation_id` (foreign key), `seq` (strictly increasing per conversation, unique with `conversation_id`), `run_id` (the turn that produced it), `role` (`user`, `assistant`, `tool`, `system_note`), `content` (text), `tool_calls` (JSON, for assistant messages), `tool_call_id` and `tool_name` (for tool messages), `kind` (`chat`, `skill`, `card`, `gate`), `tokens` (estimate), `created_at`.
+- `agent_runs` (existing): add `conversation_id`. Keep for limits and costs.
+
+`messages` is exactly the list the model API wants (OpenAI style: user, assistant with tool calls, tool results). Replaying is `SELECT ... ORDER BY seq`. `agent_steps` can stay as the audit log (gate decisions, guards, limits), or be folded into `messages` with `kind`. Recommendation: keep `agent_steps` for audit and add `messages` for replay; do not make one table do both jobs.
+
+Project versus session: a conversation links to a project by `project_id`. One project can have one or many conversations. Decide later; the schema allows both.
+
+## 3. What the model sees each step
+
+Rebuilt every step, in this order:
+
+1. Base prompt (rules).
+2. Live state block, rebuilt from the database (status, chosen dataset, target, grade, baseline, quote). This is the source of truth for facts; it is never taken from the chat.
+3. Conversation summary (if one exists).
+4. The recent messages, in full, including tool calls and tool results, from `messages`.
+5. Skills the conversation already loaded: keep their text for the rest of the conversation (stored as `kind=skill` messages), do not make the model re-load them.
+
+Rule: state facts come from the state block, chat history gives continuity. If they disagree, the state block wins.
+
+## 4. Keeping it inside the model's limits
+
+Everything is stored forever; only what is sent is limited.
+
+- Budget: send up to N tokens of history (config, start at 30,000). Keep the newest messages first.
+- Never cut inside a pair: an assistant message with tool calls and all its tool results go or stay together, or the API rejects the request.
+- Old tool results are the first to shrink: replace a large result with a one-line stub ("fetch_dataset result: 7,043 rows, target Churn, stored as candidate c_12") but keep the call and the stub. Stubs are written when the result is first stored, in addition to the full result.
+- When history is still too big, write a summary of the oldest part (a model call, or a code-built summary of state changes), store it in `conversations.summary`, set `summary_upto_seq`, and stop sending those messages. The full messages stay in the database.
+- Summaries never replace the state block and never carry money facts (those come from state).
+
+## 5. Test runs and notebook runs
+
+- A test case or notebook session creates a conversation with `source = "eval"` or `"notebook"` and the eval case id in its metadata, so the same store and replay code is used as in production. A test can be re-opened and continued, or replayed from a stored conversation without the model (replay test).
+- Every `messages` row carries the `run_id`, so one turn can be shown on its own, and `06-observability-and-logging.md` console and file logs are views of the same rows.
+
+## 6. Safety rules for stored context
+
+- Text that came from outside (dataset descriptions, column names, preview rows, licenses) is stored and replayed wrapped and labelled as data, never as instructions (threat T4 in file 04).
+- No secrets are stored. User text and previews are stored; `LOG_USER_TEXT=false` applies to log files, not to the conversation the user is having.
+- Writes are append-only per message; a turn lock per conversation stops two simultaneous turns from interleaving (weakness W8).
+- Deleting a project deletes its conversations after the retention period (open question).
+
+## 7. How we will know it works
+
+- A scripted test: turn 1 fetches data and picks a target; turn 2 (after approval) uses the target without calling the tool again. This passes only if tool results come back.
+- A replay test: store a conversation, rebuild the model input from the database, and check it equals the original input byte for byte.
+- A long-conversation test: 200 messages with a small token budget still produces valid tool-call pairs and keeps the state block.
+- A restart test: stop the process, start it again, send a message; the agent continues with the full context.
+
+## 8. Open questions
+
+1. One conversation per project, or many? Recommendation: many allowed, one active.
+2. Keep full tool results in `messages` forever, or only stubs after the project ends? Recommendation: forever for evals, 30 days for users.
+3. Summaries by model call or by code? Recommendation: code first (state changes list), model summary later.
