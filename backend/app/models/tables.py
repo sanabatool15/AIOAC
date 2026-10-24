@@ -109,6 +109,7 @@ class Payment(Stamped, Base):
     provider_capture_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
     amount_cents: Mapped[int] = mapped_column(Integer)
     verified: Mapped[bool] = mapped_column(Boolean, default=False)  # set by the server only
+    approve_url: Mapped[str | None] = mapped_column(String, nullable=True)  # kept so a reload can resume the payment
 
 
 class LedgerEntry(Base):

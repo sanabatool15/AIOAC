@@ -11,13 +11,13 @@ import uuid
 import httpx
 
 from ...config import settings
-from .base import Capture, Order, PaymentEvent
+from .base import Capture, Order, PaymentEvent, ProviderError
 
 SANDBOX_HOST = "api-m.sandbox.paypal.com"
 CURRENCY = "USD"
 
 
-class PayPalError(RuntimeError):
+class PayPalError(ProviderError):
     pass
 
 

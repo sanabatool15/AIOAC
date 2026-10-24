@@ -25,7 +25,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Funding stretch, Stop button, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 87, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
+Tests: 90, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
 
 ## 2. Repository layout
 
@@ -67,6 +67,8 @@ Prices in `prices.py` are placeholders (one instance type, 25 cents per hour, 24
 - The browser route and the webhook route both end in the same idempotent step, so a repeat is harmless.
 - Webhooks: signature checked first, event recorded once, then applied.
 - Refund and usage are recorded in the ledger with unique keys per training run.
+- If the provider fails during a refund, the job still finishes, a `refund_failed` trace step is written, and the owed amount stays visible in the ledger. `POST /projects/{id}/refund/retry` sends it again; repeats are harmless. Provider outages return a plain 502 instead of a crash.
+- The PayPal approval link is stored on the payment, so a page reload resumes the same payment. (This added a column: delete any old local `aioac.db` before running.)
 - The ledger refuses an entry that would take a project's balance below zero.
 - `mock.py` is complete. `paypal.py` implements create order, capture, refund and webhook signature verification (Orders v2, Payments v2, verify-webhook-signature). It refuses any host but the sandbox and sends the webhook body to PayPal byte-for-byte. Tests use a mocked transport (`tests/test_paypal_provider.py`). Not yet exercised against the real sandbox.
 
@@ -103,6 +105,7 @@ Readiness grade from a documented scoring (rows, duplicates, missing values, lop
 - `POST /projects/{id}/data` (upload CSV text)
 - `POST /projects/{id}/quote/approve`
 - `POST /projects/{id}/train`
+- `POST /projects/{id}/refund/retry`
 - `GET /projects/{id}/trace`
 - `POST /payments/orders`, `POST /payments/{id}/capture`
 - `POST /webhooks/paypal`

@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from typing import Protocol
 
 
+class ProviderError(RuntimeError):
+    """The payment provider failed or refused. Providers raise subclasses of this."""
+
+
 @dataclass
 class Order:
     order_id: str

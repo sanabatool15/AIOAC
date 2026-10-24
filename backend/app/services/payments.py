@@ -25,10 +25,11 @@ def create_order(session: Session, provider: PaymentProvider, provider_name: str
     quote = gate.authorize(session, project, gate.Action.REQUEST_PAYMENT)
     existing = session.scalar(select(Payment).where(Payment.quote_id == quote.id))
     if existing:
-        return existing, None
+        return existing, existing.approve_url
     order = provider.create_order(quote.cap_cents, project.id)
     pay = Payment(project_id=project.id, quote_id=quote.id, provider=provider_name,
-                  provider_order_id=order.order_id, amount_cents=quote.cap_cents)
+                  provider_order_id=order.order_id, amount_cents=quote.cap_cents,
+                  approve_url=order.approve_url)
     session.add(pay)
     session.commit()
     return pay, order.approve_url

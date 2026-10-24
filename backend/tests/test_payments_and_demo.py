@@ -118,3 +118,47 @@ def test_baseline_ignores_row_id_columns(session, storage, project):
     run = analysis.baseline(session, storage, project)
     assert run.accuracy > run.simple_guess_accuracy + 0.05
     assert project.trust_level in {"Medium", "High"}
+
+
+class FlakyRefundProvider(MockPaymentProvider):
+    """Refund fails until `fail_refunds` is set to False, like a PayPal outage."""
+    fail_refunds = True
+
+    def refund(self, capture_id, amount_cents):
+        if self.fail_refunds:
+            from app.providers.payments.base import ProviderError
+            raise ProviderError("down")
+        return super().refund(capture_id, amount_cents)
+
+
+def test_refund_outage_is_recorded_and_can_be_retried(session, storage, chosen):
+    prov = FlakyRefundProvider()
+    q, pay = ready_to_pay(session, storage, chosen, prov)
+    payments.confirm_capture(session, prov, pay)
+    run = training.run_training(session, chosen, ScriptedBackend(cost=10), storage, prov)
+    assert run.status == "done" and chosen.status == "done" and prov.refunds == []
+    from app.repositories.traces import TraceRepository
+    assert TraceRepository(session).steps(chosen.id, ("refund_failed",))
+    owed = LedgerRepository(session).balance(chosen.id)
+    assert owed == q.cap_cents - 10  # money still owed back is visible in the ledger
+    prov.fail_refunds = False
+    assert training.retry_refund(session, prov, chosen) == q.cap_cents - 10
+    assert training.retry_refund(session, prov, chosen) == 0  # repeat is harmless
+    assert len(prov.refunds) == 1 and LedgerRepository(session).balance(chosen.id) == 0
+
+
+def test_failed_job_with_refund_outage_ends_refunded_after_retry(session, storage, chosen):
+    prov = FlakyRefundProvider()
+    q, pay = ready_to_pay(session, storage, chosen, prov)
+    payments.confirm_capture(session, prov, pay)
+    training.run_training(session, chosen, ScriptedBackend(fail=True), storage, prov)
+    assert chosen.status == "failed"
+    prov.fail_refunds = False
+    training.retry_refund(session, prov, chosen)
+    assert chosen.status == "refunded" and prov.refunds[0][1] == q.cap_cents
+
+
+def test_reloading_payment_returns_the_same_approve_link(session, storage, chosen, provider):
+    q, pay = ready_to_pay(session, storage, chosen, provider)
+    again, url = payments.create_order(session, provider, "mock", chosen)
+    assert again.id == pay.id and url == f"mock://approve/{pay.provider_order_id}"

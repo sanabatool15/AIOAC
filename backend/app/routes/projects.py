@@ -6,6 +6,7 @@ from ..db import get_session
 from ..deps import get_ctx_factory
 from ..models import Project
 from ..providers.llm import get_llm
+from ..providers.payments.base import ProviderError
 from ..providers.storage import get_storage
 from ..repositories.traces import TraceRepository
 from ..services import datasets, gate, lifecycle, payments, quotes, training
@@ -92,6 +93,19 @@ def train(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_fact
     except gate.GateDenied as e:
         raise HTTPException(403, str(e))
     return {"status": run.status, "cost_cents": run.cost_cents, "stopped_at_cap": run.stopped_at_cap, "result": run.result}
+
+
+@router.post("/{pid}/refund/retry")
+def retry_refund(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
+    """Try again to return unused money after a refund failed. Safe to call repeatedly."""
+    p = _project(s, pid)
+    try:
+        refunded = training.retry_refund(s, make(p).provider, p)
+    except payments.PaymentError as e:
+        raise HTTPException(409, str(e))
+    except ProviderError:
+        raise HTTPException(502, "The refund could not be sent yet. Please try again shortly.")
+    return {"refunded_cents": refunded, "status": p.status}
 
 
 @router.get("/{pid}/trace")

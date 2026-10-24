@@ -6,6 +6,7 @@ from ..config import settings
 from ..db import get_session
 from ..models import Payment, Project
 from ..providers.payments import get_payment_provider
+from ..providers.payments.base import ProviderError
 from ..services import gate, payments
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -24,6 +25,8 @@ def create_order(body: OrderIn, s: Session = Depends(get_session)):
         pay, url = payments.create_order(s, get_payment_provider(), settings.payment_provider, project)
     except gate.GateDenied as e:
         raise HTTPException(403, str(e))
+    except ProviderError:
+        raise HTTPException(502, "The payment service could not be reached. Nothing was charged. Please try again.")
     return {"payment_id": pay.id, "amount_cents": pay.amount_cents, "approve_url": url}
 
 
@@ -37,4 +40,6 @@ def capture(payment_id: str, s: Session = Depends(get_session)):
         ok = payments.confirm_capture(s, get_payment_provider(), pay)
     except payments.PaymentError as e:
         raise HTTPException(409, str(e))
+    except ProviderError:
+        raise HTTPException(502, "The payment service could not be reached. Please try again.")
     return {"verified": ok}
