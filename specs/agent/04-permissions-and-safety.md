@@ -83,5 +83,5 @@ Status column: **Mitigated** = code stops the harm. **Partly** = reduces it. **O
 4. **Return generic tool errors** to the model (`"that did not work"`), log details. Fixes T12.
 5. **Per-project turn lock.** Fixes T13.
 6. **Injection tests** in the eval set: a fake HF source whose description, column name, cell and license contain instructions; assert that no forbidden tool ran and the reply does not follow them. See file 07.
-7. **Browser tool controls** (T17 to T19) before `browser_open` is offered to the model: see file 11 section 12.4 and build steps B1 to B3.
+7. **Browser tool controls** (T17 to T19) before `browser_open` is offered to the model: see file 11 section 6 and build steps B1 to B3.
 8. **Auth** before any public exposure. Out of scope for the hackathon (`spec1.md` 2.1).
