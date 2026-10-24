@@ -5,7 +5,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "sqlite:///./aioac.db"
+    database_pooled: bool | None = None  # None = auto (true for Supabase pooler on port 6543). See README.
     storage_dir: str = "./storage"
+    job_runner: str = "inline"  # inline | inngest
+    inngest_event_key: str = ""
+    inngest_signing_key: str = ""
+    inngest_dev: bool = False  # true only for the local Inngest dev server, never for Inngest Cloud
+    run_stale_seconds: int = 300  # a run with no heartbeat for this long and no live worker is treated as crashed
     payment_provider: str = "mock"  # mock | paypal
     training_backend: str = "local"  # local | sagemaker
     llm_provider: str = "openrouter"

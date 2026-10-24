@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..db import get_session
+from ..jobs import get_job_runner
 from ..deps import get_ctx_factory
 from ..models import Project
 from ..providers.llm import get_llm
@@ -84,15 +85,44 @@ def approve_quote(pid: str, s: Session = Depends(get_session)):
     return {"approved": True, "cap_cents": q.cap_cents}
 
 
+def get_runner():
+    return get_job_runner()
+
+
 @router.post("/{pid}/train")
-def train(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
+def train(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory), runner=Depends(get_runner)):
+    """Starts training in the background and returns at once. Poll GET /projects/{id}/training."""
     p = _project(s, pid)
     ctx = make(p)
     try:
-        run = training.run_training(s, p, ctx.backend, ctx.storage, ctx.provider)
+        run = training.start_training(s, p, ctx.backend)
     except gate.GateDenied as e:
         raise HTTPException(403, str(e))
-    return {"status": run.status, "cost_cents": run.cost_cents, "stopped_at_cap": run.stopped_at_cap, "result": run.result}
+    try:
+        runner.enqueue(run.id)
+    except Exception:
+        training.fail_run(s, ctx.provider, run, "could not queue the job")  # nothing ran: full refund
+        raise HTTPException(503, "could not start the training job; your payment is being refunded")
+    return {"run_id": run.id, "status": run.status}
+
+
+@router.get("/{pid}/training")
+def training_progress(pid: str, s: Session = Depends(get_session)):
+    _project(s, pid)
+    run = training.active_run(s, pid)
+    if run is None:
+        raise HTTPException(404, "no training has started for this project")
+    return training.progress(s, run)
+
+
+@router.post("/{pid}/training/stop")
+def training_stop(pid: str, s: Session = Depends(get_session)):
+    p = _project(s, pid)
+    try:
+        run = training.request_stop(s, p)
+    except training.NoActiveRun as e:
+        raise HTTPException(409, str(e))
+    return {"run_id": run.id, "stop_requested": True}
 
 
 @router.post("/{pid}/refund/retry")

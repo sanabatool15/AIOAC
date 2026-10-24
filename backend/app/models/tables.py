@@ -6,7 +6,7 @@ multi-tenancy and is not enforced anywhere.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -138,7 +138,12 @@ class TrainingRun(Stamped, Base):
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     backend: Mapped[str] = mapped_column(String)
     instance_type: Mapped[str | None] = mapped_column(String, nullable=True)
-    status: Mapped[str] = mapped_column(String, default="running")  # running | done | stopped | failed
+    status: Mapped[str] = mapped_column(String, default="running", index=True)  # running | done | stopped | failed
+    progress_stage: Mapped[str] = mapped_column(String, default="getting ready")  # plain words for the UI
+    progress_fraction: Mapped[float] = mapped_column(Float, default=0.0)
+    stop_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # heartbeat, used by crash recovery
     cost_cents: Mapped[int] = mapped_column(Integer, default=0)
     stopped_at_cap: Mapped[bool] = mapped_column(Boolean, default=False)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
