@@ -29,7 +29,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Funding stretch, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 136, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
+Tests: 137, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
 
 ## 2. Repository layout
 
