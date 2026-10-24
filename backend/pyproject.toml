@@ -5,7 +5,9 @@ requires-python = ">=3.11"
 dependencies = ["fastapi", "uvicorn[standard]", "sqlalchemy>=2.0", "pydantic>=2", "pydantic-settings", "httpx", "numpy", "pandas", "scikit-learn", "pyarrow"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "inngest>=0.5"]
+postgres = ["psycopg[binary]>=3.1"]
+inngest = ["inngest>=0.5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
