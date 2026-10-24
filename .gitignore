@@ -7,3 +7,6 @@ node_modules/
 /backend/storage/
 *.egg-info/
 .pytest_cache/
+*.tfvars
+.terraform/
+*.tfstate*
