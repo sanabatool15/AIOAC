@@ -13,7 +13,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Permission gate | Done |
 | Cost estimator and quotes | Done, with placeholder prices |
 | Payment orchestration, ledger, webhooks, refunds | Done on the mock provider |
-| PayPal sandbox provider | Not started (stub). Waiting for sandbox credentials |
+| PayPal sandbox provider | Written against the current PayPal OpenAPI specs, tested on mocked HTTP only. Never run against the real sandbox (credentials not yet working). Needs human review |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only |
 | OpenRouter model client | Written, never run (no API key yet) |
 | Hugging Face dataset tools | Done, verified against the live service |
@@ -25,7 +25,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Funding stretch, Stop button, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 77, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
+Tests: 87, all passing, no network needed (verified from a fresh clone). Run `pytest` in `backend/`.
 
 ## 2. Repository layout
 
@@ -68,7 +68,7 @@ Prices in `prices.py` are placeholders (one instance type, 25 cents per hour, 24
 - Webhooks: signature checked first, event recorded once, then applied.
 - Refund and usage are recorded in the ledger with unique keys per training run.
 - The ledger refuses an entry that would take a project's balance below zero.
-- `mock.py` is complete. `paypal.py` raises NotImplementedError on every method and says why.
+- `mock.py` is complete. `paypal.py` implements create order, capture, refund and webhook signature verification (Orders v2, Payments v2, verify-webhook-signature). It refuses any host but the sandbox and sends the webhook body to PayPal byte-for-byte. Tests use a mocked transport (`tests/test_paypal_provider.py`). Not yet exercised against the real sandbox.
 
 ### 3.5 Training (`services/training.py`, `providers/training/`)
 After the gate allows it: run the backend, cap the cost at the quote's cap, store the model, add the cost to the global spend, settle and refund. If the backend fails, the project goes to failed and then refunded, with the full amount returned. By default the backend is `local`, which costs nothing, so the default demo refunds the entire cap. The `sagemaker` backend is a stub.
