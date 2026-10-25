@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ...models import DatasetCandidate, Project
 from ...config import settings
 from ...providers.datasets.base import DatasetSource, SourceError
+from ...providers.datasets.registry import SourceRegistry, as_registry
 from ...providers.payments.base import PaymentProvider
 from ...providers.storage.base import Storage
 from ...providers.training.base import TrainingBackend
@@ -29,8 +30,12 @@ class ToolContext:
     provider: PaymentProvider
     provider_name: str
     backend: TrainingBackend
-    source: DatasetSource
+    source: DatasetSource | SourceRegistry   # a registry of sources, or a bare Hugging Face-style source (tests)
     approved: set[str] = field(default_factory=set)  # L1 actions the user approved this turn
+
+    @property
+    def registry(self) -> SourceRegistry:
+        return as_registry(self.source)
 
 
 @dataclass
@@ -64,21 +69,24 @@ def _sample_matches(entry: dict, query: str) -> bool:
     return bool(q & (_words(entry["name"]) - {"the", "a", "of", "and", "for", "sample", "synthetic"}))
 
 
-HF_HINT = "Hugging Face dataset ids start with 'hf:', for example hf:owner/name. Use an id exactly as search_datasets returned it."
+SAMPLE_IDS = {c["id"] for c in CATALOG}
+ID_HINT = "Dataset ids start with their source, for example hf:owner/name, uci:144 or oml:40945. Use an id exactly as search_datasets or discover_datasets returned it."
 
 
 def _bad_id(did: str) -> dict:
-    hint = f" {HF_HINT}" if "/" in did else f" Use an id exactly as search_datasets returned it."
-    return {"error": f"unknown dataset id '{did[:80]}'.{hint}"}
+    return {"error": f"unknown dataset id '{did[:80]}'. {ID_HINT}"}
 
 
 def search_datasets(ctx, a):
     out = [{"id": c["id"], "name": c["name"], "source": "bundled sample", "sample_data": True,
             "note": "synthetic sample data made by us, not real customers", "license": sanitise_license(c["license"], trusted=True)}
            for c in CATALOG if _sample_matches(c, a["query"])]
+    hf = ctx.registry.get("hf")
+    if hf is None:
+        return {"results": out}
     try:
-        for h in ctx.source.search(a["query"], limit=6):
-            out.append({"id": f"hf:{h.id}", "name": h.id, "source": "Hugging Face", "about": mark(h.description or ""),
+        for h in hf.source.search(a["query"], limit=6):
+            out.append({"id": f"hf:{h.id}", "name": h.id, "source": hf.label, "about": mark(h.description or ""),
                         "license": sanitise_license(h.license), "downloads": h.downloads, "gated": h.gated})
     except SourceError as exc:
         return {"results": out, "warning": str(exc)}
@@ -88,12 +96,15 @@ def search_datasets(ctx, a):
 def look_at_dataset(ctx, a):
     """Preview a dataset before fetching it: size, columns, whether it is a plain table."""
     did = a["dataset_id"]
-    if not did.startswith("hf:"):
-        entry = next((c for c in CATALOG if c["id"] == did), None)
-        return ({"name": entry["name"], "rows": entry["rows"], "tabular": True, "license": sanitise_license(entry["license"], trusted=True),
-                 "sample_data": True} if entry else _bad_id(did))
+    r = ctx.registry.resolve(did, SAMPLE_IDS)
+    if r is None:
+        return _bad_id(did)
+    if r.entry is None:
+        entry = next(c for c in CATALOG if c["id"] == r.local_id)
+        return {"name": entry["name"], "rows": entry["rows"], "tabular": True, "license": sanitise_license(entry["license"], trusted=True),
+                "sample_data": True}
     try:
-        i = ctx.source.info(did[3:])
+        i = r.entry.source.info(r.local_id)
     except SourceError as exc:
         return {"error": str(exc)}
     return {"rows": i.rows, "tabular": i.tabular, "gated": i.gated, "license": sanitise_license(i.license),
@@ -102,21 +113,25 @@ def look_at_dataset(ctx, a):
 
 def fetch_dataset(ctx, a):
     did = a["dataset_id"]
-    if did.startswith("hf:"):
-        try:
-            f = ctx.source.fetch_csv(did[3:], settings.max_fetch_rows, settings.max_fetch_bytes)
-        except SourceError as exc:
-            return {"error": str(exc)}
-        lic = sanitise_license(f.license)
-        cand = datasets.add_candidate(ctx.session, ctx.storage, ctx.project, did[3:], "Hugging Face", f.csv_bytes,
-                                      source_url=f"https://huggingface.co/datasets/{did[3:]}", license=None if lic == "not stated" else lic)
-        return {"candidate_id": cand.id, "rows": f.rows, "truncated": f.truncated, "license": lic}
-    entry = next((c for c in CATALOG if c["id"] == did), None)
-    if entry is None:
+    r = ctx.registry.resolve(did, SAMPLE_IDS)
+    if r is None:
         return _bad_id(did)
-    cand = datasets.add_candidate(ctx.session, ctx.storage, ctx.project, entry["name"], "bundled", entry["build"](),
-                                  license=entry["license"])
-    return {"candidate_id": cand.id, "rows": cand.rows, "suggested_target": entry["target"], "sample_data": True}
+    if r.entry is None:
+        entry = next(c for c in CATALOG if c["id"] == r.local_id)
+        cand = datasets.add_candidate(ctx.session, ctx.storage, ctx.project, entry["name"], "bundled", entry["build"](),
+                                      license=entry["license"])
+        return {"candidate_id": cand.id, "rows": cand.rows, "suggested_target": entry["target"], "sample_data": True}
+    try:
+        f = r.entry.source.fetch_csv(r.local_id, settings.max_fetch_rows, settings.max_fetch_bytes)
+    except SourceError as exc:
+        return {"error": str(exc)}
+    lic = sanitise_license(f.license)
+    cand = datasets.add_candidate(ctx.session, ctx.storage, ctx.project, r.local_id, r.entry.label, f.csv_bytes,
+                                  source_url=r.entry.url(r.local_id), license=None if lic == "not stated" else lic)
+    out = {"candidate_id": cand.id, "rows": f.rows, "truncated": f.truncated, "license": lic}
+    if f.suggested_target:
+        out["suggested_target"] = f.suggested_target
+    return out
 
 
 def load_skill(ctx, a):

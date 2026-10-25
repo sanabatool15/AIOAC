@@ -14,6 +14,13 @@ class DatasetHit:
     downloads: int
     likes: int
     gated: bool
+    # optional richer fields; sources fill what they know (None/empty means unknown)
+    name: str | None = None
+    rows: int | None = None
+    target: str | None = None
+    columns: list[str] = field(default_factory=list)
+    tasks: list[str] = field(default_factory=list)   # e.g. ["Classification"]
+    tabular: bool | None = None
 
 
 @dataclass
@@ -28,6 +35,7 @@ class DatasetInfo:
     config: str
     split: str
     notes: list[str] = field(default_factory=list)
+    target: str | None = None      # the source's own idea of the answer column, if it states one
 
 
 @dataclass
@@ -36,6 +44,7 @@ class FetchedCsv:
     rows: int
     license: str | None
     truncated: bool
+    suggested_target: str | None = None
 
 
 class DatasetSource(Protocol):
