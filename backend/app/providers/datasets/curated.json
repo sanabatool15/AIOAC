@@ -1,0 +1,326 @@
+{
+ "version": 1,
+ "checked": "2026-10-25",
+ "note": "Hand-checked list for the demo (specs/agent/11-dataset-discovery.md section 7). Re-check with backend/scripts/check_curated.py.",
+ "items": [
+  {
+   "id": "hf:scikit-learn/churn-prediction",
+   "name": "Telco customer churn",
+   "rows": 7043,
+   "target": "Churn",
+   "about": "About 7,000 phone and internet customers, with whether each one left.",
+   "license": "cc-by-4.0",
+   "domain": "subscriptions",
+   "keywords": [
+    "churn",
+    "customer",
+    "customers",
+    "cancel",
+    "leave",
+    "leaving",
+    "subscription",
+    "subscriptions",
+    "retention",
+    "telecom",
+    "telco"
+   ],
+   "aliases": [
+    "telco customer churn",
+    "telco churn",
+    "churn prediction"
+   ]
+  },
+  {
+   "id": "hf:scikit-learn/adult-census-income",
+   "name": "Adult census income",
+   "rows": 32561,
+   "target": "income",
+   "about": "About 32,000 people from a US census, with whether each earns over 50,000 dollars a year.",
+   "license": "cc0-1.0",
+   "domain": "social",
+   "keywords": [
+    "income",
+    "salary",
+    "earn",
+    "earnings",
+    "census",
+    "adult",
+    "wage",
+    "person",
+    "people",
+    "demographic"
+   ],
+   "aliases": [
+    "adult census income",
+    "census income",
+    "adult income",
+    "adult"
+   ]
+  },
+  {
+   "id": "uci:144",
+   "name": "German credit",
+   "rows": 1000,
+   "target": "class",
+   "about": "1,000 loan applicants described by their finances, with whether each was a good or bad credit risk.",
+   "license": "cc-by-4.0",
+   "domain": "finance",
+   "keywords": [
+    "credit",
+    "loan",
+    "loans",
+    "repay",
+    "repayment",
+    "borrower",
+    "default",
+    "risk",
+    "bank",
+    "lending",
+    "applicant"
+   ],
+   "aliases": [
+    "german credit",
+    "statlog german credit",
+    "statlog german credit data",
+    "german credit data"
+   ]
+  },
+  {
+   "id": "uci:222",
+   "name": "Bank marketing",
+   "rows": 45211,
+   "target": "y",
+   "about": "About 45,000 phone calls from a bank, with whether the customer signed up for a term deposit.",
+   "license": "cc-by-4.0",
+   "domain": "marketing",
+   "keywords": [
+    "bank",
+    "marketing",
+    "campaign",
+    "subscribe",
+    "signup",
+    "sign",
+    "deposit",
+    "call",
+    "calls",
+    "customer",
+    "customers",
+    "sales",
+    "buy",
+    "purchase",
+    "conversion"
+   ],
+   "aliases": [
+    "bank marketing"
+   ]
+  },
+  {
+   "id": "uci:350",
+   "name": "Credit card default",
+   "rows": 30000,
+   "target": "Y",
+   "about": "30,000 credit card customers in Taiwan, with whether each missed the next payment.",
+   "license": "cc-by-4.0",
+   "domain": "finance",
+   "keywords": [
+    "credit",
+    "card",
+    "default",
+    "payment",
+    "pay",
+    "repay",
+    "loan",
+    "debt",
+    "late",
+    "overdue",
+    "missed",
+    "bank"
+   ],
+   "aliases": [
+    "default of credit card clients",
+    "credit card default",
+    "credit card clients"
+   ]
+  },
+  {
+   "id": "uci:468",
+   "name": "Online shoppers",
+   "rows": 12330,
+   "target": "Revenue",
+   "about": "About 12,000 website visits, with whether each visit ended in a purchase.",
+   "license": "cc-by-4.0",
+   "domain": "e-commerce",
+   "keywords": [
+    "shopper",
+    "shoppers",
+    "online",
+    "shopping",
+    "purchase",
+    "buy",
+    "website",
+    "visitor",
+    "visitors",
+    "ecommerce",
+    "store",
+    "session",
+    "conversion",
+    "revenue"
+   ],
+   "aliases": [
+    "online shoppers purchasing intention",
+    "online shoppers purchasing intention dataset",
+    "online shoppers"
+   ]
+  },
+  {
+   "id": "uci:697",
+   "name": "Student dropout",
+   "rows": 4424,
+   "target": "Target",
+   "about": "About 4,400 university students, with whether each dropped out, stayed or graduated (three outcomes).",
+   "license": "cc-by-4.0",
+   "domain": "education",
+   "keywords": [
+    "student",
+    "students",
+    "dropout",
+    "drop",
+    "graduate",
+    "graduation",
+    "university",
+    "school",
+    "education",
+    "college",
+    "academic",
+    "enrolment",
+    "enrollment"
+   ],
+   "aliases": [
+    "predict students dropout and academic success",
+    "student dropout",
+    "students dropout"
+   ]
+  },
+  {
+   "id": "uci:94",
+   "name": "Spambase",
+   "rows": 4601,
+   "target": "Class",
+   "about": "About 4,600 emails described by word counts, with whether each is spam.",
+   "license": "cc-by-4.0",
+   "domain": "email",
+   "keywords": [
+    "spam",
+    "email",
+    "emails",
+    "mail",
+    "junk",
+    "phishing",
+    "message",
+    "messages",
+    "filter"
+   ],
+   "aliases": [
+    "spambase"
+   ]
+  },
+  {
+   "id": "uci:45",
+   "name": "Heart disease",
+   "rows": 303,
+   "target": "num",
+   "about": "303 patients with heart test results, with whether heart disease was found. A small dataset.",
+   "license": "cc-by-4.0",
+   "domain": "health",
+   "keywords": [
+    "heart",
+    "disease",
+    "cardiac",
+    "cardiovascular",
+    "patient",
+    "patients",
+    "health",
+    "medical",
+    "clinical",
+    "diagnosis"
+   ],
+   "aliases": [
+    "heart disease"
+   ]
+  },
+  {
+   "id": "uci:17",
+   "name": "Breast cancer",
+   "rows": 569,
+   "target": "Diagnosis",
+   "about": "569 breast tissue samples, with whether each was cancerous or not. A small dataset.",
+   "license": "cc-by-4.0",
+   "domain": "health",
+   "keywords": [
+    "breast",
+    "cancer",
+    "tumor",
+    "tumour",
+    "malignant",
+    "benign",
+    "patient",
+    "medical",
+    "health",
+    "diagnosis",
+    "clinical"
+   ],
+   "aliases": [
+    "breast cancer wisconsin",
+    "breast cancer wisconsin diagnostic",
+    "breast cancer"
+   ]
+  },
+  {
+   "id": "oml:40945",
+   "name": "Titanic",
+   "rows": 1309,
+   "target": "survived",
+   "about": "1,309 passengers of the Titanic, with whether each survived. A well-known teaching example.",
+   "license": "Public",
+   "domain": "teaching",
+   "keywords": [
+    "titanic",
+    "passenger",
+    "passengers",
+    "survive",
+    "survival",
+    "survived",
+    "ship"
+   ],
+   "aliases": [
+    "titanic"
+   ]
+  },
+  {
+   "id": "oml:37",
+   "name": "Diabetes (Pima)",
+   "rows": 768,
+   "target": "class",
+   "about": "768 women from the Pima people, with whether each has diabetes. A small dataset.",
+   "license": "Public",
+   "domain": "health",
+   "keywords": [
+    "diabetes",
+    "diabetic",
+    "glucose",
+    "patient",
+    "patients",
+    "health",
+    "medical",
+    "insulin",
+    "diagnosis"
+   ],
+   "aliases": [
+    "diabetes",
+    "pima indians diabetes",
+    "pima diabetes",
+    "diabetes pima"
+   ]
+  }
+ ]
+}
