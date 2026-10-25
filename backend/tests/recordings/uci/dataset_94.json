@@ -1,0 +1,81 @@
+{
+ "status": 200,
+ "statusText": "OK",
+ "data": {
+  "uci_id": 94,
+  "name": "Spambase",
+  "repository_url": "https://archive.ics.uci.edu/dataset/94/spambase",
+  "data_url": "https://archive.ics.uci.edu/static/public/94/data.csv",
+  "abstract": "Classifying Email as Spam or Non-Spam",
+  "area": "Computer Science",
+  "tasks": [
+   "Classification"
+  ],
+  "characteristics": [
+   "Multivariate"
+  ],
+  "num_instances": 4601,
+  "num_features": 57,
+  "feature_types": [
+   "Integer",
+   "Real"
+  ],
+  "demographics": [],
+  "target_col": [
+   "Class"
+  ],
+  "index_col": null,
+  "has_missing_values": "no",
+  "missing_values_symbol": null,
+  "year_of_dataset_creation": 1999,
+  "last_updated": "Mon Aug 28 2023",
+  "dataset_doi": "10.24432/C53G6X",
+  "variables": [
+   {
+    "name": "Class",
+    "role": "Target",
+    "type": "Binary",
+    "demographic": null,
+    "description": "spam (1) or not spam (0)",
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "word_freq_make",
+    "role": "Feature",
+    "type": "Continuous",
+    "demographic": null,
+    "description": null,
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "word_freq_address",
+    "role": "Feature",
+    "type": "Continuous",
+    "demographic": null,
+    "description": null,
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "word_freq_all",
+    "role": "Feature",
+    "type": "Continuous",
+    "demographic": null,
+    "description": null,
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "word_freq_3d",
+    "role": "Feature",
+    "type": "Continuous",
+    "demographic": null,
+    "description": null,
+    "units": null,
+    "missing_values": "no"
+   }
+  ]
+ }
+}

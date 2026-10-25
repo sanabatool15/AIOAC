@@ -1,0 +1,145 @@
+{
+ "data_features": {
+  "feature": [
+   {
+    "index": "0",
+    "name": "pclass",
+    "data_type": "numeric",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "0"
+   },
+   {
+    "index": "1",
+    "name": "survived",
+    "data_type": "nominal",
+    "nominal_value": [
+     "0",
+     "1"
+    ],
+    "is_target": "true",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "0"
+   },
+   {
+    "index": "2",
+    "name": "name",
+    "data_type": "string",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "0"
+   },
+   {
+    "index": "3",
+    "name": "sex",
+    "data_type": "nominal",
+    "nominal_value": [
+     "female",
+     "male"
+    ],
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "0"
+   },
+   {
+    "index": "4",
+    "name": "age",
+    "data_type": "numeric",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "263"
+   },
+   {
+    "index": "5",
+    "name": "sibsp",
+    "data_type": "numeric",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "0"
+   },
+   {
+    "index": "6",
+    "name": "parch",
+    "data_type": "numeric",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "0"
+   },
+   {
+    "index": "7",
+    "name": "ticket",
+    "data_type": "string",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "0"
+   },
+   {
+    "index": "8",
+    "name": "fare",
+    "data_type": "numeric",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "1"
+   },
+   {
+    "index": "9",
+    "name": "cabin",
+    "data_type": "string",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "1014"
+   },
+   {
+    "index": "10",
+    "name": "embarked",
+    "data_type": "nominal",
+    "nominal_value": [
+     "C",
+     "Q",
+     "S"
+    ],
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "2"
+   },
+   {
+    "index": "11",
+    "name": "boat",
+    "data_type": "string",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "823"
+   },
+   {
+    "index": "12",
+    "name": "body",
+    "data_type": "numeric",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "1188"
+   },
+   {
+    "index": "13",
+    "name": "home.dest",
+    "data_type": "string",
+    "is_target": "false",
+    "is_ignore": "false",
+    "is_row_identifier": "false",
+    "number_of_missing_values": "564"
+   }
+  ]
+ }
+}

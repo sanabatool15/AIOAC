@@ -1,0 +1,34 @@
+{
+ "status": 200,
+ "statusText": "OK",
+ "data": [
+  {
+   "id": 27,
+   "name": "Credit Approval"
+  },
+  {
+   "id": 28,
+   "name": "Japanese Credit Screening"
+  },
+  {
+   "id": 143,
+   "name": "Statlog (Australian Credit Approval)"
+  },
+  {
+   "id": 144,
+   "name": "Statlog (German Credit Data)"
+  },
+  {
+   "id": 350,
+   "name": "Default of Credit Card Clients"
+  },
+  {
+   "id": 522,
+   "name": "South German Credit"
+  },
+  {
+   "id": 573,
+   "name": "South German Credit"
+  }
+ ]
+}

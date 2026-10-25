@@ -1,0 +1,26 @@
+{
+ "data_set_description": {
+  "id": "40945",
+  "name": "Titanic",
+  "version": "1",
+  "description": "**Author**: Frank E. Harrell Jr., Thomas Cason  \n**Source**: [Vanderbilt Biostatistics](http://biostat.mc.vanderbilt.edu/wiki/pub/Main/DataSets/titanic.html)  \n**Please cite**:   \n\nThe original Titanic dataset, describing the survival status of individual passengers on the Titanic. The titanic data does not contain information from the crew, but it does contain actual ages of half of the passenger",
+  "description_version": "10",
+  "format": "ARFF",
+  "upload_date": "2017-10-16T01:17:36",
+  "licence": "Public",
+  "url": "https://openml.org/data/v1/download/16826755/Titanic.arff",
+  "parquet_url": "https://data.openml.org/datasets/0004/40945/dataset_40945.pq",
+  "file_id": "16826755",
+  "default_target_attribute": "survived",
+  "tag": [
+   "Data Science",
+   "History",
+   "Statistics",
+   "text_data"
+  ],
+  "visibility": "public",
+  "status": "active",
+  "processing_date": "2018-10-04 07:19:36",
+  "md5_checksum": "60ac7205eee0ba5045c90b3bba95b1c4"
+ }
+}

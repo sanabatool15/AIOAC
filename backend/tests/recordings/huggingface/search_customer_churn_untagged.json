@@ -1,0 +1,90 @@
+[
+ {
+  "id": "aai510-group1/telco-customer-churn",
+  "downloads": 423,
+  "likes": 15,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ },
+ {
+  "id": "sanjaycusat/telco-customer-churn3",
+  "downloads": 139,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "",
+  "cardData": {
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "id": "d0r1h/customer_churn",
+  "downloads": 99,
+  "likes": 13,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "",
+  "cardData": {
+   "license": "apache-2.0"
+  }
+ },
+ {
+  "id": "muqsith123/telco-customer-churn",
+  "downloads": 80,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ },
+ {
+  "id": "labatt28/telco-customer-churn-raw",
+  "downloads": 80,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "",
+  "cardData": {
+   "license": "cc-by-4.0"
+  }
+ },
+ {
+  "id": "CDividends/Customer-Churn-Dataset-V2",
+  "downloads": 79,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Customer Churn Conversation Dataset - 500 (Benchmark-Anchored)\n\t\n\n\nFree 500-record sample. Licensed CC BY-NC 4.0. Commercial use requires a license.\n\n\n\t\n\t\t\n\t\n\t\n",
+  "cardData": {
+   "license": "cc-by-nc-4.0"
+  }
+ },
+ {
+  "id": "subratm62/bank-customer-churn",
+  "downloads": 74,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "",
+  "cardData": {}
+ },
+ {
+  "id": "spmml/telco-customer-churn2",
+  "downloads": 66,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "",
+  "cardData": {}
+ }
+]

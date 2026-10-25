@@ -1,0 +1,35 @@
+{
+ "status": 200,
+ "statusText": "OK",
+ "data": {
+  "uci_id": 228,
+  "name": "SMS Spam Collection",
+  "repository_url": "https://archive.ics.uci.edu/dataset/228/sms+spam+collection",
+  "data_url": null,
+  "abstract": "The SMS Spam Collection is a public set of SMS labeled messages that have been collected for mobile phone spam research.",
+  "area": "Computer Science",
+  "tasks": [
+   "Classification",
+   "Clustering"
+  ],
+  "characteristics": [
+   "Multivariate",
+   "Text",
+   "Domain-Theory"
+  ],
+  "num_instances": 5574,
+  "num_features": 0,
+  "feature_types": [
+   "Real"
+  ],
+  "demographics": [],
+  "target_col": null,
+  "index_col": null,
+  "has_missing_values": "no",
+  "missing_values_symbol": null,
+  "year_of_dataset_creation": 2011,
+  "last_updated": "Thu Jan 11 2024",
+  "dataset_doi": "10.24432/C5CC84",
+  "variables": []
+ }
+}

@@ -1,0 +1,86 @@
+{
+ "status": 200,
+ "statusText": "OK",
+ "data": {
+  "uci_id": 144,
+  "name": "Statlog (German Credit Data)",
+  "repository_url": "https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data",
+  "data_url": "https://archive.ics.uci.edu/static/public/144/data.csv",
+  "abstract": "This dataset classifies people described by a set of attributes as good or bad credit risks. Comes in two formats (one all numeric). Also comes with a cost matrix",
+  "area": "Social Science",
+  "tasks": [
+   "Classification"
+  ],
+  "characteristics": [
+   "Multivariate"
+  ],
+  "num_instances": 1000,
+  "num_features": 20,
+  "feature_types": [
+   "Categorical",
+   "Integer"
+  ],
+  "demographics": [
+   "Other",
+   "Marital Status",
+   "Age",
+   "Occupation"
+  ],
+  "target_col": [
+   "class"
+  ],
+  "index_col": null,
+  "has_missing_values": "no",
+  "missing_values_symbol": null,
+  "year_of_dataset_creation": 1994,
+  "last_updated": "Thu Aug 10 2023",
+  "dataset_doi": "10.24432/C5NC77",
+  "variables": [
+   {
+    "name": "class",
+    "role": "Target",
+    "type": "Binary",
+    "demographic": null,
+    "description": "1 = Good, 2 = Bad",
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "Attribute1",
+    "role": "Feature",
+    "type": "Categorical",
+    "demographic": null,
+    "description": "Status of existing checking account",
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "Attribute2",
+    "role": "Feature",
+    "type": "Integer",
+    "demographic": null,
+    "description": "Duration",
+    "units": "months",
+    "missing_values": "no"
+   },
+   {
+    "name": "Attribute3",
+    "role": "Feature",
+    "type": "Categorical",
+    "demographic": null,
+    "description": "Credit history",
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "Attribute4",
+    "role": "Feature",
+    "type": "Categorical",
+    "demographic": null,
+    "description": "Purpose",
+    "units": null,
+    "missing_values": "no"
+   }
+  ]
+ }
+}

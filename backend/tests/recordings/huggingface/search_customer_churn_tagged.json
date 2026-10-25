@@ -1,0 +1,82 @@
+[
+ {
+  "id": "aai510-group1/telco-customer-churn",
+  "downloads": 423,
+  "likes": 15,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ },
+ {
+  "id": "muqsith123/telco-customer-churn",
+  "downloads": 80,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ },
+ {
+  "id": "m3at/telco-customer-churn-corrupted",
+  "downloads": 61,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Purposefully corrupted version of aai510-group1/telco-customer-churn for testing purposes.\nOriginal README below.\n\n\n\t\n\t\t\n\t\n\t\n\t\tDataset Card for Telco Customer C",
+  "cardData": {}
+ },
+ {
+  "id": "Brammi114/telco-customer-churn",
+  "downloads": 57,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ },
+ {
+  "id": "N1ckser/telco-customer-churn",
+  "downloads": 38,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ },
+ {
+  "id": "Yosephcl/telco-customer-churn",
+  "downloads": 36,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ },
+ {
+  "id": "mirunavasile/telco-customer-churn",
+  "downloads": 34,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ },
+ {
+  "id": "niteshray5/telco-customer-churn",
+  "downloads": 28,
+  "likes": 0,
+  "private": false,
+  "disabled": false,
+  "gated": false,
+  "description": "Dataset Card for Telco Customer Churn\n\t\n\nThis dataset contains information about customers of a fictional telecommunications company, including demographic info",
+  "cardData": {}
+ }
+]

@@ -1,0 +1,121 @@
+{
+ "data": {
+  "dataset": [
+   {
+    "did": 40704,
+    "name": "Titanic",
+    "version": 2,
+    "status": "active",
+    "format": "ARFF",
+    "md5_checksum": "",
+    "file_id": 4965305,
+    "quality": [
+     {
+      "name": "NumberOfClasses",
+      "value": "2.0"
+     },
+     {
+      "name": "NumberOfFeatures",
+      "value": "4.0"
+     },
+     {
+      "name": "NumberOfInstances",
+      "value": "2201.0"
+     }
+    ]
+   },
+   {
+    "did": 40945,
+    "name": "Titanic",
+    "version": 1,
+    "status": "active",
+    "format": "ARFF",
+    "md5_checksum": "",
+    "file_id": 16826755,
+    "quality": [
+     {
+      "name": "NumberOfClasses",
+      "value": "2.0"
+     },
+     {
+      "name": "NumberOfFeatures",
+      "value": "14.0"
+     },
+     {
+      "name": "NumberOfInstances",
+      "value": "1309.0"
+     }
+    ]
+   },
+   {
+    "did": 41265,
+    "name": "Titanic",
+    "version": 4,
+    "status": "active",
+    "format": "ARFF",
+    "md5_checksum": "",
+    "file_id": 20649205,
+    "quality": [
+     {
+      "name": "NumberOfClasses",
+      "value": "0.0"
+     },
+     {
+      "name": "NumberOfFeatures",
+      "value": "8.0"
+     },
+     {
+      "name": "NumberOfInstances",
+      "value": "1307.0"
+     }
+    ]
+   },
+   {
+    "did": 42436,
+    "name": "Titanic",
+    "version": 5,
+    "status": "active",
+    "format": "arff",
+    "md5_checksum": "",
+    "file_id": 21831213,
+    "quality": [
+     {
+      "name": "NumberOfClasses",
+      "value": "0.0"
+     },
+     {
+      "name": "NumberOfFeatures",
+      "value": "8.0"
+     },
+     {
+      "name": "NumberOfInstances",
+      "value": "891.0"
+     }
+    ]
+   },
+   {
+    "did": 42437,
+    "name": "titanic",
+    "version": 6,
+    "status": "active",
+    "format": "arff",
+    "md5_checksum": "",
+    "file_id": 21831214,
+    "quality": [
+     {
+      "name": "NumberOfClasses",
+      "value": "0.0"
+     },
+     {
+      "name": "NumberOfFeatures",
+      "value": "8.0"
+     },
+     {
+      "name": "NumberOfInstances",
+      "value": "891.0"
+     }
+    ]
+   }
+  ]
+ }
+}

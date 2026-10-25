@@ -1,0 +1,88 @@
+{
+ "status": 200,
+ "statusText": "OK",
+ "data": {
+  "uci_id": 350,
+  "name": "Default of Credit Card Clients",
+  "repository_url": "https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients",
+  "data_url": "https://archive.ics.uci.edu/static/public/350/data.csv",
+  "abstract": "This research aimed at the case of customers' default payments in Taiwan and compares the predictive accuracy of probability of default among six data mining methods.",
+  "area": "Business",
+  "tasks": [
+   "Classification"
+  ],
+  "characteristics": [
+   "Multivariate"
+  ],
+  "num_instances": 30000,
+  "num_features": 23,
+  "feature_types": [
+   "Integer",
+   "Real"
+  ],
+  "demographics": [
+   "Sex",
+   "Education Level",
+   "Marital Status",
+   "Age"
+  ],
+  "target_col": [
+   "Y"
+  ],
+  "index_col": [
+   "ID"
+  ],
+  "has_missing_values": "no",
+  "missing_values_symbol": null,
+  "year_of_dataset_creation": 2009,
+  "last_updated": "Fri Mar 29 2024",
+  "dataset_doi": "10.24432/C55S3H",
+  "variables": [
+   {
+    "name": "Y",
+    "role": "Target",
+    "type": "Binary",
+    "demographic": null,
+    "description": "default payment next month",
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "ID",
+    "role": "ID",
+    "type": "Integer",
+    "demographic": null,
+    "description": null,
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "X1",
+    "role": "Feature",
+    "type": "Integer",
+    "demographic": null,
+    "description": "LIMIT_BAL",
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "X2",
+    "role": "Feature",
+    "type": "Integer",
+    "demographic": "Sex",
+    "description": "SEX",
+    "units": null,
+    "missing_values": "no"
+   },
+   {
+    "name": "X3",
+    "role": "Feature",
+    "type": "Integer",
+    "demographic": "Education Level",
+    "description": "EDUCATION",
+    "units": null,
+    "missing_values": "no"
+   }
+  ]
+ }
+}

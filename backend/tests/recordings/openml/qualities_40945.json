@@ -1,0 +1,14 @@
+{
+ "data_qualities": {
+  "quality": [
+   {
+    "name": "NumberOfClasses",
+    "value": "2.0"
+   },
+   {
+    "name": "NumberOfInstances",
+    "value": "1309.0"
+   }
+  ]
+ }
+}

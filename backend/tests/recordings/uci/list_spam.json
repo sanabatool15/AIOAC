@@ -1,0 +1,22 @@
+{
+ "status": 200,
+ "statusText": "OK",
+ "data": [
+  {
+   "id": 94,
+   "name": "Spambase"
+  },
+  {
+   "id": 228,
+   "name": "SMS Spam Collection"
+  },
+  {
+   "id": 380,
+   "name": "YouTube Spam Collection"
+  },
+  {
+   "id": 530,
+   "name": "Turkish Spam V01"
+  }
+ ]
+}
