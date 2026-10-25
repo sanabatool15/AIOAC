@@ -116,6 +116,7 @@ def run_agent(ctx: ToolContext, llm: LLMClient, user_message: str | None, log: R
 def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: AgentRun, conv, log: RunLog) -> AgentResult:
     trace = TraceRepository(ctx.session)
     pid = ctx.project.id
+    ctx.log = log  # lets tools write their own events to the same run log
     if user_message:
         trace.add(pid, "user", {"text": user_message}, run.id)
         memory.add_message(ctx.session, conv.id, "user", user_message, run_id=run.id)

@@ -1,0 +1,33 @@
+{
+  "id": "discover-clear-goal",
+  "goal": "I want to know which of my customers will cancel their subscription next month, but I have no data to give you. Can you find some?",
+  "expected_dataset_kind": "customer churn table found by discovery, hand-checked one first, copies collapsed",
+  "expected_first_tools": [
+    "discover_datasets",
+    "look_at_dataset",
+    "fetch_dataset"
+  ],
+  "expect_dataset_chosen": true,
+  "expected_target_hints": [
+    "churn",
+    "left",
+    "cancel",
+    "exited",
+    "attrition"
+  ],
+  "expect_english_queries": true,
+  "must_not": [
+    "start_training",
+    "request_payment",
+    "search_datasets"
+  ],
+  "fake": {
+    "behavior": "discover",
+    "goal_summary": "predict which subscription customers will cancel",
+    "queries": [
+      "customer churn",
+      "subscription cancel"
+    ],
+    "target": "left"
+  }
+}

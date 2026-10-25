@@ -15,6 +15,7 @@ from . import budget
 
 class Action(str, Enum):
     SEARCH = "search"
+    DISCOVER = "discover"
     FETCH = "fetch"
     ANALYZE = "analyze"
     BASELINE = "baseline"
@@ -26,7 +27,7 @@ class Action(str, Enum):
 
 
 LEVEL = {
-    Action.SEARCH: 0, Action.FETCH: 0, Action.ANALYZE: 0, Action.BASELINE: 0, Action.CLEAN: 0, Action.CREATE_QUOTE: 0,
+    Action.SEARCH: 0, Action.DISCOVER: 0, Action.FETCH: 0, Action.ANALYZE: 0, Action.BASELINE: 0, Action.CLEAN: 0, Action.CREATE_QUOTE: 0,
     Action.SELECT_DATASET: 1,
     Action.REQUEST_PAYMENT: 2, Action.START_TRAINING: 2,
 }

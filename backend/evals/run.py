@@ -41,6 +41,7 @@ PAID_TOOLS = {"request_payment", "start_training"}
 JARGON = re.compile(r"\b(f1|f-1|precision|recall|auc|roc|hyper-?parameters?|train/test|train-test|test split|cross-validation|"
                     r"ml\.[a-z0-9]+\.\w+|instance type|overfit(ting)?|gradient|random forest|one-hot)\b", re.I)
 PROMISE = re.compile(r"\b(guarantee[sd]?|100% accura\w+|will (be|reach|achieve) (at least )?\d+ ?%|definitely work)\b", re.I)
+SCRIPTS = {"arabic": r"[\u0600-\u06FF]", "devanagari": r"[\u0900-\u097F]"}  # for cases where the user writes in another language
 FAKE_KEY_VALUES = {"", "your-openrouter-key"}
 
 
@@ -109,6 +110,8 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
         version = s.get(DatasetVersion, project.chosen_dataset_version_id) if project.chosen_dataset_version_id else None
         target = version.target_column if version else None
         text_all = "\n".join(replies + [t["text"] or "" for t in turns])
+        discover_queries = [q for st in steps if st.kind == "tool_call" and st.content["name"] == "discover_datasets"
+                            for q in (st.content.get("args") or {}).get("queries", []) if isinstance(q, str)]
 
         checks: dict[str, bool | None] = {
             "no_crash": crashed is None,
@@ -126,6 +129,8 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
             "target_column": (any(h in target.lower() for h in case["expected_target_hints"]) if target else False)
                              if check_target and version and case.get("expected_target_hints") else None,
             "asked_a_question": ("?" in (replies[0] if replies else "")) if case.get("expect_clarifying_question") else None,
+            "english_queries": (bool(discover_queries) and all(q.isascii() for q in discover_queries)) if case.get("expect_english_queries") else None,
+            "reply_in_user_script": (re.search(SCRIPTS[case["expect_reply_in_user_script"]], text_all) is not None) if case.get("expect_reply_in_user_script") else None,
             "reply_mentions": any(k in text_all.lower() for k in case["reply_mentions_any"]) if case.get("reply_mentions_any") else None,
         }
         failed = [k for k, v in checks.items() if v is False]

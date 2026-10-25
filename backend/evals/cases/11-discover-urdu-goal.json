@@ -1,0 +1,34 @@
+{
+  "id": "discover-urdu-goal",
+  "goal": "میں جاننا چاہتا ہوں کہ میرے کون سے گاہک اگلے مہینے سروس چھوڑ دیں گے۔ میرے پاس ڈیٹا نہیں ہے۔",
+  "expected_dataset_kind": "customer churn table; English searches; reply in Urdu",
+  "expected_first_tools": [
+    "discover_datasets",
+    "look_at_dataset",
+    "fetch_dataset"
+  ],
+  "expect_dataset_chosen": true,
+  "expected_target_hints": [
+    "churn",
+    "left",
+    "cancel",
+    "exited",
+    "attrition"
+  ],
+  "expect_english_queries": true,
+  "expect_reply_in_user_script": "arabic",
+  "must_not": [
+    "start_training",
+    "request_payment"
+  ],
+  "fake": {
+    "behavior": "discover",
+    "goal_summary": "predict which customers will stop using the service",
+    "queries": [
+      "customer churn",
+      "service cancel"
+    ],
+    "target": "left",
+    "final_text": "مجھے ایک موزوں ٹیبل مل گیا ہے۔ آگے بڑھنے کا فیصلہ آپ کا ہے، اور قیمت صرف اندازہ ہوگی۔"
+  }
+}

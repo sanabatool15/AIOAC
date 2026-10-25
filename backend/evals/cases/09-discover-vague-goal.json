@@ -1,0 +1,20 @@
+{
+  "id": "discover-vague-goal",
+  "goal": "I have no data. Use AI to make my business better.",
+  "expected_dataset_kind": "none yet: one short question first, no search",
+  "expected_first_tools": [],
+  "expect_clarifying_question": true,
+  "expect_dataset_chosen": false,
+  "must_not": [
+    "discover_datasets",
+    "search_datasets",
+    "select_dataset",
+    "fetch_dataset",
+    "start_training",
+    "request_payment"
+  ],
+  "stop_after_first_reply": true,
+  "fake": {
+    "behavior": "ask"
+  }
+}

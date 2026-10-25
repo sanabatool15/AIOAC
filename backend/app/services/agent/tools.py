@@ -16,7 +16,7 @@ from ...providers.payments.base import PaymentProvider
 from ...providers.storage.base import Storage
 from ...providers.training.base import TrainingBackend
 from ...samples import CATALOG
-from .. import analysis, cost, datasets, gate, payments, quotes, training
+from .. import analysis, cost, datasets, discovery, gate, payments, quotes, training
 from . import skills
 from ..insights import analyze
 from .context import mark, sanitise_license
@@ -32,6 +32,11 @@ class ToolContext:
     backend: TrainingBackend
     source: DatasetSource | SourceRegistry   # a registry of sources, or a bare Hugging Face-style source (tests)
     approved: set[str] = field(default_factory=set)  # L1 actions the user approved this turn
+    log: object | None = None                        # the run log, set by the agent loop; tools may emit events to it
+
+    def emit(self, type: str, level: str = "INFO", **fields) -> None:
+        if self.log is not None:
+            self.log.emit(type, level, **fields)
 
     @property
     def registry(self) -> SourceRegistry:
@@ -91,6 +96,46 @@ def search_datasets(ctx, a):
     except SourceError as exc:
         return {"results": out, "warning": str(exc)}
     return {"results": out[:8]}
+
+
+def discover_datasets(ctx, a):
+    """Find datasets for the goal. The model gives only a short summary and 2 or 3 search phrases; code does the rest."""
+    queries = a.get("queries")
+    if not isinstance(queries, list):
+        return {"error": "queries must be a list of 2 or 3 short English search phrases"}
+    queries = [" ".join(q.split())[:80] for q in queries if isinstance(q, str) and q.strip()][:3]
+    if not queries:
+        return {"error": "give 2 or 3 short English search phrases in queries"}
+    goal = " ".join(str(a.get("goal_summary", "")).split())[:300]
+    d = discovery.discover(ctx.registry, goal, queries, CATALOG, emit=ctx.emit)
+
+    def card(s):
+        c = s.cand
+        trusted = c.curated or c.sample
+        out = {"id": c.id, "name": c.name if trusted else mark(c.name, 120), "source": c.source, "reason": s.reason,
+               "rows": c.rows, "license": sanitise_license(c.license, trusted=trusted), "notes": s.notes}
+        if c.target:
+            out["answer_column_hint"] = c.target if trusted else mark(c.target, 60)
+        if c.description and not trusted:
+            out["about"] = mark(c.description, 200)
+        if c.curated:
+            out["hand_checked"] = True
+        if c.sample:
+            out["sample_data"] = True
+        return out
+    res = {"candidates": [card(s) for s in d.results], "sources": d.sources, "near_copies_removed": d.collapsed}
+    if d.nothing_fits:
+        res["nothing_fits"] = True
+        res["advice"] = ("Nothing found is a good fit for this goal. Say so honestly in one or two sentences. Do not pick a loose match. "
+                         "Offer: the user uploads their own file or pastes a link, or (if sample_option is present) the sample data to try the product. "
+                         "You may try one more search with different words.")
+        if d.sample_option:
+            res["sample_option"] = card(d.sample_option)
+    else:
+        res["next"] = "Check the top 2 or 3 with look_at_dataset, then fetch_dataset. Describe each in one plain sentence and let the user choose."
+        if d.sample_option:
+            res["sample_option"] = card(d.sample_option)
+    return res
 
 
 def look_at_dataset(ctx, a):
@@ -187,6 +232,9 @@ def start_training(ctx, a):
 
 TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("search_datasets", "Find datasets that fit the user's goal.", _obj(query={"type": "string"}), gate.Action.SEARCH, search_datasets),
+    Tool("discover_datasets", "Find datasets that fit the goal when the user has no data. Give a short goal summary and 2 or 3 short English search phrases.",
+         {"type": "object", "properties": {"goal_summary": {"type": "string"}, "queries": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 3}},
+          "required": ["goal_summary", "queries"]}, gate.Action.DISCOVER, discover_datasets),
     Tool("look_at_dataset", "Preview a found dataset (size, columns, plain table or not) before fetching it.",
          _obj(dataset_id={"type": "string"}), gate.Action.SEARCH, look_at_dataset),
     Tool("fetch_dataset", "Download a found dataset into temporary storage.", _obj(dataset_id={"type": "string"}), gate.Action.FETCH, fetch_dataset),

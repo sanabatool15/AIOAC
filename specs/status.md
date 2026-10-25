@@ -21,6 +21,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Agent evaluation harness (`backend/evals/`) | Built and tested offline (`--fake`). Never run with a real model |
 | Agent playground notebook (`backend/notebooks/`) | Built, runs on the fake model |
 | Hugging Face dataset tools | Done, verified against the live service |
+| Dataset discovery (2026-10-25) | Built: source registry (`hf:`, `uci:`, `oml:`), UCI and OpenML sources (shapes read from the live services, tests use recordings), hand-checked list of 12 (all re-checked live), ranking and copy-collapse pipeline, `discover_datasets` tool (level 0, offered in `described`), `discover-datasets` skill, 4 offline eval cases. Not built: browser tool, Kaggle. Never run with a real model. See `specs/agent/11-dataset-discovery.md` |
 | Dataset storage lifecycle | Done (local folder storage) |
 | Insights, readiness grade, free baseline | Done, verified on real data |
 | Training backends | Local done (reports progress, honours stop). SageMaker is a stub |
@@ -33,7 +34,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Funding stretch, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 230, all passing, no network needed. Run `pytest` in `backend/`.
+Tests: 281, all passing, no network needed. Run `pytest` in `backend/`.
 
 Agent memory, logging and turn lock (2026-10-24): `conversations` and `messages` tables (delete any old local `aioac.db`), `services/agent/memory.py`, `services/agent/runlog.py`, `evals/show.py`, `evals/replay.py`, `scripts/show_run.py`. See `specs/agent/06` and `10`. Never run against a real model yet.
 
@@ -52,7 +53,7 @@ backend/app/
   providers/       swappable parts: payments, training, storage, datasets, llm
   routes/          HTTP endpoints
   skills/          markdown playbooks the agent loads on demand
-backend/tests/     230 tests
+backend/tests/     281 tests
 frontend/          placeholder only
 ```
 

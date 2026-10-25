@@ -75,6 +75,8 @@ Status: sections 3.1 to 3.5 are the original design. Section 3.6 lists what actu
 
 ### 3.6 Implemented dataset tools (MVP)
 
+- `discover_datasets` (2026-10-25): the tool to use when the user has no data. The model gives a goal summary and 2 or 3 short English phrases; code searches the hand-checked list, UCI, OpenML and Hugging Face, removes copies, ranks, and returns the top 3 with plain reasons, or `nothing_fits`. Level 0. Details: `specs/agent/11-dataset-discovery.md` and `specs/agent/03-tools-reference.md`.
+
 - `search_datasets`: bundled samples plus Hugging Face. Hugging Face is searched twice (tagged as tabular classification first, then untagged) and merged, because good datasets are often untagged.
 - `look_at_dataset`: size, columns, and whether it is a plain table, before anything is downloaded.
 - `fetch_dataset`: download into temporary storage, within row and size limits. Gated, non-table and oversized datasets are refused with a plain explanation.
@@ -116,7 +118,7 @@ Skills are short written playbooks the agent loads when needed, instead of carry
 
 Built (in `backend/app/skills/`, one file each, under 60 lines):
 
-- **dataset-search**, **data-insights**, **cost-quote**, **plain-language**.
+- **dataset-search**, **discover-datasets**, **data-insights**, **cost-quote**, **plain-language**.
 - **data-leakage**, **lopsided-classes**, **choosing-the-target-column**, **suspiciously-good-baseline**, **too-little-data**, **explaining-results-plainly**. Data-science playbooks: what to look for, what to say, what the tools cannot do.
 
 Not built: **PayPal**.

@@ -16,7 +16,7 @@ class OfflineSource:
         return [DatasetHit("eval/churn-table", "Customer churn table (synthetic)", "mit", 100, 1, False)][:limit]
 
     def info(self, dataset_id):
-        if dataset_id != "eval/churn-table":
+        if dataset_id not in ("eval/churn-table", "scikit-learn/churn-prediction"):  # the second is the hand-checked list's churn entry
             raise SourceError("dataset not found")
         return DatasetInfo(dataset_id, 1500, 90_000, [{"name": "months_active", "dtype": "int64"}, {"name": "left", "dtype": "string"}],
                            True, False, "mit", "default", "train", [])
@@ -43,7 +43,14 @@ class ReactiveFake:
         self.query = spec.get("query", "customer churn")
         self.target = spec.get("target", "left")
         self.text = spec.get("text")
+        self.final_text = spec.get("final_text")
+        self.queries = spec.get("queries", ["customer churn", "subscription cancel"])
+        self.goal_summary = spec.get("goal_summary", "predict which customers will leave")
         self.stages = (["start_training", "request_payment"] if self.behavior == "pressure" else []) + self.STAGES
+        if self.behavior == "discover":  # the user has no data: look for some first, then the normal path
+            self.stages = ["discover_datasets"] + self.STAGES[1:]  # replaces search_datasets
+        elif self.behavior == "discover_nothing_fits":  # one search, then an honest answer
+            self.stages = ["discover_datasets"]
         self.i = 0
         self.pending: ToolCall | None = None
         self.mem: dict[str, str] = {}
@@ -54,13 +61,16 @@ class ReactiveFake:
         except ValueError:
             return
         if isinstance(data, dict):
+            if data.get("candidates"):
+                self.mem["dataset_id"] = data["candidates"][0]["id"]
             if data.get("results"):
                 self.mem["dataset_id"] = data["results"][0]["id"]
             if data.get("candidate_id"):
                 self.mem["candidate_id"] = data["candidate_id"]
 
     def _args(self, name):
-        return {"search_datasets": {"query": self.query}, "look_at_dataset": {"dataset_id": self.mem.get("dataset_id", "")},
+        return {"search_datasets": {"query": self.query},
+                "discover_datasets": {"goal_summary": self.goal_summary, "queries": self.queries}, "look_at_dataset": {"dataset_id": self.mem.get("dataset_id", "")},
                 "fetch_dataset": {"dataset_id": self.mem.get("dataset_id", "")},
                 "select_dataset": {"candidate_id": self.mem.get("candidate_id", ""), "target": self.target}}.get(name, {})
 
@@ -77,7 +87,7 @@ class ReactiveFake:
         if self.pending:  # the call was not executed (approval card): propose it again
             return LLMResponse(tool_calls=[self.pending])
         if self.i >= len(self.stages):
-            return LLMResponse(text="Here is where we are. The price is an estimate, and you decide whether to go ahead.")
+            return LLMResponse(text=self.final_text or "Here is where we are. The price is an estimate, and you decide whether to go ahead.")
         name = self.stages[self.i]
         self.i += 1
         self.pending = ToolCall(f"call-{self.i}", name, self._args(name))

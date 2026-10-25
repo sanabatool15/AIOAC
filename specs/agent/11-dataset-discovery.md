@@ -1,6 +1,6 @@
 # Finding datasets (simple version)
 
-Status: PROPOSED. Nothing here is built yet, except where it says BUILT.
+Status: build steps 1 to 4 are **BUILT** (2026-10-25): source registry, UCI and OpenML sources, the hand-checked list, the ranking pipeline, the `discover_datasets` tool, skill, base-prompt line and offline eval cases. **Still PROPOSED:** the browser tool (section 5), Kaggle, the manual live run of discovery with a real model, and anything marked PROPOSED below.
 This replaces the long first version (it is still in git history). Two things were removed on purpose: the paid web search comparison, and the list of search engines. We use a simple browser tool instead.
 
 ## 1. Why this matters
@@ -28,7 +28,7 @@ When the user has no data, the agent does this:
 
 Rule for the design: **code does the searching and ranking, the model does the wording.** That keeps the cost low and the results the same every time.
 
-## 4. Where we look
+## 4. Where we look (BUILT for rows 1 to 4)
 
 In this order:
 
@@ -91,9 +91,9 @@ A web page is written by strangers. The risk is that a page contains text like "
 
 Already in the code (BUILT): dataset names are validated, there are size and row limits, and gated or non-table datasets are refused. The tools never run code from a dataset.
 
-## 7. Hand-checked list for the demo
+## 7. Hand-checked list for the demo (BUILT: `providers/datasets/curated.json`)
 
-Facts read from live APIs on 2026-10-24. Licenses are what each source states.
+Facts read from live APIs on 2026-10-24, and all 12 re-checked on 2026-10-25 with `backend/scripts/check_curated.py` (rows within 2%, license, answer column present in the real download). Note: the UCI copy of Adult has 48,842 rows; the list uses the Hugging Face copy (32,561). Licenses are what each source states.
 
 | # | Name | Source id | Rows | Target | Domain |
 |---|---|---|---|---|---|
@@ -132,10 +132,21 @@ The full goal list is in git history (commit 25a5f8c).
 
 ## 9. Build order
 
-1. Source interface refactor (no behaviour change), then add UCI and OpenML sources with recorded-response tests. No keys needed.
-2. The hand-checked list as a data file, plus the ranking and copy-collapse code. The Telco copies become a regression test.
-3. The `discover_datasets` tool and the "nothing fits" path.
-4. Discovery tests (section 8, offline first).
+Status 2026-10-25: steps 1 to 4 are built, with these choices that the text below does not spell out:
+
+- Ids carry the source (`hf:`, `uci:`, `oml:`; the bundled sample keeps `sample-churn`). `providers/datasets/registry.py` resolves them. `ToolContext.source` may be a registry or a bare source (tests).
+- UCI search matches names only (one request per word); OpenML has no text search, so the code tries the phrase and each word as a dataset name. This is why the hand-checked list matters. UCI has no license field: the pages state CC BY 4.0, so UCI results carry `cc-by-4.0` (checked per item only for the hand-checked list). OpenML `licence` is passed through (`Public`, which `sanitise_license` accepts as a word).
+- Download addresses are never taken from a response, except OpenML's `parquet_url`, which must be `https://data.openml.org`.
+- Ranking (`services/discovery.py`): relevance 0 to 1 (a search word in the name or domain keywords counts 3, in the description or column names counts 1; the goal sentence counts a quarter), plus quality (rows, answer column known, license stated, classification, hand-checked +1.5, popularity at most 0.3). Relevance dominates (x10). A result must reach relevance 0.30, and 60% of the best result, to be listed.
+- Near-copies: aliases in the curated list catch copies of a hand-checked dataset (Telco: the five-plus copies disappear, `scikit-learn/churn-prediction` is first); other copies sharing a normalised name keep the one with a license and most downloads.
+- Tests: `tests/test_discovery.py`, `test_uci_source.py`, `test_openml_source.py`, `test_registry.py`, recordings in `tests/recordings/`. Four new offline eval cases (08 to 11).
+
+Original order:
+
+1. Source interface refactor (no behaviour change), then add UCI and OpenML sources with recorded-response tests. No keys needed. (BUILT)
+2. The hand-checked list as a data file, plus the ranking and copy-collapse code. The Telco copies become a regression test. (BUILT)
+3. The `discover_datasets` tool and the "nothing fits" path. (BUILT)
+4. Discovery tests (section 8, offline first). (BUILT offline: 4 of the ~20 goals from section 8 exist as eval cases; the rest are PROPOSED)
 5. The `browse` tool with the safety rules in section 6, tested on a local page with hidden instructions, plus the search-engine check script.
 6. Kaggle, after you create a token.
 
