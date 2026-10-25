@@ -13,10 +13,9 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Permission gate | Done |
 | Cost estimator and quotes | Done, with placeholder prices |
 | Payment orchestration, ledger, webhooks, refunds | Done on the mock provider |
-| PayPal sandbox provider | Written against the current PayPal OpenAPI specs, tested on mocked HTTP only. Never run against the real sandbox (credentials not yet working). Needs human review |
+| PayPal sandbox provider | Written against the current PayPal OpenAPI specs and tested on mocked HTTP. Checked against the real sandbox on 2026-10-25: token request and create order work (the order returned a sandbox approval link), and capturing before the buyer approves is correctly refused (422). Not yet checked against the real sandbox: a buyer approving and capture, refund, webhook signature. Needs human review |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Conversation memory (stored messages, token-budgeted history), run log, per-project turn lock, generic tool errors, untrusted-text wrapping added 2026-10-24 |
 | OpenRouter model client | Written, never run (no API key yet) |
-| PayPal sandbox provider | Not started (stub). Waiting for sandbox credentials |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24 |
 | OpenRouter model client | Rewritten against the current OpenRouter docs: argument parsing, null content, several calls per reply, retry once, usage and cost. Tested on mocked HTTP only; never run against the real service (no API key yet) |
 | Agent evaluation harness (`backend/evals/`) | Built and tested offline (`--fake`). Never run with a real model |
