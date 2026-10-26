@@ -190,3 +190,7 @@ AWS architecture is decided (section 4 and `training.md` section 2a). Remaining:
 ## 8. SageMaker backend update (2026-10-24)
 
 Built without AWS credentials: `providers/training/sagemaker.py`, `sagemaker_script/train.py`, `services/sagemaker_cost.py` (cap to `MaxRuntimeInSeconds`, cost from billable seconds), `services/cost_report.py`, `infra/terraform/`, `backend/scripts/sagemaker_smoke.py`, and 28 mocked tests. Contract in `training.md` section 2b. Everything touching real AWS is unverified. A human must: create a limited IAM user (not root), review and apply the Terraform, check the `ml.m5.xlarge` training quota, pick the scikit-learn image version available in the region (default `1.4-2` does not match local 1.9.x), then run the smoke script once and use its output to calibrate `prices.py`. The backend expects the new `run(..., on_progress, should_stop)` signature; `services/training.py` and the interface in `base.py` are not changed here. With placeholder prices, caps under about 53 cents are refused as too small to run.
+
+## 9. Future work note (2026-10-26)
+
+Instance selection from data size and a GPU / deep learning extension are written up as future work in `specs/future-instances-and-gpu.md`. Nothing is built; the demo uses the single CPU instance.

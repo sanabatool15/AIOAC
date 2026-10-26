@@ -95,3 +95,7 @@ Each finished job stores: the estimate, the range, the actual cost, and the data
 - Prices change.
 
 The cap and the refund exist precisely because the estimate can be wrong.
+
+## 7. Future: choosing the instance (not built)
+
+Today one fixed instance is used for every job. Choosing a size from the data, and a possible GPU path, are described in `future-instances-and-gpu.md`.

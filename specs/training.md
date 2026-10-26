@@ -119,3 +119,7 @@ Open: how long a stopped SageMaker job keeps billing after the stop signal (up t
 8. **Idempotency of the whole task (2026-10-26).** Three layers, so a repeated delivery can never run or bill a second job: (a) the event id `train-<run_id>` and the Inngest function option `idempotency="event.data.run_id"` (with `concurrency` limit 1, one paid job at a time); (b) `training_runs.claimed_at`, taken once by an atomic `UPDATE ... WHERE claimed_at IS NULL` at the start of `execute_run` (a worker that dies after claiming is not re-run; crash recovery fails and refunds it); (c) the backend gets `job_key=run.id` and the SageMaker job is named `aioac-<run id>`, so AWS itself refuses a second job with that name, and `ResourceInUse` on create makes the backend follow the existing job. Delete any old local `aioac.db` (new column).
 
 Known limits: the agent's `start_training` tool still calls the blocking `training.run_training` (agent code was out of scope for this change). One Inngest step holds one HTTP request open for the whole job, so the plan's maximum request duration applies (unverified); a long SageMaker job should later become start, then sleep and poll steps. The local backend can only stop between stages. If the refund call fails, a `refund_failed` trace step is written and the ledger keeps the owed usage entry.
+
+## 8. Future: instance selection and GPU (not built)
+
+See `future-instances-and-gpu.md`. The agent never writes Terraform; Terraform stays static and the instance is a request value chosen by code.
