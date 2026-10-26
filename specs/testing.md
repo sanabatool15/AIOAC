@@ -8,7 +8,7 @@ The demo is what gets judged, so testing aims at one result: the core path works
 2. **Insights.** Are the findings correct and plainly worded for known datasets?
 3. **Cost estimation.** How far is the estimate from the actual cost?
 4. **Permission gate.** Can the agent ever spend or start paid work without approval and a verified payment?
-5. **Payments and ledger.** Are repeats harmless and refunds correct?
+5. **Payments and ledger.** Are repeats harmless, and are captures and voids correct (never a capture above the hold or the compute cap)?
 
 ## 2. Layers
 
@@ -16,7 +16,7 @@ The demo is what gets judged, so testing aims at one result: the core path works
 Estimator math, ledger rules, gate rules, readiness grading, plain-language formatting.
 
 ### Scenario tests with the mock provider
-Full flows with a mock payment provider and a local training backend: approve then pay then train then refund; payment never confirmed; repeated webhook; cap reached mid-run; user presses Stop.
+Full flows with a mock payment provider and a local training backend: approve then hold then train then verify then capture and void; hold never confirmed; repeated webhook; cap reached mid-run; user presses Stop (compute used so far, no fee); target missed (compute captured, no fee); our own failure (whole hold voided); forecast too low (not sold).
 
 ### Agent evaluations
 A small fixed set of goals and datasets. For each we record what the agent searched, what it chose, and whether the result was sensible. Run these repeatedly, because agents vary between runs. The goal is a pass rate we can watch, not a single green tick.
@@ -27,7 +27,9 @@ For each finished test job, compare estimate, range and actual. Track how often 
 ## 3. Safety checks that must always pass
 
 - No paid action runs without an approved, unexpired quote.
-- Training never starts before a verified payment.
+- Training never starts before a server-confirmed hold.
+- A capture or void repeated with the same request id moves no money a second time.
+- The success fee is never captured unless verification passed.
 - Actual cost never exceeds the cap.
 - A repeated payment event changes nothing the second time.
 - Leftover cloud resources are detected.

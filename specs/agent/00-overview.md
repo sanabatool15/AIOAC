@@ -107,7 +107,7 @@ Next: Wait for the user to approve the quote on screen.
 ```
 The model writes a plain reply and the turn ends (`reply`).
 
-**After that.** The user approves the quote through `POST /projects/{id}/quote/approve` (not through the agent). Status `awaiting_payment`. The agent may call `request_payment`. PayPal capture and `POST /train` happen over HTTP routes. See `04-permissions-and-safety.md`.
+**After that.** The user approves the quote through `POST /projects/{id}/quote/approve` (not through the agent). Status `awaiting_payment`. The agent may call `request_payment`. The PayPal hold (authorize) and `POST /train` happen over HTTP routes. See `04-permissions-and-safety.md`.
 
 ## 5. Where this can break (short list, details in file 01)
 
@@ -139,5 +139,5 @@ The model writes a plain reply and the turn ends (`reply`).
 
 - `specs/status.md` section 6a says token, cost and timeout limits are not implemented. `loop.py` implements them and `agent.md` says so. Status 6a is stale.
 - `specs/status.md` summary table has duplicate rows with conflicting states (PayPal provider, SageMaker, training backends). Layout section says "90 tests", summary says 195.
-- `specs/agent.md` 4.1 says the approval card shows estimated cost, cap and refund. The only card the code builds is the level 1 card (`gate.py`): `{what, level}` plus tool and args. Level 2 actions never create a card; they are checked against stored state.
+- `specs/agent.md` 4.1 says the approval card shows estimated cost, cap and what is voided (released) if the job costs less. The only card the code builds is the level 1 card (`gate.py`): `{what, level}` plus tool and args. Level 2 actions never create a card; they are checked against stored state.
 - `specs/agent.md` 7 says traces power a live log. No live log exists.

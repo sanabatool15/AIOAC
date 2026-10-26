@@ -30,7 +30,7 @@ Sections 1 and 2 describe the code before 2026-10-24. Sections 3 to 9 are now **
 | `tool_result` | loop | `{name, result}` (full result, not the trimmed one) |
 | `claim_blocked` | loop | `{text, problems}` |
 | `limit` | loop | `{reason}` |
-| `refund_failed` | services/training.py | `{run_id, error}` |
+| `settle_failed` | services/training.py | `{run_id, error}` |
 
 **`agent_runs` table:** `project_id, status, steps_used, tokens_used, llm_cost_micros, stop_reason, ended_at` plus id and created time from the base class.
 

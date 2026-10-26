@@ -1,6 +1,6 @@
 # AIOAC (AI on a Click)
 
-Describe a prediction problem in plain words. An AI agent checks the data, runs a free baseline test, quotes an estimated cost, takes payment through PayPal (sandbox), trains the model, and refunds any unused amount.
+Describe a prediction problem in plain words. An AI agent checks the data, runs a free baseline test, runs a free pilot and forecasts the result, quotes an estimated cost, places a PayPal (sandbox) hold, trains the model, checks it once on locked test data, then charges the actual compute (plus a small success fee only if the check passes) and voids the rest of the hold. If our own code or infrastructure fails, the hold is voided and you pay nothing.
 
 Status: backend and agent core built and tested; AWS training, PayPal sandbox and the web app are not. See `specs/status.md`. The web app is not built yet.
 
@@ -19,7 +19,7 @@ By default payments use a mock provider and training runs locally, so nothing he
 
 ## Background training
 
-`POST /projects/{id}/train` starts training and returns a run id at once. Poll `GET /projects/{id}/training` for the stage, elapsed time, spend so far and an estimated time left. `POST /projects/{id}/training/stop` stops it; unused money is refunded. When the API starts, any run left `running` by a crash is marked failed and refunded in full.
+`POST /projects/{id}/train` starts training and returns a run id at once. Poll `GET /projects/{id}/training` for the stage, elapsed time, spend so far and an estimated time left. `POST /projects/{id}/training/stop` stops it; you pay the compute used so far and no success fee. When the API starts, any run left `running` by a crash is marked failed and its whole hold is voided. See `specs/payments.md`.
 
 `JOB_RUNNER=inline` (default) runs the job in a thread of the API process. Nothing else is needed.
 

@@ -20,19 +20,32 @@ Implementation detail comes from PayPal's own documentation and OpenAPI schemas.
 
 1. **Free baseline** (as before).
 2. **Free pilot.** A small, cheap test on about 5-10% of the user's data (never the locked rows). It tries a few model types and drops weak ones early (successive halving). The user pays nothing.
-3. **Forecast.** A learning curve from the pilot predicts the full-run result with a band and a confidence, for example "78% likely to reach 80% right". Everything is an estimate. If confidence is below `forecast_min_confidence` (0.60), or there is too little data, the run is **not sold**: the "Not eligible" state (screen 28) shows an honest reason.
-4. **Quote.** One fixed price for the full run: estimated compute + a small success fee, and a hard cap (compute cap + maximum success fee). The user approves it. Text: "You pay compute either way. The success fee only if the target is verified."
+3. **Forecast.** The customer sets a **target**: the accuracy they want, in plain words "X out of 100 right". A learning curve from the pilot predicts the full-run result with a band and a confidence, for example "an estimated 78% chance of reaching 80 out of 100 right". Everything is an estimate. If confidence is below `forecast_min_confidence` (0.60), or there is too little data, the run is **not sold**: the "Not eligible" state (screen 28) shows an honest reason. See section 2a for what the agent does then.
+4. **Quote.** One fixed price for the full run: estimated compute + a success fee of 5% of compute, and a hard cap (compute cap + maximum success fee, where the maximum fee is 5% of the compute cap). The user approves it. Text: "You pay compute either way. The success fee only if the target is verified."
 5. **PayPal hold** for the cap. Nothing is charged yet. The server confirms the hold with PayPal after the buyer approves.
 6. **Full run.** Training uses only the work rows. Afterwards the model is scored **once** on a locked test set it never saw. This runs before any money moves.
 7. **Settle.**
    - Capture the actual compute (never above the compute cap), always.
-   - Capture the success fee only if verification passed.
+   - Capture the success fee only if verification passed. The fee is 5% of the actual compute, never above the maximum fee the hold carries.
    - Void whatever is left on the hold.
    - If the job fails on our side (training error, verification error, lost worker), void everything.
 8. **Result screen** shows forecast and verified result side by side.
 9. **Target missed:** "you paid compute only, no success fee". The best model is kept and a free-pilot "Improve" round is offered (the project reopens at the pilot step; a new quote needs a new hold).
 
 A user stop mid-run captures the compute used so far and skips the fee (no verification). A cancel before the run voids the whole hold.
+
+## 2a. When the forecast is too low (decided 2026-10-26)
+
+If the forecast cannot support the target, the agent does not just refuse. In plain words it:
+
+1. explains the data issues behind the forecast (for example too few rows, a lopsided answer column, noisy columns);
+2. asks the customer for the **lowest result they would accept**;
+3. offers a **suggested target** that we can honestly sell (an estimate, not a promise);
+4. can re-run the free pilot against the new target, which costs nothing.
+
+A "change of engineering approach" (trying different data preparation or model families to lift the forecast) is **to be designed** with the owner. It is not specified or built.
+
+A user stop mid-run captures the compute used so far and no fee (see section 2). Our own failure still voids everything.
 
 ## 3. State machine (`payment_holds.state`)
 
@@ -45,7 +58,7 @@ other end states: voided (our failure or cancel), expired, declined
 - `held`: the server confirmed the hold. `verified` is set only here.
 - Each step is saved before the next, so settle can resume after a crash or a PayPal outage without moving money twice.
 - Capture rule: amount <= held. A capture on a hold that is voided or fully captured is refused. The remainder is voided after the captures; a void of a hold that was already fully captured is refused.
-- `expired`: a hold nobody trained on is marked expired after `hold_ttl_hours` (72).
+- `expired`: a hold nobody trained on is marked expired after `hold_ttl_hours` (24).
 
 ## 4. Data
 
@@ -59,6 +72,8 @@ other end states: voided (our failure or cancel), expired, declined
 The server's own calls to PayPal are the source of truth for the hold and for every capture. The webhook is a cross-check: a signed event for a capture we made is recorded once; an event for a capture we did not make is traced and ignored. A webhook can never create a hold or mark a project paid. Webhook authenticity is verified before anything is trusted. (PayPal's authorization-related webhook event names were not found in the published schema, so none are used.)
 
 ## 6. API (one id for chat, job and agreement: the project id)
+
+There is one internal id, the project id. `/chats/{id}`, `/jobs/{id}` and `/agreements/{id}` are route aliases for it, not separate records.
 
 - `POST /chats/{id}/pilot` body `{target}`: free pilot and forecast.
 - `GET /jobs/{id}/forecast`

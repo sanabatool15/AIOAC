@@ -1,6 +1,6 @@
 # Implementation Status
 
-What has been built, what is stubbed, what has not been started, and what we learned along the way. Updated 2026-10-23. This file describes reality; the other specs describe intent. Where they differ, this file says so.
+What has been built, what is stubbed, what has not been started, and what we learned along the way. Updated 2026-10-26 (see section 10 for the money model change). This file describes reality; the other specs describe intent. Where they differ, this file says so.
 
 ## 1. Summary
 
@@ -12,8 +12,8 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Project lifecycle (state machine) | Done |
 | Permission gate | Done |
 | Cost estimator and quotes | Done, with placeholder prices |
-| Payment orchestration, ledger, webhooks, refunds | Done on the mock provider |
-| PayPal sandbox provider | Written against the current PayPal OpenAPI specs and tested on mocked HTTP. Checked against the real sandbox on 2026-10-25: token request and create order work (the order returned a sandbox approval link), and capturing before the buyer approves is correctly refused (422). Not yet checked against the real sandbox: a buyer approving and capture, refund, webhook signature. Needs human review |
+| Payment orchestration (hold, capture, void), ledger, webhooks | Done on the mock provider (money model changed 2026-10-26, section 10) |
+| PayPal sandbox provider | Written against the current PayPal OpenAPI specs and tested on mocked HTTP. Checked against the real sandbox on 2026-10-25: token request and create order work (the order returned a sandbox approval link), and capturing before the buyer approves is correctly refused (422). Not yet checked against the real sandbox: a buyer approving, authorize (hold), partial capture, a second capture on the same hold, void, webhook signature. Needs human review |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Conversation memory (stored messages, token-budgeted history), run log, per-project turn lock, generic tool errors, untrusted-text wrapping added 2026-10-24 |
 | OpenRouter model client | Written, never run (no API key yet) |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24 |
@@ -31,7 +31,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Training backends | Local done. SageMaker backend, training script and cap math written and tested on mocked boto3 only; never run against AWS |
 | Terraform, AWS storage | Written in `infra/terraform/` (bucket, roles, app policy, budget alert). Not validated (terraform not installed) and never applied. No S3 storage provider for the app yet; the SageMaker backend uploads its own job files |
 | Web app | Not started (placeholder folder) |
-| Funding stretch, login | Not started |
+| Login | Not started. Crowdfunding was removed from the product (2026-10-26) |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
 Tests: 281, all passing, no network needed. Run `pytest` in `backend/`.
@@ -60,7 +60,7 @@ frontend/          placeholder only
 ## 3. What each part does
 
 ### 3.1 Lifecycle (`services/lifecycle.py`)
-States: described, data_chosen, readiness_done, baseline_done, quoted, awaiting_payment, paid, training, done; side exits failed, stopped, refunded. Steps cannot be skipped. `paid` cannot be set unless a verified payment row exists.
+States: described, data_chosen, readiness_done, baseline_done, quoted, awaiting_payment, paid, training, done; side exits failed, stopped, voided (renamed from `refunded` on 2026-10-26). Steps cannot be skipped. `paid` cannot be set unless a server-confirmed hold exists.
 
 ### 3.2 Permission gate (`services/gate.py`)
 Three levels. L0 runs freely. L1 (choosing a dataset) needs the user's approval. L2 (request payment, start training) needs checks on stored state:
@@ -75,18 +75,18 @@ Implements the formula in `cost.md`: time the baseline on 5%, 10% and 20% sample
 Prices in `prices.py` are placeholders (one instance type, 25 cents per hour, 240 seconds of startup, 1 cent storage, 50 cents platform fee).
 
 ### 3.4 Payments (`services/payments.py`, `providers/payments/`)
-- The user is charged the quote's cap. Unused money is refunded after training (cap minus actual cost). This is the proposal in `payments.md` and is not yet confirmed by you.
-- A capture only counts when the provider reports it confirmed and the amount matches.
+- Money model "Forecast, then verify" (`payments.md`): the buyer approves a PayPal hold for the cap, nothing is charged. After training and one check on locked test data, the actual compute is captured, the success fee only if verified, and the rest of the hold is voided. Our own failure voids everything.
+- A hold or capture only counts when the provider reports it confirmed and the amount matches.
 - The browser route and the webhook route both end in the same idempotent step, so a repeat is harmless.
 - Webhooks: signature checked first, event recorded once, then applied.
-- Refund and usage are recorded in the ledger with unique keys per training run.
-- If the provider fails during a refund, the job still finishes, a `refund_failed` trace step is written, and the owed amount stays visible in the ledger. `POST /projects/{id}/refund/retry` sends it again; repeats are harmless. Provider outages return a plain 502 instead of a crash.
+- Compute and fee captures are recorded in the ledger (`compute_capture`, `fee_capture`) with unique keys per training run. Every capture and void carries an idempotency key.
+- If the provider fails during settle, the job still finishes, a `settle_failed` trace step is written, and the saved hold state shows which step is next. `POST /projects/{id}/settle/retry` resumes it; repeats are harmless. Provider outages return a plain 502 instead of a crash.
 - The PayPal approval link is stored on the payment, so a page reload resumes the same payment. (This added a column: delete any old local `aioac.db` before running.)
 - The ledger refuses an entry that would take a project's balance below zero.
-- `mock.py` is complete. `paypal.py` implements create order, capture, refund and webhook signature verification (Orders v2, Payments v2, verify-webhook-signature). It refuses any host but the sandbox and sends the webhook body to PayPal byte-for-byte. Tests use a mocked transport (`tests/test_paypal_provider.py`). Not yet exercised against the real sandbox.
+- `mock.py` is complete. `paypal.py` implements create hold order, authorize, capture, void and webhook signature verification (Orders v2, Payments v2, verify-webhook-signature). It refuses any host but the sandbox and sends the webhook body to PayPal byte-for-byte. Tests use a mocked transport (`tests/test_paypal_provider.py`). Not yet exercised against the real sandbox.
 
 ### 3.5 Training (`services/training.py`, `providers/training/`)
-After the gate allows it: run the backend, cap the cost at the quote's cap, store the model, add the cost to the global spend, settle and refund. If the backend fails, the project goes to failed and then refunded, with the full amount returned. By default the backend is `local`, which costs nothing, so the default demo refunds the entire cap. The `sagemaker` backend is implemented against mocked clients (see `training.md` section 2b) and has never talked to AWS.
+After the gate allows it: run the backend, cap the cost at the quote's cap, store the model, add the cost to the global spend, verify once on the locked test set, then settle (capture, then void the rest). If the backend fails, the project goes to failed and then voided, and the whole hold is released. By default the backend is `local`, which costs nothing, so the default demo voids most of the hold. The `sagemaker` backend is implemented against mocked clients (see `training.md` section 2b) and has never talked to AWS.
 
 Training runs in the background (see `training.md` section 7): `/train` returns a run id, `GET /projects/{id}/training` shows progress, `POST /projects/{id}/training/stop` stops it. Exception: the agent's `start_training` tool still blocks on `training.run_training`.
 
@@ -112,7 +112,7 @@ Readiness grade from a documented scoring (rows, duplicates, missing values, lop
 - `agent_runs` is used: one row per turn with steps, tokens, model cost and stop reason. Added columns (`tokens_used`, `llm_cost_micros`, `stop_reason`, `ended_at`): delete any old local `aioac.db`. Gate steps get the run id when the turn ends.
 - Limits: 12 steps, 80,000 tokens per turn, 600,000 per project, USD 1.00 model cost per project (only when the service reports cost), 60 s per free tool, repeat guard. Plain-language messages when hit.
 - The state block now lists fetched candidate ids, because tool results are not kept between turns and the model needs the id to propose `select_dataset` again after the user approves.
-- Reply guard: replies that claim payment, training or a refund the state does not support are replaced with a correction (keyword-based, imperfect).
+- Reply guard: replies that claim payment, training or a settlement the state does not support are replaced with a correction (keyword-based, imperfect).
 
 ### 3.9 HTTP endpoints
 - `GET /health`
@@ -121,11 +121,13 @@ Readiness grade from a documented scoring (rows, duplicates, missing values, lop
 - `POST /projects/{id}/data` (upload CSV text)
 - `POST /projects/{id}/quote/approve`
 - `POST /projects/{id}/train`
-- `POST /projects/{id}/refund/retry`
+- `POST /projects/{id}/settle/retry`
+- `POST /projects/{id}/cancel` (before the run: voids the whole hold)
+- `POST /chats/{id}/pilot`, `GET /jobs/{id}/forecast`, `POST /agreements/{id}/quote` (aliases of the project id)
 - `POST /projects/{id}/train` (background; returns run id)
 - `GET /projects/{id}/training`, `POST /projects/{id}/training/stop`
 - `GET /projects/{id}/trace`
-- `POST /payments/orders`, `POST /payments/{id}/capture`
+- `POST /payments/orders`, `POST /payments/{id}/authorize` (the server confirms the hold), `GET /payments/{id}` (receipt)
 - `POST /webhooks/paypal`
 
 There is no login. Anyone who can reach the API can call everything. That is a deliberate deferral.
@@ -170,8 +172,8 @@ Current result on the real data: about 78% right against 73.5% for a simple gues
 7. **No scheduled cleanup** for expired candidates or leftover cloud resources.
 8. **Stop on the local backend** only takes effect between stages. The web app has no Stop button yet. The agent tool `start_training` is still blocking.
 9. **No authentication.** Anyone can call any endpoint.
-10. **Charging the cap** is a proposal, not yet confirmed.
-11. **Unused tables** exist for funding, users and agent runs.
+10. **Money model** is decided (2026-10-26) but only tested on the mock; PayPal's limits on captures per authorization and hold duration are unchecked.
+11. **Unused tables** exist for funding (removed feature), users and agent runs.
 12. **Hugging Face rate limits** apply, and we send no token unless one is configured.
 
 ## 6a. Spec gaps found by audit (2026-10-24)
@@ -194,3 +196,9 @@ Built without AWS credentials: `providers/training/sagemaker.py`, `sagemaker_scr
 ## 9. Future work note (2026-10-26)
 
 Instance selection from data size and a GPU / deep learning extension are written up as future work in `specs/future-instances-and-gpu.md`. Nothing is built; the demo uses the single CPU instance.
+
+## 10. Money model changed (2026-10-26)
+
+The old model "charge the cap, then refund the unused amount" and the crowdfunding stretch are gone. The new model is "Forecast, then verify" (`specs/payments.md`, `LESSONS.md`): free baseline, free pilot on about 5-10% of the data, forecast with confidence (below 0.60 is not sold), one quote (estimated compute plus a success fee of 5% of compute, and a hard cap), a PayPal hold for the cap, full run, one check on a locked test set, capture of actual compute always, capture of the success fee only if verified, void of the rest. Our own failure voids the whole hold. Unused holds expire after 24 hours. Project status `refunded` is now `voided`; payments became `payment_holds`; endpoints changed as listed in section 3.9.
+
+State: the code for this exists and is tested on the mock provider and mocked HTTP only. The PayPal sandbox has not been tried for authorize, partial capture, second capture, void or webhook. Not designed yet: the "change of engineering approach" step that lifts a low forecast (see `payments.md` section 2a). Older rows in this file that mention charging the cap or refunds describe the previous model and have been updated where they were wrong.

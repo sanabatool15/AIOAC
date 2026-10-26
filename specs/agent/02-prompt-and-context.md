@@ -46,7 +46,7 @@ Rebuilt before every model call (inside the loop), so a status change mid-turn i
 
 Not in the block: readiness findings, the preview, search results, payment status, training progress, the user's earlier choices, what the user already declined,. The license and candidate name are shown as raw strings (see file 04).
 
-`NEXT_STEP` has entries for `described` to `done`. It has none for `failed`, `stopped`, `refunded`.
+`NEXT_STEP` has entries for `described` to `done`. It has none for `failed`, `stopped`, `voided`.
 
 ## 4. Tools by status (BUILT, `context.TOOLS_BY_STATUS`)
 
@@ -55,11 +55,11 @@ Not in the block: readiness findings, the preview, search results, payment statu
 | described | load_skill, search_datasets, look_at_dataset, fetch_dataset, inspect_candidate, select_dataset |
 | data_chosen | load_skill, run_readiness |
 | readiness_done | load_skill, run_baseline |
-| baseline_done | load_skill, create_quote |
+| baseline_done | load_skill, run_pilot, create_quote (`create_quote` is refused unless the forecast is eligible) |
 | quoted | load_skill, create_quote |
 | awaiting_payment | load_skill, request_payment |
 | paid | load_skill, start_training |
-| training, done, failed, stopped, refunded | load_skill only |
+| training, done, failed, stopped, voided | load_skill only |
 
 A tool outside the list is refused even if asked (`loop.py`). Test: `tests/test_context.py::test_every_status_tool_exists_in_the_registry`.
 
