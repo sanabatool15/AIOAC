@@ -126,6 +126,7 @@ def test_flow_endpoints_pilot_forecast_quote(session, storage, chosen, provider)
     assert c.get(f"/jobs/{chosen.id}/forecast").json()["forecast_id"] == r.json()["forecast_id"]
     q = c.post(f"/agreements/{chosen.id}/quote").json()
     assert q["cap_cents"] == q["compute_cap_cents"] + q["success_fee_cents"] and q["is_estimate"]
+    assert q["success_fee_max_cents"] == q["success_fee_cents"] and q["success_fee_estimate_cents"] <= q["success_fee_max_cents"]
     assert q["terms"] == "You pay compute either way. The success fee only if the target is verified."
     assert c.post(f"/chats/{chosen.id}/pilot", json={"target": 2}).status_code == 422
 
@@ -164,3 +165,39 @@ def test_no_improve_round_after_a_hit(session, storage, chosen, provider, verdic
     held(session, storage, chosen, provider)
     training.run_training(session, chosen, ScriptedBackend(cost=10), storage, provider)
     assert client(session, storage, provider).post(f"/chats/{chosen.id}/pilot", json={"target": 0.6}).status_code == 409
+
+
+CURVE = [(100, 0.70, 0.02), (200, 0.74, 0.02), (400, 0.77, 0.02)]
+
+
+def test_suggest_target_is_sellable_and_the_highest_such_target():
+    t = forecast.suggest_target(CURVE, 4000, 800)
+    assert t is not None and 0.5 <= t <= 0.99
+    assert forecast.extrapolate(CURVE, 4000, 800, t).confidence >= settings.forecast_min_confidence
+    if t < 0.99:
+        assert forecast.extrapolate(CURVE, 4000, 800, round(t + 0.01, 2)).confidence < settings.forecast_min_confidence
+
+
+def test_suggest_target_is_none_when_nothing_is_sellable():
+    assert forecast.suggest_target([(100, 0.30, 0.02), (200, 0.30, 0.02), (400, 0.30, 0.02)], 4000, 800) is None
+
+
+def test_reason_offers_the_suggested_target():
+    low = forecast.Prediction(0.70, 0.62, 0.78, 0.05)
+    assert "about 74 out of 100" in forecast.not_eligible_reason(low, 0.9, 5000, 0.74)
+    assert "honestly offer" not in forecast.not_eligible_reason(low, 0.9, 5000)
+
+
+def test_data_issues_are_plain_words(session, chosen):
+    from app.models import DatasetVersion, InsightReport
+    v = session.get(DatasetVersion, chosen.chosen_dataset_version_id)
+    session.add(InsightReport(dataset_version_id=v.id, measurements={}, grade="C",
+                              findings=[{"kind": "OK", "text": "fine"}, {"kind": "NOTE", "text": "Many rows are missing values"}]))
+    chosen.baseline_result = {"accuracy": 0.74, "simple_guess_accuracy": 0.73}
+    session.commit()
+    issues = forecast.data_issues(session, chosen, v, 100)
+    assert "Many rows are missing values" in issues and "fine" not in issues
+    assert any("too little data" in i for i in issues) and any("barely beats a simple guess" in i for i in issues)
+    assert not any(w in " ".join(issues).lower() for w in ("f1", "precision", "train/test"))
+    chosen.baseline_result = {"accuracy": 0.9, "simple_guess_accuracy": 0.5}
+    assert not any("barely" in i for i in forecast.data_issues(session, chosen, v, 5000))

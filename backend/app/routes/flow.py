@@ -31,7 +31,8 @@ def forecast_view(f: Forecast) -> dict:
     return {"forecast_id": f.id, "metric": f.metric, "target": f.target, "is_estimate": True,
             "predicted_metric": f.predicted_metric, "band_low": f.band_low, "band_high": f.band_high,
             "confidence": f.confidence, "eligible": f.eligible, "reason": f.reason, "pilot": f.pilot,
-            "min_confidence": settings.forecast_min_confidence}
+            "min_confidence": settings.forecast_min_confidence,
+            "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", [])}
 
 
 @router.post("/chats/{cid}/pilot")
@@ -79,5 +80,6 @@ def quote_view(q) -> dict:
     return {"quote_id": q.id, "is_estimate": True, "estimate_cents": q.estimate_cents, "low_cents": q.low_cents,
             "high_cents": q.high_cents, "cap_cents": q.cap_cents, "compute_estimate_cents": q.breakdown.get("compute_estimate_cents"),
             "compute_cap_cents": q.compute_cap_cents, "success_fee_cents": q.fee_cents,
+            "success_fee_estimate_cents": q.breakdown.get("success_fee_estimate_cents"), "success_fee_max_cents": q.fee_cents,
             "forecast_confidence": q.breakdown.get("forecast_confidence"), "target": q.breakdown.get("target"),
             "terms": "You pay compute either way. The success fee only if the target is verified."}

@@ -201,8 +201,8 @@ def progress(session: Session, run: TrainingRun) -> dict:
         spend = run.cost_cents
     eta = None
     if run.status == "running" and quote is not None:
-        lo = _quoted_seconds(quote.low_cents - quote.fee_cents, run.instance_type)  # the success fee is not compute time
-        hi = _quoted_seconds(quote.high_cents - quote.fee_cents, run.instance_type)
+        lo = _quoted_seconds(quote.breakdown.get("compute_low_cents", quote.low_cents), run.instance_type)  # the success fee is not compute time
+        hi = _quoted_seconds(quote.breakdown.get("compute_high_cents", quote.high_cents), run.instance_type)
         if lo is not None and hi is not None:
             eta = {"low_seconds": max(0, round(lo - elapsed)), "high_seconds": max(0, round(hi - elapsed)), "is_estimate": True}
     return {"run_id": run.id, "status": run.status, "stage": run.progress_stage,

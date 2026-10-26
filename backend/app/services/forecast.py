@@ -31,7 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import DatasetVersion, Forecast, Project
+from ..models import DatasetVersion, Forecast, InsightReport, Project
 from ..providers.storage.base import Storage
 from . import verify
 
@@ -112,7 +112,31 @@ def extrapolate(curve: list[tuple[float, float, float]], full_train_rows: int, l
                       round(confidence, 3))
 
 
-def not_eligible_reason(pred: Prediction | None, target: float, rows: int | None) -> str | None:
+def suggest_target(curve: list[tuple[float, float, float]], full_train_rows: int, locked_rows: int) -> float | None:
+    """The highest target (0.50 to 0.99) we could honestly sell: confidence at least forecast_min_confidence. None if none."""
+    for pct in range(99, 49, -1):
+        t = pct / 100
+        if extrapolate(curve, full_train_rows, locked_rows, t).confidence >= settings.forecast_min_confidence:
+            return t
+    return None
+
+
+def data_issues(session: Session, project: Project, version: DatasetVersion | None, rows: int | None) -> list[str]:
+    """Plain-words reasons the forecast is weak: NOTE findings from the readiness report, too little data, a weak free test."""
+    out: list[str] = []
+    if rows is not None and rows < settings.forecast_min_rows:
+        out.append(f"There are only {rows:,} usable rows, which is too little data.")
+    if version is not None:
+        rep = session.scalar(select(InsightReport).where(InsightReport.dataset_version_id == version.id)
+                             .order_by(InsightReport.created_at.desc()))
+        out += [f["text"] for f in (rep.findings if rep else []) if f.get("kind") == "NOTE" and f.get("text")]
+    b = project.baseline_result or {}
+    if b and b.get("accuracy", 0) - b.get("simple_guess_accuracy", 0) < 0.03:
+        out.append("The free test barely beats a simple guess, so the data may not hold much signal for this question.")
+    return out
+
+
+def not_eligible_reason(pred: Prediction | None, target: float, rows: int | None, suggested: float | None = None) -> str | None:
     """Plain-words reason the run should not be sold, or None when it is eligible."""
     if rows is not None and rows < settings.forecast_min_rows:
         return (f"There are only {rows:,} usable rows. That is too little for an honest forecast, "
@@ -122,11 +146,12 @@ def not_eligible_reason(pred: Prediction | None, target: float, rows: int | None
     if pred.confidence >= settings.forecast_min_confidence:
         return None
     pct = round(pred.confidence * 100)
+    offer = f" We can honestly offer a target of about {round(suggested * 100)} out of 100." if suggested is not None else ""
     if pred.band_high < target:
         return (f"Even in the best case we expect about {round(pred.band_high * 100)} out of 100 right, "
-                f"below your target of {round(target * 100)}. The chance of reaching it is about {pct}%.")
+                f"below your target of {round(target * 100)}. The chance of reaching it is about {pct}%." + offer)
     return (f"We are only about {pct}% sure the full run would reach your target of {round(target * 100)} out of 100. "
-            "That is not enough to sell you a run. A lower target or better data would help.")
+            "That is not enough to sell you a run. A lower target or better data would help." + offer)
 
 
 def run_pilot(session: Session, storage: Storage, project: Project, target: float, seed: int = 0) -> Forecast:
@@ -142,8 +167,10 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
     total_rows = len(work) + locked_rows
     row = dict(job_id=project.id, target=target, metric="accuracy")
 
-    def save(pred: Prediction | None, pilot: dict) -> Forecast:
-        reason = not_eligible_reason(pred, target, total_rows)
+    def save(pred: Prediction | None, pilot: dict, suggested: float | None = None) -> Forecast:
+        reason = not_eligible_reason(pred, target, total_rows, suggested)
+        if reason is not None:  # tell the customer what they CAN get
+            pilot = {**pilot, "suggested_target": suggested, "issues": data_issues(session, project, version, total_rows)}
         fc = Forecast(predicted_metric=pred.predicted if pred else 0.0, band_low=pred.band_low if pred else 0.0,
                       band_high=pred.band_high if pred else 0.0, confidence=pred.confidence if pred else 0.0,
                       eligible=reason is None, reason=reason, pilot=pilot, **row)
@@ -181,7 +208,7 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
              "kept": PLAIN_NAMES[winner], "dropped": dropped,
              "learning_curve": [{"training_rows": round(n), "accuracy": round(a, 4)} for n, a, _ in curve],
              "full_run_training_rows": full_train, "pilot_seconds": round(time.perf_counter() - t0, 2)}
-    return save(pred, pilot)
+    return save(pred, pilot, suggest_target(curve, full_train, locked_rows) if pred.confidence < settings.forecast_min_confidence else None)
 
 
 def latest_forecast(session: Session, project_id: str) -> Forecast | None:

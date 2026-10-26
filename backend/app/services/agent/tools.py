@@ -218,7 +218,8 @@ def run_pilot(ctx, a):
         return {"error": str(exc)}
     out = {"label": "estimate", "target": f.target, "predicted": round(f.predicted_metric, 3),
            "band": [round(f.band_low, 3), round(f.band_high, 3)], "confidence": f.confidence, "eligible": f.eligible,
-           "pilot_rows": (f.pilot or {}).get("rows_used")}
+           "pilot_rows": (f.pilot or {}).get("rows_used"),
+           "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", [])}
     out["next"] = "create the quote" if f.eligible else "explain honestly why we cannot sell this run: " + (f.reason or "")
     return out
 

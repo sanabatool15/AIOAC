@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -27,11 +28,14 @@ def create_quote(session: Session, project: Project) -> Quote:
         raise QuoteError("run the free baseline first: the quote needs its timings")
     version = session.get(DatasetVersion, run.dataset_version_id)
     est = estimate_quote([tuple(s) for s in run.samples], version.rows, settings.max_job_cap_cents)
-    fee = settings.success_fee_cents
-    q = Quote(project_id=project.id, instance_type=est.instance_type, estimate_cents=est.estimate_cents + fee,
-              low_cents=est.low_cents + fee, high_cents=est.high_cents + fee, cap_cents=est.cap_cents + fee,
-              compute_cap_cents=est.cap_cents, fee_cents=fee, forecast_id=forecast.id,
-              breakdown={**est.breakdown, "compute_estimate_cents": est.estimate_cents, "success_fee_cents": fee,
+    fee_of = lambda compute: math.ceil(settings.success_fee_percent * compute)  # success fee is a share of compute
+    fee, fee_est = fee_of(est.cap_cents), fee_of(est.estimate_cents)  # fee = the most it can be (on the hold)
+    q = Quote(project_id=project.id, instance_type=est.instance_type, estimate_cents=est.estimate_cents + fee_est,
+              low_cents=est.low_cents + fee_of(est.low_cents), high_cents=est.high_cents + fee_of(est.high_cents),
+              cap_cents=est.cap_cents + fee, compute_cap_cents=est.cap_cents, fee_cents=fee, forecast_id=forecast.id,
+              breakdown={**est.breakdown, "compute_estimate_cents": est.estimate_cents,
+                         "compute_low_cents": est.low_cents, "compute_high_cents": est.high_cents,
+                         "success_fee_estimate_cents": fee_est, "success_fee_max_cents": fee,
                          "forecast_confidence": forecast.confidence, "target": forecast.target},
               prices_version=est.prices_version,
               expires_at=datetime.now(timezone.utc) + timedelta(minutes=settings.quote_ttl_minutes))

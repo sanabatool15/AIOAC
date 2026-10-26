@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from app.config import settings
 from app.models import Forecast, Payment
 from app.providers.payments.base import ProviderError
 from app.providers.payments.mock import MockPaymentProvider
@@ -127,10 +128,10 @@ def test_target_verified_captures_compute_and_fee_and_releases_the_rest(session,
     q, pay = held(session, storage, chosen, provider)
     run = training.run_training(session, chosen, ScriptedBackend(cost=40), storage, provider)
     assert run.status == "done" and run.result["verification"]["passed"] is True and verdict["calls"] == 1
-    assert pay.state == "released" and pay.compute_captured_cents == 40 and pay.fee_captured_cents == q.fee_cents
-    assert pay.released_cents == q.cap_cents - 40 - q.fee_cents
-    assert charged(session, chosen) == 40 + q.fee_cents
-    assert [c[1] for c in provider.capture_calls] == [40, q.fee_cents] and len(provider.void_calls) == 1
+    assert pay.state == "released" and pay.compute_captured_cents == 40 and pay.fee_captured_cents == 2  # ceil(5% of 40)
+    assert pay.released_cents == q.cap_cents - 40 - 2
+    assert charged(session, chosen) == 42
+    assert [c[1] for c in provider.capture_calls] == [40, 2] and len(provider.void_calls) == 1
 
 
 def test_target_missed_still_captures_compute_but_not_the_fee(session, storage, chosen, provider, verdict):
@@ -192,6 +193,8 @@ def test_unused_holds_expire(session, storage, chosen, provider):
     from datetime import datetime, timedelta, timezone
     q, pay = held(session, storage, chosen, provider)
     assert payments.expire_stale_holds(session) == []
+    assert settings.hold_ttl_hours == 24
+    assert payments.expire_stale_holds(session, now=datetime.now(timezone.utc) + timedelta(hours=23)) == []
     assert payments.expire_stale_holds(session, now=datetime.now(timezone.utc) + timedelta(hours=100)) == [pay.id]
     assert pay.state == "expired"
     with pytest.raises(gate.GateDenied):
@@ -241,8 +244,8 @@ def test_void_outage_after_captures_is_resumed_without_charging_twice(session, s
     prov.down = None
     assert training.retry_settle(session, prov, chosen) == "released"
     assert training.retry_settle(session, prov, chosen) == "released"  # repeat is harmless
-    assert [c[1] for c in prov.capture_calls] == [40, q.fee_cents] and len(prov.void_calls) == 1
-    assert charged(session, chosen) == 40 + q.fee_cents
+    assert [c[1] for c in prov.capture_calls] == [40, 2] and len(prov.void_calls) == 1
+    assert charged(session, chosen) == 42
 
 
 def test_capture_outage_leaves_the_hold_and_retry_finishes(session, storage, chosen, verdict):
@@ -253,7 +256,7 @@ def test_capture_outage_leaves_the_hold_and_retry_finishes(session, storage, cho
     assert pay.state == "held" and charged(session, chosen) == 0
     prov.down = None
     assert training.retry_settle(session, prov, chosen) == "released"
-    assert charged(session, chosen) == 40 + q.fee_cents
+    assert charged(session, chosen) == 42
 
 
 def test_failed_run_with_void_outage_ends_voided_after_retry(session, storage, chosen, verdict):
@@ -290,7 +293,7 @@ def test_webhook_for_our_capture_is_processed_once(session, storage, chosen, pro
     h = {"x-mock-signature": "valid"}
     assert payments.handle_webhook(session, provider, h, hook("E1", pay.compute_capture_id)) == "processed"
     assert payments.handle_webhook(session, provider, h, hook("E1", pay.compute_capture_id)) == "duplicate"
-    assert charged(session, chosen) == 40 + q.fee_cents  # a webhook never charges or credits anything
+    assert charged(session, chosen) == 42  # a webhook never charges or credits anything
 
 
 def test_webhook_cannot_create_a_hold_or_mark_paid(session, storage, chosen, provider):
@@ -341,3 +344,28 @@ def test_baseline_ignores_row_id_columns(session, storage, project):
     run = analysis.baseline(session, storage, project)
     assert run.accuracy > run.simple_guess_accuracy + 0.05
     assert project.trust_level in {"Medium", "High"}
+
+
+# ---- success fee is 5% of compute ----------------------------------------------------------------------------
+def test_quote_fee_is_five_percent_of_compute_and_cap_is_compute_cap_plus_max_fee(session, storage, chosen, provider):
+    import math
+    q, pay = ready_to_pay(session, storage, chosen, provider)
+    assert q.fee_cents == math.ceil(0.05 * q.compute_cap_cents) and q.cap_cents == q.compute_cap_cents + q.fee_cents
+    assert q.breakdown["success_fee_max_cents"] == q.fee_cents == pay.fee_amount_cents
+    assert q.breakdown["success_fee_estimate_cents"] == math.ceil(0.05 * q.breakdown["compute_estimate_cents"])
+    assert q.estimate_cents == q.breakdown["compute_estimate_cents"] + q.breakdown["success_fee_estimate_cents"]
+
+
+def test_fee_is_five_percent_of_actual_compute_and_never_above_the_max(session, storage, chosen, provider, verdict):
+    q, pay = held(session, storage, chosen, provider)
+    training.run_training(session, chosen, ScriptedBackend(cost=99_999), storage, provider)  # compute at the cap
+    assert pay.compute_captured_cents == q.compute_cap_cents and pay.fee_captured_cents == q.fee_cents
+    assert pay.fee_captured_cents <= pay.fee_amount_cents and charged(session, chosen) == q.cap_cents
+
+
+def test_zero_compute_means_no_fee_capture(session, storage, chosen, provider, verdict):
+    held(session, storage, chosen, provider)
+    run = training.run_training(session, chosen, ScriptedBackend(cost=0), storage, provider)
+    pay = payments.current_payment(session, chosen.id)
+    assert run.status == "done" and pay.state == "released" and pay.fee_captured_cents == 0
+    assert provider.capture_calls == [] and charged(session, chosen) == 0

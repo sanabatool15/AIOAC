@@ -9,7 +9,7 @@ from app.services import gate
 def make_quote(session, project, approved=True, expired=False):
     exp = datetime.now(timezone.utc) + timedelta(minutes=-5 if expired else 60)
     q = Quote(project_id=project.id, instance_type="x", estimate_cents=500, low_cents=400, high_cents=700, cap_cents=700,
-              breakdown={}, compute_cap_cents=600, fee_cents=100, prices_version="t", expires_at=exp, approved_at=datetime.now(timezone.utc) if approved else None)
+              breakdown={}, compute_cap_cents=600, fee_cents=30, prices_version="t", expires_at=exp, approved_at=datetime.now(timezone.utc) if approved else None)
     session.add(q)
     session.commit()
     return q

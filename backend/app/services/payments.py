@@ -18,6 +18,7 @@ State machine on Payment.state:
 Every step is saved before the next one, every provider call carries an idempotency key, and settle can be called again
 after a crash or a provider outage: it continues from the saved state and never moves money twice.
 """
+import math
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -143,12 +144,14 @@ def settle(session: Session, provider: PaymentProvider, project: Project, run: T
         _save(session, pay, state="compute_captured")
     if pay.state == "compute_captured":
         passed = run.status == "done" and bool((run.result or {}).get("verification", {}).get("passed"))
-        if passed and pay.fee_amount_cents > 0:
-            cap = provider.capture(pay.provider_authorization_id, pay.fee_amount_cents, f"fee-{pay.id}")
+        # the fee is a share of the compute actually captured, never above the maximum fee held
+        fee = min(math.ceil(settings.success_fee_percent * pay.compute_captured_cents), pay.fee_amount_cents)
+        if passed and fee > 0:
+            cap = provider.capture(pay.provider_authorization_id, fee, f"fee-{pay.id}")
             if not cap.confirmed:
                 raise PaymentError("the provider did not confirm the fee capture")
-            ledger.append(project.id, "fee_capture", pay.fee_amount_cents, f"fee_capture:{cap.capture_id}")
-            _save(session, pay, fee_captured_cents=pay.fee_amount_cents, fee_capture_id=cap.capture_id, state="fee_captured")
+            ledger.append(project.id, "fee_capture", fee, f"fee_capture:{cap.capture_id}")
+            _save(session, pay, fee_captured_cents=fee, fee_capture_id=cap.capture_id, state="fee_captured")
         else:
             _save(session, pay, state="fee_skipped")
     if pay.state in {"fee_captured", "fee_skipped"}:
