@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     llm_provider: str = "openrouter"
     openrouter_api_key: str = ""
     openrouter_model: str = "anthropic/claude-sonnet-4.5"  # set in .env; check current OpenRouter model ids
+    azure_openai_base_url: str = ""  # https://RESOURCE.openai.azure.com/openai/v1/ (llm_provider=azure)
+    azure_openai_api_key: str = ""
+    azure_openai_model: str = ""  # the DEPLOYMENT name in Azure AI Foundry
     hf_token: str = ""  # optional; public datasets work without it
     max_fetch_rows: int = 50_000
     max_fetch_bytes: int = 50_000_000

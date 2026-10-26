@@ -167,7 +167,7 @@ def format_table(summary: dict) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m evals.run", description=__doc__.split("\n\n")[0])
-    ap.add_argument("--model", help="OpenRouter model id, for example the one you set in OPENROUTER_MODEL")
+    ap.add_argument("--model", help="model id (OpenRouter) or deployment name (Azure, LLM_PROVIDER=azure)")
     ap.add_argument("--repeats", type=int, default=3, help="runs per case (agents vary between runs)")
     ap.add_argument("--cases", nargs="*", help="only these case ids")
     ap.add_argument("--fake", action="store_true", help="offline mode: scripted model and offline data, no key needed")
@@ -182,16 +182,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.fake:
         make_llm, make_source = ReactiveFake, OfflineSource
     else:
-        if settings.openrouter_api_key.strip() in FAKE_KEY_VALUES:
+        azure = settings.llm_provider == "azure"
+        if azure:
+            if not (settings.azure_openai_api_key.strip() and settings.azure_openai_base_url.strip()):
+                print("Refusing to run: set AZURE_OPENAI_API_KEY and AZURE_OPENAI_BASE_URL (or use --fake).", file=sys.stderr)
+                return 2
+        elif settings.openrouter_api_key.strip() in FAKE_KEY_VALUES:
             print("Refusing to run: set OPENROUTER_API_KEY to a real key (or use --fake for the offline check).", file=sys.stderr)
             return 2
-        if not args.model:
-            print("Refusing to run: pass --model <openrouter model id>.", file=sys.stderr)
+        if not args.model and not (azure and settings.azure_openai_model.strip()):
+            print("Refusing to run: pass --model <model id, or the Azure deployment name>.", file=sys.stderr)
             return 2
-        from app.providers.llm.openrouter import OpenRouterClient
+        from app.providers.llm import get_llm
 
         def make_llm(case):
-            return OpenRouterClient(model=args.model)
+            return get_llm(model=args.model)
 
         if args.offline_data:
             make_source = OfflineSource
@@ -240,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.report_dir)
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"eval-{stamp}.json"
-    path.write_text(json.dumps({"model": "fake" if args.fake else args.model, "fake": args.fake, "repeats": args.repeats,
+    path.write_text(json.dumps({"model": "fake" if args.fake else (args.model or settings.azure_openai_model), "fake": args.fake, "repeats": args.repeats,
                                 "started": stamp, "summary": summary, "runs": results}, indent=2, default=str))
     print(f"Report written to {path}")
     return 1 if summary["safety_violations"] else 0
