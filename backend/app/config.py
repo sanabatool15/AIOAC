@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     reserve_cents: int = 4000            # kept untouched for demo and recording
     max_job_cap_cents: int = 700         # hard per-job maximum
     quote_ttl_minutes: int = 60
+    success_fee_cents: int = 100        # charged only if the locked-test-set check passes (specs/payments.md)
+    forecast_min_confidence: float = 0.60  # below this the run is not sold ("Not eligible")
+    forecast_min_rows: int = 500        # after cleaning; fewer rows cannot support a forecast
+    hold_ttl_hours: int = 72            # a hold nobody trains on is marked expired after this
     candidate_ttl_hours: int = 24
     agent_max_steps: int = 12
     # Agent limits (specs/agent.md section 2). Not money the user pays: this is our own model bill.

@@ -16,7 +16,7 @@ from ...providers.payments.base import PaymentProvider
 from ...providers.storage.base import Storage
 from ...providers.training.base import TrainingBackend
 from ...samples import CATALOG
-from .. import analysis, cost, datasets, discovery, gate, payments, quotes, training
+from .. import analysis, cost, datasets, discovery, forecast, gate, payments, quotes, training
 from . import skills
 from ..insights import analyze
 from .context import mark, sanitise_license
@@ -211,18 +211,32 @@ def run_baseline_tool(ctx, a):
             "trust_level": ctx.project.trust_level}
 
 
+def run_pilot(ctx, a):
+    try:
+        f = forecast.run_pilot(ctx.session, ctx.storage, ctx.project, float(a["target"]))
+    except forecast.ForecastError as exc:
+        return {"error": str(exc)}
+    out = {"label": "estimate", "target": f.target, "predicted": round(f.predicted_metric, 3),
+           "band": [round(f.band_low, 3), round(f.band_high, 3)], "confidence": f.confidence, "eligible": f.eligible,
+           "pilot_rows": (f.pilot or {}).get("rows_used")}
+    out["next"] = "create the quote" if f.eligible else "explain honestly why we cannot sell this run: " + (f.reason or "")
+    return out
+
+
 def create_quote(ctx, a):
     try:
         q = quotes.create_quote(ctx.session, ctx.project)
-    except (quotes.QuoteError, cost.QuoteTooExpensive) as exc:  # plain-language messages (too expensive, wrong step). Anything else reaches the loop's generic handler.
+    except (quotes.QuoteError, cost.QuoteTooExpensive) as exc:  # plain-language messages (not eligible, too expensive, wrong step). Anything else reaches the loop's generic handler.
         return {"error": str(exc)}
     return {"quote_id": q.id, "estimate_cents": q.estimate_cents, "range_cents": [q.low_cents, q.high_cents],
-            "cap_cents": q.cap_cents, "label": "estimate", "next": "the user must approve this quote"}
+            "cap_cents": q.cap_cents, "success_fee_cents": q.fee_cents, "label": "estimate",
+            "next": "the user must approve this quote"}
 
 
 def request_payment(ctx, a):
     pay, url = payments.create_order(ctx.session, ctx.provider, ctx.provider_name, ctx.project)
-    return {"payment_id": pay.id, "amount_cents": pay.amount_cents, "approve_url": url, "next": "the user pays; the server confirms"}
+    return {"payment_id": pay.id, "hold_cents": pay.amount_cents, "approve_url": url,
+            "next": "the user approves the hold in PayPal; nothing is charged yet; the server confirms the hold"}
 
 
 def start_training(ctx, a):
@@ -245,7 +259,9 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
          _obj(candidate_id={"type": "string"}, target={"type": "string"}), gate.Action.SELECT_DATASET, select_dataset),
     Tool("run_readiness", "Readiness grade and findings for the chosen dataset.", _obj(), gate.Action.ANALYZE, run_readiness),
     Tool("run_baseline", "Free test on held-out data; also measures timings for the quote.", _obj(), gate.Action.BASELINE, run_baseline_tool),
-    Tool("create_quote", "Estimate the training cost: estimate, range and spending cap.", _obj(), gate.Action.CREATE_QUOTE, create_quote),
-    Tool("request_payment", "Create the payment request for the approved quote.", _obj(), gate.Action.REQUEST_PAYMENT, request_payment),
-    Tool("start_training", "Start paid training. Only works after the server verified payment.", _obj(), gate.Action.START_TRAINING, start_training),
+    Tool("run_pilot", "Free small test on about 5-10% of the data, then forecast the full-run result against the user's target (0 to 1, e.g. 0.8).",
+         {"type": "object", "properties": {"target": {"type": "number"}}, "required": ["target"]}, gate.Action.PILOT, run_pilot),
+    Tool("create_quote", "One fixed price for the full run (estimated compute + success fee) and a hard cap. Only after an eligible forecast.", _obj(), gate.Action.CREATE_QUOTE, create_quote),
+    Tool("request_payment", "Create the PayPal hold for the approved quote (nothing is charged yet).", _obj(), gate.Action.REQUEST_PAYMENT, request_payment),
+    Tool("start_training", "Start paid training. Only works after the server confirmed the hold.", _obj(), gate.Action.START_TRAINING, start_training),
 ]}

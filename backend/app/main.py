@@ -8,7 +8,7 @@ from .config import settings
 from .db import Base, SessionLocal, engine
 from .jobs import get_job_runner
 from .providers.payments import get_payment_provider
-from .routes import health, payments, projects, webhooks
+from .routes import flow, health, payments, projects, webhooks
 from .services import training
 
 Base.metadata.create_all(engine)
@@ -17,7 +17,7 @@ log = logging.getLogger("uvicorn")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Crash recovery: runs left `running` with no live worker are failed and refunded in full."""
+    """Crash recovery: runs left `running` with no live worker are failed and their hold is voided."""
     try:
         runner = get_job_runner()
         with SessionLocal() as session:
@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AIOAC", lifespan=lifespan)
-for r in (health.router, projects.router, payments.router, webhooks.router):
+for r in (health.router, projects.router, flow.router, payments.router, webhooks.router):
     app.include_router(r)
 
 if settings.job_runner == "inngest":

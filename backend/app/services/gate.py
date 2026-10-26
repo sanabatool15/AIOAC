@@ -21,13 +21,14 @@ class Action(str, Enum):
     BASELINE = "baseline"
     CLEAN = "clean"
     CREATE_QUOTE = "create_quote"
+    PILOT = "pilot"
     SELECT_DATASET = "select_dataset"
     REQUEST_PAYMENT = "request_payment"
     START_TRAINING = "start_training"
 
 
 LEVEL = {
-    Action.SEARCH: 0, Action.DISCOVER: 0, Action.FETCH: 0, Action.ANALYZE: 0, Action.BASELINE: 0, Action.CLEAN: 0, Action.CREATE_QUOTE: 0,
+    Action.SEARCH: 0, Action.DISCOVER: 0, Action.FETCH: 0, Action.ANALYZE: 0, Action.BASELINE: 0, Action.CLEAN: 0, Action.CREATE_QUOTE: 0, Action.PILOT: 0,
     Action.SELECT_DATASET: 1,
     Action.REQUEST_PAYMENT: 2, Action.START_TRAINING: 2,
 }
@@ -79,12 +80,12 @@ def authorize(session: Session, project: Project, action: Action, user_approved:
                 deny("the approved quote has expired")
         if action == Action.START_TRAINING:
             paid = session.scalar(select(Payment).where(Payment.project_id == project.id, Payment.quote_id == quote.id,
-                                                        Payment.verified.is_(True)))
+                                                        Payment.verified.is_(True), Payment.state == "held"))
             if paid is None:
-                deny("no server-verified payment for the current quote")
+                deny("no server-confirmed hold for the current quote")
             if project.status != "paid":
                 deny(f"project is '{project.status}', not 'paid'")
-            if not budget.can_start(session, quote.cap_cents):
+            if not budget.can_start(session, quote.compute_cap_cents):
                 deny("global budget guard: not enough budget left to start a paid job")
 
     trace.add(project.id, "gate", {"action": action.value, "allowed": True})

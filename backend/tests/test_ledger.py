@@ -6,16 +6,16 @@ from app.repositories.webhooks import WebhookRepository
 
 def test_ledger_is_idempotent(session, project):
     led = LedgerRepository(session)
-    assert led.append(project.id, "capture", 500, "CAP1")
-    assert not led.append(project.id, "capture", 500, "CAP1")
+    assert led.append(project.id, "compute_capture", 500, "CAP1")
+    assert not led.append(project.id, "compute_capture", 500, "CAP1")
     assert led.balance(project.id) == 500
 
 
 def test_ledger_cannot_go_negative(session, project):
     led = LedgerRepository(session)
-    led.append(project.id, "capture", 100, "CAP1")
+    led.append(project.id, "compute_capture", 100, "CAP1")
     with pytest.raises(NegativeBalance):
-        led.append(project.id, "refund", -101, "R1")
+        led.append(project.id, "correction", -101, "R1")
     assert led.balance(project.id) == 100
 
 

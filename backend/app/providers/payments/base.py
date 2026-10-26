@@ -13,6 +13,14 @@ class Order:
 
 
 @dataclass
+class Authorization:
+    """Result of asking the provider to place the hold after the buyer approved."""
+    authorization_id: str
+    amount_cents: int
+    status: str  # held | declined | pending. Only 'held' lets paid work be considered.
+
+
+@dataclass
 class Capture:
     capture_id: str
     amount_cents: int
@@ -31,8 +39,12 @@ class PaymentEvent:
 
 
 class PaymentProvider(Protocol):
-    def create_order(self, amount_cents: int, project_id: str) -> Order: ...
-    def capture_order(self, order_id: str) -> Capture: ...
-    def refund(self, capture_id: str, amount_cents: int) -> str: ...
+    """Hold, then capture part of the hold, then void the rest. Every call that moves money takes a
+    `request_id`; calling again with the same id must return the first result and never move money twice."""
+
+    def create_hold(self, amount_cents: int, project_id: str) -> Order: ...
+    def authorize_order(self, order_id: str) -> Authorization: ...
+    def capture(self, authorization_id: str, amount_cents: int, request_id: str) -> Capture: ...
+    def void(self, authorization_id: str, request_id: str) -> str: ...
     def verify_webhook(self, headers: dict, body: bytes) -> bool: ...
     def parse_webhook(self, body: bytes) -> PaymentEvent | None: ...

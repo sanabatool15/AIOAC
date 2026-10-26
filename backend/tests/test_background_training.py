@@ -18,7 +18,7 @@ from app.routes import projects as project_routes
 from app.services import gate, payments, training
 from app.services.agent.tools import ToolContext
 
-from .test_payments_and_demo import ready_to_pay
+from .test_payments_and_demo import charged, held, ready_to_pay
 
 
 class StoppableBackend:
@@ -39,9 +39,8 @@ class StoppableBackend:
 
 
 @pytest.fixture
-def paid(session, storage, chosen, provider):
-    q, pay = ready_to_pay(session, storage, chosen, provider)
-    payments.confirm_capture(session, provider, pay)
+def paid(session, storage, chosen, provider, verdict):
+    q, pay = held(session, storage, chosen, provider)
     return q
 
 
@@ -59,7 +58,7 @@ def test_start_still_needs_a_verified_payment(session, storage, chosen, provider
     from app.providers.payments.mock import MockPaymentProvider
     prov = MockPaymentProvider(auto_confirm=False)
     _, pay = ready_to_pay(session, storage, chosen, prov)
-    payments.confirm_capture(session, prov, pay)
+    payments.confirm_hold(session, prov, pay)
     with pytest.raises(gate.GateDenied):
         training.start_training(session, chosen, StoppableBackend())
     assert session.scalar(select(func.count()).select_from(TrainingRun)) == 0
@@ -88,7 +87,7 @@ def test_api_train_returns_at_once_then_progress_and_stop(session, storage, chos
 
     p = c.get(f"/projects/{chosen.id}/training").json()
     assert p["status"] == "running" and p["stage"] == "waiting to start" and p["elapsed_seconds"] >= 0
-    assert p["cap_cents"] == paid.cap_cents and p["eta"]["is_estimate"] and p["spend_is_estimate"]
+    assert p["cap_cents"] == paid.compute_cap_cents and p["eta"]["is_estimate"] and p["spend_is_estimate"]
     assert p["eta"]["low_seconds"] <= p["eta"]["high_seconds"]
 
     assert c.post(f"/projects/{chosen.id}/training/stop").json()["stop_requested"] is True
@@ -105,7 +104,7 @@ def test_api_train_refused_without_payment(session, storage, chosen, provider):
     assert TestClient(app).post(f"/projects/{chosen.id}/train").status_code == 403
 
 
-def test_enqueue_failure_refunds_everything(session, storage, chosen, provider, paid):
+def test_enqueue_failure_voids_everything(session, storage, chosen, provider, paid):
     class Broken:
         def enqueue(self, rid):
             raise RuntimeError("inngest unreachable")
@@ -117,8 +116,8 @@ def test_enqueue_failure_refunds_everything(session, storage, chosen, provider, 
     app.dependency_overrides[get_ctx_factory] = lambda: (
         lambda p, approved=frozenset(): ToolContext(session, p, storage, provider, "mock", StoppableBackend(), None, set()))
     assert TestClient(app).post(f"/projects/{chosen.id}/train").status_code == 503
-    assert chosen.status == "refunded" and provider.refunds[-1][1] == paid.cap_cents
-    assert LedgerRepository(session).balance(chosen.id) == 0
+    assert chosen.status == "voided" and provider.void_calls and provider.capture_calls == []
+    assert charged(session, chosen) == 0
 
 
 def test_progress_is_reported_and_finishes(session, storage, chosen, provider, paid):
@@ -126,26 +125,28 @@ def test_progress_is_reported_and_finishes(session, storage, chosen, provider, p
     run = training.start_training(session, chosen, backend := StoppableBackend(during=lambda: seen.append(training.progress(session, run))))
     training.execute_run(session, run.id, backend, storage, provider)
     assert seen[0]["stage"] == "training the model" and seen[0]["fraction"] == 0.5 and seen[0]["status"] == "running"
-    assert seen[0]["spend_so_far_cents"] <= paid.cap_cents
+    assert seen[0]["spend_so_far_cents"] <= paid.compute_cap_cents
     final = training.progress(session, run)
     assert final["status"] == "done" and final["fraction"] == 1.0 and final["eta"] is None and not final["spend_is_estimate"]
 
 
-def test_stop_mid_run_refunds_unused_and_balance_never_negative(session, storage, chosen, provider, paid):
+def test_stop_mid_run_captures_compute_used_but_no_fee(session, storage, chosen, provider, paid):
     run = training.start_training(session, chosen, backend := StoppableBackend(cost=30, during=lambda: training.request_stop(session, chosen)))
     training.execute_run(session, run.id, backend, storage, provider)
+    pay = payments.current_payment(session, chosen.id)
     assert run.status == "stopped" and chosen.status == "stopped" and run.cost_cents == 30
-    assert provider.refunds == [(provider.refunds[0][0], paid.cap_cents - 30)]
-    assert LedgerRepository(session).balance(chosen.id) == 0  # capture - usage - refund
+    assert [c[1] for c in provider.capture_calls] == [30] and len(provider.void_calls) == 1  # compute only, rest released
+    assert pay.state == "released" and pay.fee_captured_cents == 0 and pay.released_cents == paid.cap_cents - 30
+    assert charged(session, chosen) == 30
     kinds = [e.kind for e in session.scalars(select(LedgerEntry).where(LedgerEntry.project_id == chosen.id).order_by(LedgerEntry.id))]
-    assert kinds == ["capture", "usage", "refund"]
+    assert kinds == ["compute_capture"]
 
 
-def test_stopped_cost_is_capped(session, storage, chosen, provider, paid):
+def test_stopped_cost_is_capped_at_the_compute_cap(session, storage, chosen, provider, paid):
     run = training.start_training(session, chosen, backend := StoppableBackend(cost=99_999, during=lambda: training.request_stop(session, chosen)))
     training.execute_run(session, run.id, backend, storage, provider)
-    assert run.cost_cents == paid.cap_cents and provider.refunds == []
-    assert LedgerRepository(session).balance(chosen.id) == 0
+    assert run.cost_cents == paid.compute_cap_cents
+    assert charged(session, chosen) == paid.compute_cap_cents
 
 
 def test_stopping_a_finished_run_is_refused(session, storage, chosen, provider, paid):
@@ -157,26 +158,26 @@ def test_stopping_a_finished_run_is_refused(session, storage, chosen, provider, 
 def test_settling_a_stopped_run_twice_changes_nothing(session, storage, chosen, provider, paid):
     run = training.start_training(session, chosen, backend := StoppableBackend(cost=30, during=lambda: training.request_stop(session, chosen)))
     training.execute_run(session, run.id, backend, storage, provider)
-    n_entries, n_refunds, spent = ledger_count(session, chosen), len(provider.refunds), None
+    n_entries, n_calls = ledger_count(session, chosen), (len(provider.capture_calls), len(provider.void_calls))
     from app.repositories.budget import BudgetRepository
     spent = BudgetRepository(session).spent()
     payments.settle(session, provider, chosen, run)           # settle again
     training.execute_run(session, run.id, backend, storage, provider)  # duplicate job delivery
     assert training.fail_run(session, provider, run, "late") is False  # cannot overwrite a finished run
     assert run.status == "stopped" and run.cost_cents == 30
-    assert ledger_count(session, chosen) == n_entries and len(provider.refunds) == n_refunds == 1
+    assert ledger_count(session, chosen) == n_entries and (len(provider.capture_calls), len(provider.void_calls)) == n_calls == (1, 1)
     assert BudgetRepository(session).spent() == spent
 
 
-def test_crash_recovery_fails_and_fully_refunds(session, chosen, provider, paid):
+def test_crash_recovery_fails_and_voids_the_hold(session, chosen, provider, paid):
     run = training.start_training(session, chosen, StoppableBackend())
     run.updated_at = datetime.now(timezone.utc) - timedelta(hours=1)
     session.commit()
     assert training.recover_stale_runs(session, provider, lambda rid: False, 300) == [run.id]
-    assert run.status == "failed" and chosen.status == "refunded"
-    assert provider.refunds[-1][1] == paid.cap_cents and LedgerRepository(session).balance(chosen.id) == 0
+    assert run.status == "failed" and chosen.status == "voided"
+    assert provider.capture_calls == [] and len(provider.void_calls) == 1 and charged(session, chosen) == 0
     assert training.recover_stale_runs(session, provider, lambda rid: False, 300) == []  # repeat is harmless
-    assert len(provider.refunds) == 1
+    assert len(provider.void_calls) == 1
 
 
 def test_recovery_leaves_live_and_fresh_runs_alone(session, chosen, provider, paid):
@@ -185,16 +186,16 @@ def test_recovery_leaves_live_and_fresh_runs_alone(session, chosen, provider, pa
     run.updated_at = datetime.now(timezone.utc) - timedelta(hours=1)
     session.commit()
     assert training.recover_stale_runs(session, provider, lambda rid: True, 300) == []  # worker still alive
-    assert run.status == "running" and provider.refunds == []
+    assert run.status == "running" and provider.void_calls == [] and provider.capture_calls == []
 
 
-def test_backend_error_still_refunds_in_full(session, storage, chosen, provider, paid):
+def test_backend_error_still_voids_everything(session, storage, chosen, provider, paid):
     class Boom(StoppableBackend):
         def run(self, *a, **k):
             raise RuntimeError("boom")
 
     run = training.run_training(session, chosen, Boom(), storage, provider)
-    assert run.status == "failed" and chosen.status == "refunded" and provider.refunds[-1][1] == paid.cap_cents
+    assert run.status == "failed" and chosen.status == "voided" and provider.void_calls and charged(session, chosen) == 0
 
 
 def test_local_backend_reports_stages_and_honours_stop(tmp_path, storage, session, chosen):
@@ -293,7 +294,7 @@ def test_second_delivery_never_starts_the_backend_again(session, storage, chosen
     training.execute_run(session, run.id, backend, storage, provider)
     training.execute_run(session, run.id, backend, storage, provider)   # duplicate delivery after it finished
     assert calls == [run.id]
-    assert len(provider.refunds) == 1
+    assert len(provider.capture_calls) == 2 and len(provider.void_calls) == 1  # compute + fee, then the rest voided, once
 
 
 def test_delivery_while_another_worker_owns_the_run_does_nothing(session, storage, chosen, provider, paid):
@@ -311,7 +312,7 @@ def test_claim_is_taken_exactly_once(session, chosen, provider, paid):
     assert training._claim_start(session, run) is False
 
 
-def test_worker_that_died_after_claiming_is_refunded_not_rerun(session, storage, chosen, provider, paid):
+def test_worker_that_died_after_claiming_is_voided_not_rerun(session, storage, chosen, provider, paid):
     backend = StoppableBackend()
     run = training.start_training(session, chosen, backend)
     assert training._claim_start(session, run)
@@ -320,7 +321,7 @@ def test_worker_that_died_after_claiming_is_refunded_not_rerun(session, storage,
     training.execute_run(session, run.id, backend, storage, provider)   # redelivery: refused, backend not started
     assert backend.progress_seen == []
     assert training.recover_stale_runs(session, provider, lambda rid: False, 300) == [run.id]
-    assert provider.refunds[-1][1] == paid.cap_cents
+    assert len(provider.void_calls) == 1 and charged(session, chosen) == 0
 
 
 def test_inngest_function_has_idempotency_and_one_at_a_time():

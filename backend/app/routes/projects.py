@@ -105,8 +105,8 @@ def train(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_fact
     try:
         runner.enqueue(run.id)
     except Exception:
-        training.fail_run(s, ctx.provider, run, "could not queue the job")  # nothing ran: full refund
-        raise HTTPException(503, "could not start the training job; your payment is being refunded")
+        training.fail_run(s, ctx.provider, run, "could not queue the job")  # nothing ran: the hold is voided
+        raise HTTPException(503, "could not start the training job; nothing was charged and your hold is being released")
     return {"run_id": run.id, "status": run.status}
 
 
@@ -129,17 +129,30 @@ def training_stop(pid: str, s: Session = Depends(get_session)):
     return {"run_id": run.id, "stop_requested": True}
 
 
-@router.post("/{pid}/refund/retry")
-def retry_refund(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
-    """Try again to return unused money after a refund failed. Safe to call repeatedly."""
+@router.post("/{pid}/settle/retry")
+def retry_settle(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
+    """Try again to finish the payment steps after PayPal failed part-way. Safe to call repeatedly."""
     p = _project(s, pid)
     try:
-        refunded = training.retry_refund(s, make(p).provider, p)
+        state = training.retry_settle(s, make(p).provider, p)
     except payments.PaymentError as e:
         raise HTTPException(409, str(e))
     except ProviderError:
-        raise HTTPException(502, "The refund could not be sent yet. Please try again shortly.")
-    return {"refunded_cents": refunded, "status": p.status}
+        raise HTTPException(502, "The payment service could not be reached yet. Nothing extra was charged. Please try again shortly.")
+    return {"payment_state": state, "status": p.status}
+
+
+@router.post("/{pid}/cancel")
+def cancel(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
+    """Change your mind after the hold and before training starts. The whole hold is released; you pay nothing."""
+    p = _project(s, pid)
+    try:
+        pay = payments.cancel(s, make(p).provider, p)
+    except payments.PaymentError as e:
+        raise HTTPException(409, str(e))
+    except ProviderError:
+        raise HTTPException(502, "The payment service could not be reached. Please try again.")
+    return {"payment_state": pay.state, "status": p.status}
 
 
 @router.get("/{pid}/trace")

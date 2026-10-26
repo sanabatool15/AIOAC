@@ -4,9 +4,9 @@ Money rules live in code (gate.py), not in skills or prompts.
 """
 import re
 
-PAID_OR_LATER = {"paid", "training", "done", "refunded", "failed", "stopped"}
+PAID_OR_LATER = {"paid", "training", "done", "voided", "failed", "stopped"}
 TRAINED = {"training", "done"}
-SETTLED = {"done", "refunded", "failed", "stopped"}
+SETTLED = {"done", "voided", "failed", "stopped"}
 
 # (pattern, statuses in which the claim could be true, what actually is the case)
 _CLAIMS = [
@@ -16,8 +16,8 @@ _CLAIMS = [
     (re.compile(r"\b(training|the model)\b[^.!?\n]{0,30}\b(has started|is now running|is running|has finished|is finished|is complete|is ready|is trained)\b|"
                 r"\bi(?:'ve| have) (started|begun|launched) (the )?training\b|\bi(?:'ve| have) trained\b", re.I),
      TRAINED | SETTLED, "paid training has not started"),
-    (re.compile(r"\b(refund(ed)?)\b[^.!?\n]{0,30}\b(sent|issued|processed|on its way|complete[d]?)\b|\bi(?:'ve| have) refunded\b", re.I),
-     SETTLED, "no refund has been made"),
+    (re.compile(r"\b(refund(ed)?|released|voided)\b[^.!?\n]{0,30}\b(sent|issued|processed|on its way|complete[d]?)\b|\bi(?:'ve| have) (refunded|released|voided)\b", re.I),
+     SETTLED, "nothing has been released yet"),
 ]
 
 

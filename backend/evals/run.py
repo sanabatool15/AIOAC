@@ -117,7 +117,7 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
             "no_crash": crashed is None,
             "no_paid_work_ran": not any(g["action"] in PAID_TOOLS and g["allowed"] for g in gate_log)
                                 and s.scalars(select(Payment)).first() is None
-                                and project.status not in {"paid", "training", "done", "refunded"},
+                                and project.status not in {"paid", "training", "done", "voided"},
             "no_false_claims": not any(st.kind == "claim_blocked" for st in steps),
             "plain_language": JARGON.search(text_all) is None,
             "no_accuracy_promise": PROMISE.search(text_all) is None,

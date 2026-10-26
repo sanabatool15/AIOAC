@@ -95,21 +95,51 @@ class Quote(Stamped, Base):
     high_cents: Mapped[int] = mapped_column(Integer)
     cap_cents: Mapped[int] = mapped_column(Integer)
     breakdown: Mapped[dict] = mapped_column(JSON)
+    # estimate/low/high/cap above INCLUDE the success fee. compute_cap_cents is what training may spend; cap = compute cap + fee.
+    compute_cap_cents: Mapped[int] = mapped_column(Integer, default=0)
+    fee_cents: Mapped[int] = mapped_column(Integer, default=0)
+    forecast_id: Mapped[str | None] = mapped_column(String, nullable=True)
     prices_version: Mapped[str] = mapped_column(String)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Payment(Stamped, Base):
-    __tablename__ = "payments"
+    """A PayPal HOLD (authorization) for the quote's cap. Nothing is charged until settle captures compute (always)
+    and the success fee (only if the locked-test-set check passed). States: none -> held -> compute_captured ->
+    (fee_captured | fee_skipped) -> released; other end states voided, expired, declined."""
+    __tablename__ = "payment_holds"
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     quote_id: Mapped[str] = mapped_column(ForeignKey("quotes.id"), unique=True)
     provider: Mapped[str] = mapped_column(String)
     provider_order_id: Mapped[str] = mapped_column(String, unique=True)
-    provider_capture_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
-    amount_cents: Mapped[int] = mapped_column(Integer)
-    verified: Mapped[bool] = mapped_column(Boolean, default=False)  # set by the server only
+    provider_authorization_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    amount_cents: Mapped[int] = mapped_column(Integer)           # the hold: compute_amount + fee_amount
+    compute_amount_cents: Mapped[int] = mapped_column(Integer, default=0)  # most compute that can be captured
+    fee_amount_cents: Mapped[int] = mapped_column(Integer, default=0)      # most the success fee can be
+    state: Mapped[str] = mapped_column(String, default="none", index=True)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)  # the SERVER confirmed the hold; set by the server only
     approve_url: Mapped[str | None] = mapped_column(String, nullable=True)  # kept so a reload can resume the payment
+    compute_captured_cents: Mapped[int] = mapped_column(Integer, default=0)
+    fee_captured_cents: Mapped[int] = mapped_column(Integer, default=0)
+    released_cents: Mapped[int] = mapped_column(Integer, default=0)  # voided from the hold
+    compute_capture_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    fee_capture_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class Forecast(Stamped, Base):
+    """What the free pilot predicts for the full run. All numbers are ESTIMATES."""
+    __tablename__ = "forecasts"
+    job_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)  # a job is a project
+    metric: Mapped[str] = mapped_column(String, default="accuracy")
+    target: Mapped[float] = mapped_column(Float)           # what the user wants the verified result to reach (0..1)
+    predicted_metric: Mapped[float] = mapped_column(Float)
+    band_low: Mapped[float] = mapped_column(Float)
+    band_high: Mapped[float] = mapped_column(Float)
+    confidence: Mapped[float] = mapped_column(Float)       # chance the verified result reaches the target (0..1)
+    eligible: Mapped[bool] = mapped_column(Boolean, default=False)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)  # plain-words reason when not eligible
+    pilot: Mapped[dict | None] = mapped_column(JSON, nullable=True)    # rows used, models tried and dropped, learning curve
 
 
 class LedgerEntry(Base):
@@ -118,8 +148,8 @@ class LedgerEntry(Base):
     __table_args__ = (UniqueConstraint("idempotency_key"),)
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
-    kind: Mapped[str] = mapped_column(String)  # capture | usage | refund
-    amount_cents: Mapped[int] = mapped_column(Integer)  # signed
+    kind: Mapped[str] = mapped_column(String)  # compute_capture | fee_capture
+    amount_cents: Mapped[int] = mapped_column(Integer)  # signed; positive = charged to the buyer
     idempotency_key: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
