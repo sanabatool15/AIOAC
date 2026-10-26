@@ -57,6 +57,18 @@ def active_run(session: Session, project_id: str) -> TrainingRun | None:
                           .order_by(TrainingRun.started_at.desc()))
 
 
+def _claim_start(session: Session, run: TrainingRun) -> bool:
+    """Take the right to start the backend, exactly once per run. True only for the first caller.
+    A worker that dies after claiming leaves a silent `running` run; crash recovery fails and refunds it,
+    and the job is never started a second time."""
+    res = session.execute(update(TrainingRun).where(TrainingRun.id == run.id, TrainingRun.status == "running",
+                                                    TrainingRun.claimed_at.is_(None))
+                          .values(claimed_at=_now(), updated_at=_now()))
+    session.commit()
+    session.refresh(run)
+    return res.rowcount == 1
+
+
 def _claim(session: Session, run: TrainingRun, **values) -> bool:
     """Finish the run exactly once. True only for the caller that moved it out of `running`."""
     res = session.execute(update(TrainingRun).where(TrainingRun.id == run.id, TrainingRun.status == "running")
@@ -96,6 +108,8 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     run = session.get(TrainingRun, run_id)
     if run is None or run.status != "running":
         return run
+    if not _claim_start(session, run):
+        return run   # another delivery of the same task already owns this run; never start the backend twice
     project = session.get(Project, run.project_id)
     quote = gate.latest_quote(session, project.id)
     version = session.get(DatasetVersion, project.chosen_dataset_version_id)
@@ -114,7 +128,7 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
 
     try:
         res = backend.run(storage.path(version.storage_key), version.target_column, quote.cap_cents,
-                          on_progress=on_progress, should_stop=should_stop)
+                          on_progress=on_progress, should_stop=should_stop, job_key=run.id)
     except Exception as exc:
         session.rollback()
         fail_run(session, provider, run, type(exc).__name__)

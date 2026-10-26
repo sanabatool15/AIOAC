@@ -15,7 +15,7 @@ class ScriptedBackend:
     def __init__(self, cost=0, fail=False):
         self.cost, self.fail = cost, fail
 
-    def run(self, path, target, cap, on_progress=None, should_stop=None):
+    def run(self, path, target, cap, on_progress=None, should_stop=None, job_key=None):
         if self.fail:
             raise RuntimeError("boom")
         return TrainingResult(0.8, 0.7, 1.0, self.cost, False, b"model")

@@ -8,7 +8,7 @@ class LocalBackend:
     name = "local"
     instance_type = None
 
-    def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None):
+    def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None, job_key=None):
         report = on_progress or (lambda stage, fraction: None)
         stop = should_stop or (lambda: False)
 

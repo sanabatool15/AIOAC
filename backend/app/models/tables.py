@@ -144,6 +144,7 @@ class TrainingRun(Stamped, Base):
     stop_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)  # heartbeat, used by crash recovery
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # set once by the worker that starts the job
     cost_cents: Mapped[int] = mapped_column(Integer, default=0)
     stopped_at_cap: Mapped[bool] = mapped_column(Boolean, default=False)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)

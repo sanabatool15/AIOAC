@@ -28,7 +28,7 @@ class StoppableBackend:
     def __init__(self, cost=30, during=None):
         self.cost, self.during, self.progress_seen = cost, during, []
 
-    def run(self, path, target, cap, on_progress=None, should_stop=None):
+    def run(self, path, target, cap, on_progress=None, should_stop=None, job_key=None):
         on_progress("training the model", 0.5)
         self.progress_seen.append("training the model")
         if self.during:
@@ -277,3 +277,56 @@ def test_no_sqlite_only_column_types():
     from app.db import Base
     for table in Base.metadata.sorted_tables:  # compiles every table for Postgres without connecting
         CreateTable(table).compile(dialect=postgresql.dialect())
+
+
+# ---- task-level idempotency --------------------------------------------------------------------------------
+def test_second_delivery_never_starts_the_backend_again(session, storage, chosen, provider, paid):
+    calls = []
+
+    class Counting(StoppableBackend):
+        def run(self, *a, **kw):
+            calls.append(kw.get("job_key"))
+            return super().run(*a, **kw)
+
+    backend = Counting()
+    run = training.start_training(session, chosen, backend)
+    training.execute_run(session, run.id, backend, storage, provider)
+    training.execute_run(session, run.id, backend, storage, provider)   # duplicate delivery after it finished
+    assert calls == [run.id]
+    assert len(provider.refunds) == 1
+
+
+def test_delivery_while_another_worker_owns_the_run_does_nothing(session, storage, chosen, provider, paid):
+    backend = StoppableBackend()
+    run = training.start_training(session, chosen, backend)
+    run.claimed_at = datetime.now(timezone.utc)   # another worker already claimed it and is still running
+    session.commit()
+    training.execute_run(session, run.id, backend, storage, provider)
+    assert backend.progress_seen == [] and run.status == "running"
+
+
+def test_claim_is_taken_exactly_once(session, chosen, provider, paid):
+    run = training.start_training(session, chosen, StoppableBackend())
+    assert training._claim_start(session, run) is True
+    assert training._claim_start(session, run) is False
+
+
+def test_worker_that_died_after_claiming_is_refunded_not_rerun(session, storage, chosen, provider, paid):
+    backend = StoppableBackend()
+    run = training.start_training(session, chosen, backend)
+    assert training._claim_start(session, run)
+    run.updated_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    session.commit()
+    training.execute_run(session, run.id, backend, storage, provider)   # redelivery: refused, backend not started
+    assert backend.progress_seen == []
+    assert training.recover_stale_runs(session, provider, lambda rid: False, 300) == [run.id]
+    assert provider.refunds[-1][1] == paid.cap_cents
+
+
+def test_inngest_function_has_idempotency_and_one_at_a_time():
+    import inngest
+    from app.jobs.inngest_runner import make_client, make_function
+    fn = make_function(make_client(), lambda run_id: None)
+    cfg = fn.get_config("http://localhost").main
+    assert cfg.idempotency == "event.data.run_id"
+    assert cfg.concurrency and cfg.concurrency[0].limit == 1

@@ -311,3 +311,38 @@ def test_cost_accuracy_report():
     assert r["over_high"] == 1 and r["under_low"] == 1
     assert r["mean_abs_error_cents"] == (10 + 40 + 30 + 0) / 4
     assert cost_accuracy_report([])["inside_share"] is None
+
+
+# ---- same run id -> same job, no second job ---------------------------------------------------------------
+def test_job_name_comes_from_the_run_id(csv_path):
+    s3, smc = FakeS3(model_tar()), FakeSM([completed()])
+    b = SageMakerBackend(smc, s3, bucket="b", role_arn="arn:aws:iam::123456789012:role/x", region="us-east-1",
+                         instance_type=INSTANCE, image_version="1.4-2", poll_seconds=0, sleep=lambda s: None)
+    b.run(csv_path, "churn", 100, job_key="0123456789abcdef0123456789abcdef")
+    assert smc.created["TrainingJobName"] == "aioac-0123456789abcdef0123456789abcdef"
+    assert len(smc.created["TrainingJobName"]) <= 63
+
+
+def test_existing_job_is_followed_not_duplicated(csv_path):
+    class ClientError(Exception):
+        response = {"Error": {"Code": "ResourceInUse"}}
+
+    b, smc, s3 = backend([completed()])
+
+    def create(**kw):
+        smc.attempts = getattr(smc, "attempts", 0) + 1
+        raise ClientError()
+
+    smc.create_training_job = create
+    res = b.run(csv_path, "churn", 100, job_key="abc")
+    assert smc.attempts == 1 and res.model_bytes   # followed the existing job to its end
+
+
+def test_other_create_errors_still_fail(csv_path):
+    class ClientError(Exception):
+        response = {"Error": {"Code": "AccessDeniedException"}}
+
+    b, smc, s3 = backend([completed()])
+    smc.create_training_job = lambda **kw: (_ for _ in ()).throw(ClientError())
+    with pytest.raises(ClientError):
+        b.run(csv_path, "churn", 100)

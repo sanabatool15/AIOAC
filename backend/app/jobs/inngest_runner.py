@@ -35,7 +35,10 @@ def make_client() -> inngest.Inngest:
 
 
 def make_function(client: inngest.Inngest, execute=run_job):
-    @client.create_function(fn_id=FUNCTION_ID, trigger=inngest.TriggerEvent(event=EVENT_NAME), retries=0)
+    # idempotency: Inngest runs this function at most once per run_id (24 hours); concurrency: one paid job at a time
+    # (cost.md). Both are backed by the database claim in training.execute_run, which is what the tests prove.
+    @client.create_function(fn_id=FUNCTION_ID, trigger=inngest.TriggerEvent(event=EVENT_NAME), retries=0,
+                            idempotency="event.data.run_id", concurrency=[inngest.Concurrency(limit=1)])
     def run_training_fn(ctx: inngest.ContextSync) -> str:
         run_id = ctx.event.data["run_id"]
         ctx.step.run("train", execute, run_id)

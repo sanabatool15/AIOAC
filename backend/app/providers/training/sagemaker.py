@@ -87,6 +87,11 @@ def _hp(value) -> str:
     return json.dumps(value)   # the container expects JSON-encoded hyperparameter values
 
 
+def _error_code(exc: Exception) -> str:
+    """boto3 ClientError keeps the AWS error code in exc.response['Error']['Code']."""
+    return str(((getattr(exc, "response", None) or {}).get("Error") or {}).get("Code", ""))
+
+
 class SageMakerBackend:
     name = "sagemaker"
 
@@ -101,7 +106,7 @@ class SageMakerBackend:
         self.poll_seconds = settings.sagemaker_poll_seconds if poll_seconds is None else poll_seconds
         self._sm, self._s3 = sm_client, s3_client
         self._sleep, self._clock = sleep, clock
-        self._job_name = job_name_factory or (lambda: f"aioac-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}")
+        self._job_name_override = job_name_factory  # tests only
         self.last_warnings: list[str] = []
 
     # clients are created lazily so importing or constructing the backend never touches the network
@@ -177,7 +182,18 @@ class SageMakerBackend:
         return costs.actual_cost_cents(desc.get("BillableTimeInSeconds") or 0, self.instance_type, cap_cents)
 
     # ---- main entry ----------------------------------------------------------------------------------------
-    def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None) -> TrainingResult:
+    def _job_name(self, job_key: str | None) -> str:
+        """Same run id -> same job name. SageMaker refuses a second job with an existing name, so a repeated
+        delivery of the same task cannot start (and bill) a second job."""
+        if self._job_name_override:
+            return self._job_name_override()
+        if job_key:
+            safe = re.sub(r"[^A-Za-z0-9]", "", job_key)[:40]
+            if safe:
+                return f"aioac-{safe}"
+        return f"aioac-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+
+    def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None, job_key=None) -> TrainingResult:
         progress = on_progress or (lambda *a, **k: None)
         stop_check = should_stop or (lambda: False)
         if not self.bucket or not self.role_arn:
@@ -187,11 +203,16 @@ class SageMakerBackend:
         except costs.CapTooSmall as e:
             raise SageMakerJobError("cap_too_small", str(e)) from e
 
-        job = self._job_name()
+        job = self._job_name(job_key)
         progress("queued", 0.0)
         self._put(f"jobs/{job}/input/train/dataset.csv", Path(dataset_path).read_bytes())
         self._put(f"jobs/{job}/code/{SOURCE_TAR_NAME}", build_source_tarball())
-        self._create_job(job, target, max_runtime)
+        try:
+            self._create_job(job, target, max_runtime)
+        except Exception as e:
+            if _error_code(e) != "ResourceInUse":
+                raise
+            log.warning("training job %s already exists; following it instead of starting another", job)
 
         started = self._clock()
         stop_sent = False
