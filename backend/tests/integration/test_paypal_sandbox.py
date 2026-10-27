@@ -15,7 +15,7 @@ import httpx
 import pytest
 
 from app.ports import ProviderError
-from tests.real.conftest import need
+from tests.integration.conftest import need
 
 HOLD, COMPUTE, FEE = 50, 20, 5
 

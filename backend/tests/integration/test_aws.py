@@ -5,7 +5,7 @@ Run: RUN_REAL=1 pytest tests/real/test_aws.py -v -s
 """
 import pytest
 
-from tests.real.conftest import need
+from tests.integration.conftest import need
 
 boto3 = pytest.importorskip("boto3")
 

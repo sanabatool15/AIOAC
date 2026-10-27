@@ -3,7 +3,7 @@
 Costs a fraction of a cent (one short completion, no tools).
 Run: RUN_REAL=1 pytest tests/real/test_llm.py -v -s
 """
-from tests.real.conftest import need
+from tests.integration.conftest import need
 
 
 def test_one_tiny_completion(real_settings):

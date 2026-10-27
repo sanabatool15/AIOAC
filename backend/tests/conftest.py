@@ -8,8 +8,8 @@ import tempfile
 # environment and .env, because those tests exist to talk to the real services. Any other run, even with
 # RUN_REAL=1 set, stays isolated and the real tests skip themselves.
 _PATH_ARGS = [a for a in sys.argv[1:] if not a.startswith("-") and ("/" in a or "\\" in a or a.endswith(".py"))]
-REAL_MODE = os.environ.get("RUN_REAL") == "1" and bool(_PATH_ARGS) and all(
-    a.replace("\\", "/").split("::")[0].rstrip("/").split("tests/")[-1].startswith("real") for a in _PATH_ARGS)
+REAL_MODE = (os.environ.get("RUN_INTEGRATION") == "1" or os.environ.get("RUN_REAL") == "1") and bool(_PATH_ARGS) and all(
+    a.replace("\\", "/").split("::")[0].rstrip("/").split("tests/")[-1].startswith(("integration", "real")) for a in _PATH_ARGS)
 
 if not REAL_MODE:
     _TMP = tempfile.mkdtemp(prefix="aioac-tests-")
@@ -104,5 +104,5 @@ def verdict(monkeypatch):
 def pytest_collection_modifyitems(config, items):
     """Everything under tests/real carries the `real` marker (select with `-m real`)."""
     for item in items:
-        if "/tests/real/" in str(item.fspath).replace("\\", "/"):
+        if any(k in str(item.fspath).replace("\\", "/") for k in ("/tests/integration/", "/tests/real/")):
             item.add_marker(pytest.mark.real)

@@ -7,7 +7,7 @@ import pytest
 
 @pytest.fixture(scope="session")
 def real_settings():
-    if os.environ.get("RUN_REAL") != "1":
+    if os.environ.get("RUN_REAL") != "1" and os.environ.get("RUN_INTEGRATION") != "1":
         pytest.skip("real-service test: set RUN_REAL=1 and run `RUN_REAL=1 pytest tests/real -v -s`")
     if os.environ.get("AIOAC_TEST_ISOLATED") == "1":
         pytest.skip("this run is isolated from the real .env; run only the real folder: RUN_REAL=1 pytest tests/real")
