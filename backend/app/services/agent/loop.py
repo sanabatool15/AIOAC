@@ -8,11 +8,10 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select, update
-
 from ...config import settings
-from ...db.tables import AgentRun, AgentStep
+from ...db.tables import AgentRun
 from ...ports import LLMClient, LLMError
+from ...repositories import agent_runs, transactions
 from ...repositories.traces import TraceRepository
 from .. import gate
 from . import context, guards, memory
@@ -44,10 +43,7 @@ class AgentResult:
 
 
 def _project_usage(session, project_id: str, exclude_run: str) -> tuple[int, int]:
-    q = select(func.coalesce(func.sum(AgentRun.tokens_used), 0), func.coalesce(func.sum(AgentRun.llm_cost_micros), 0)).where(
-        AgentRun.project_id == project_id, AgentRun.id != exclude_run)
-    tokens, micros = session.execute(q).one()
-    return int(tokens), int(micros)
+    return agent_runs.project_usage(session, project_id, exclude_run)
 
 
 def _call_with_timeout(fn, timeout: float):
@@ -87,9 +83,7 @@ def run_agent(ctx: ToolContext, llm: LLMClient, user_message: str | None, log: R
     _acquire(ctx.project.id)
     try:
         conv = memory.get_conversation(session, ctx.project.id, source, meta, conversation_id)
-        run = AgentRun(project_id=ctx.project.id, conversation_id=conv.id)
-        session.add(run)
-        session.commit()
+        run = agent_runs.create(session, ctx.project.id, conv.id)
         log.begin_turn(ctx.project.id, run.id)
         t0 = time.monotonic()
         status_before = ctx.project.status
@@ -104,8 +98,7 @@ def run_agent(ctx: ToolContext, llm: LLMClient, user_message: str | None, log: R
             run.stop_reason = result.reason if result else "crashed"
             run.ended_at = datetime.now(timezone.utc)
             # gate decisions are written by gate.py without a run id; stamp them so the whole turn shares one id
-            session.execute(update(AgentStep).where(AgentStep.project_id == ctx.project.id, AgentStep.run_id.is_(None)).values(run_id=run.id))
-            session.commit()
+            agent_runs.stamp_unowned_steps(session, ctx.project.id, run.id)
             log.emit("turn_end", "INFO" if result else "ERROR", status=run.status, reason=run.stop_reason, steps_used=run.steps_used,
                      tokens_used=run.tokens_used, cost_usd=run.llm_cost_micros / 1e6, status_after=ctx.project.status,
                      ms=int((time.monotonic() - t0) * 1000))
@@ -171,7 +164,7 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
             run.llm_cost_micros += int(round((usage.cost_usd or 0.0) * 1e6))
             trace.add(pid, "llm", {"tokens": usage.total_tokens, "cost_usd": usage.cost_usd, "finish_reason": resp.finish_reason,
                                    "step": step, "ms": ms}, run.id)
-        ctx.session.commit()
+        transactions.commit(ctx.session)
         log.emit("llm_call", model=getattr(llm, "model", type(llm).__name__), ms=ms, prompt_tokens=usage.prompt_tokens if usage else None,
                  completion_tokens=usage.completion_tokens if usage else None, cost_usd=usage.cost_usd if usage else None,
                  finish_reason=resp.finish_reason, text=resp.text,
@@ -261,7 +254,7 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
                     close_group("the check took too long")
                     return stop("timeout")
                 except Exception as exc:  # tool failed: the model gets a generic message; the detail stays in the log
-                    ctx.session.rollback()
+                    transactions.rollback(ctx.session)
                     detail = f"{type(exc).__name__}: {exc}"
                     logger.warning("tool %s failed: %s", call.name, detail, exc_info=True)
                     result = {"error": GENERIC_TOOL_ERROR}

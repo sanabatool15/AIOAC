@@ -66,3 +66,7 @@ def known_storage_keys(session: Session) -> set[str]:
     known = {c.storage_key for c in session.scalars(select(DatasetCandidate)) if c.storage_key}
     known |= {v.storage_key for v in session.scalars(select(DatasetVersion))}
     return known
+
+
+def open_candidates_for_project(session: Session, project_id: str) -> list[DatasetCandidate]:
+    return list(session.scalars(select(DatasetCandidate).where(DatasetCandidate.project_id == project_id, DatasetCandidate.status == "candidate")))

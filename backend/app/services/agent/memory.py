@@ -16,13 +16,11 @@ writes it yet (dropped history is simply not sent; the state block still carries
 import json
 from dataclasses import dataclass, field
 
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
 from ...config import settings
+from ...db import Session
 from ...db.tables import Conversation, Message, Project
 from ...ports import LLMResponse, ToolCall
+from ...repositories import conversations, projects
 from . import context
 
 SKILL_LIMIT = 8000   # playbooks are kept nearly whole
@@ -39,15 +37,12 @@ def get_conversation(session: Session, project_id: str, source: str = "app", met
                      conversation_id: str | None = None) -> Conversation:
     """The explicit conversation, else the project's newest active one, else a new one."""
     if conversation_id:
-        conv = session.get(Conversation, conversation_id)
+        conv = conversations.get(session, conversation_id)
         if conv is not None:
             return conv
-    conv = session.scalar(select(Conversation).where(Conversation.project_id == project_id, Conversation.status == "active")
-                          .order_by(Conversation.created_at.desc(), Conversation.id.desc()))
+    conv = conversations.newest_active(session, project_id)
     if conv is None:
-        conv = Conversation(project_id=project_id, source=source, meta=meta)
-        session.add(conv)
-        session.commit()
+        conv = conversations.create(session, project_id=project_id, source=source, meta=meta)
     return conv
 
 
@@ -57,15 +52,10 @@ def add_message(session: Session, conv_id: str, role: str, content: str = "", *,
     """Append one message. seq is max+1; the unique (conversation, seq) key is the backstop if two writers ever race."""
     size = estimate_tokens(content) + (estimate_tokens(json.dumps(tool_calls)) if tool_calls else 0)
     for _ in range(5):
-        seq = session.scalar(select(func.coalesce(func.max(Message.seq), 0)).where(Message.conversation_id == conv_id)) + 1
-        m = Message(conversation_id=conv_id, seq=seq, run_id=run_id, role=role, content=content, tool_calls=tool_calls,
-                    tool_call_id=tool_call_id, tool_name=tool_name, kind=kind, stub=stub, tokens=size)
-        session.add(m)
-        try:
-            session.commit()
+        m = conversations.append_message(session, conv_id, run_id=run_id, role=role, content=content, tool_calls=tool_calls,
+                                         tool_call_id=tool_call_id, tool_name=tool_name, kind=kind, stub=stub, tokens=size)
+        if m is not None:
             return m
-        except IntegrityError:
-            session.rollback()
     raise RuntimeError("could not assign a message number")
 
 
@@ -167,7 +157,7 @@ class Built:
 
 def pending_card(session: Session, conv: Conversation) -> dict | None:
     """The approval card the user has not answered yet: the newest message is a card result."""
-    last = session.scalar(select(Message).where(Message.conversation_id == conv.id).order_by(Message.seq.desc()))
+    last = conversations.last_message(session, conv.id)
     if last is not None and last.kind == "card":
         try:
             return json.loads(last.content)
@@ -179,8 +169,7 @@ def pending_card(session: Session, conv: Conversation) -> dict | None:
 def history(session: Session, conv: Conversation, budget: int | None = None, upto_seq: int | None = None) -> tuple[list[dict], list[tuple[str, str]], int, int]:
     """(messages, skills moved to the system message, stubbed count, dropped group count)."""
     budget = budget if budget is not None else settings.agent_history_token_budget
-    msgs = list(session.scalars(select(Message).where(Message.conversation_id == conv.id, Message.seq > conv.summary_upto_seq,
-                                                         Message.seq < (upto_seq if upto_seq is not None else 10**12)).order_by(Message.seq)))
+    msgs = conversations.messages_after_summary(session, conv, upto_seq if upto_seq is not None else 10**12)
     groups = _groups(msgs)
     for g in groups:
         g.sent = _render(g, stub=False)
@@ -232,16 +221,14 @@ def model_input(session: Session, project: Project, conv: Conversation, approved
 # ---------------------------------------------------------------- export, import, replay
 
 def export_conversation(session: Session, conv: Conversation) -> dict:
-    rows = session.scalars(select(Message).where(Message.conversation_id == conv.id).order_by(Message.seq))
-    return {"source": conv.source, "meta": conv.meta, "goal": session.get(Project, conv.project_id).goal if conv.project_id else None,
+    rows = conversations.all_messages(session, conv.id)
+    return {"source": conv.source, "meta": conv.meta, "goal": projects.get(session, conv.project_id).goal if conv.project_id else None,
             "messages": [{"seq": m.seq, "run_id": m.run_id, "role": m.role, "content": m.content, "tool_calls": m.tool_calls,
                           "tool_call_id": m.tool_call_id, "tool_name": m.tool_name, "kind": m.kind, "stub": m.stub} for m in rows]}
 
 
 def import_conversation(session: Session, project: Project, data: dict) -> Conversation:
-    conv = Conversation(project_id=project.id, source=data.get("source", "replay"), meta=data.get("meta"))
-    session.add(conv)
-    session.commit()
+    conv = conversations.create(session, project_id=project.id, source=data.get("source", "replay"), meta=data.get("meta"))
     for m in data["messages"]:
         add_message(session, conv.id, m["role"], m["content"], run_id=m.get("run_id"), tool_calls=m.get("tool_calls"),
                     tool_call_id=m.get("tool_call_id"), tool_name=m.get("tool_name"), kind=m.get("kind", "chat"), stub=m.get("stub"))

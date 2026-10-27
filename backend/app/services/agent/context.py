@@ -2,10 +2,10 @@
 import json
 import re
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from ...db import Session
+from ...repositories import datasets as datasets_repo
 
-from ...db.tables import DatasetCandidate, DatasetVersion, Project
+from ...db.tables import Project
 from .. import gate
 from . import skills
 
@@ -98,11 +98,11 @@ def tool_names(status: str) -> list[str]:
 def state_block(session: Session, project: Project, approved=(), pending: dict | None = None) -> str:
     lines = [f"Goal: {project.goal}", f"Status: {project.status}"]
     if project.chosen_dataset_version_id:
-        v = session.get(DatasetVersion, project.chosen_dataset_version_id)
+        v = datasets_repo.get_version(session, project.chosen_dataset_version_id)
         lines.append(f"Dataset: {v.source}, {v.rows:,} rows, answer column '{v.target_column}', license {sanitise_license(v.license, trusted=v.source == "bundled")}")
     else:
         # tool results are not kept between turns, so the model needs the candidate ids here (e.g. to propose select_dataset again after approval)
-        cands = session.scalars(select(DatasetCandidate).where(DatasetCandidate.project_id == project.id, DatasetCandidate.status == "candidate")).all()
+        cands = datasets_repo.open_candidates_for_project(session, project.id)
         for c in cands[:5]:
             lines.append(f"Fetched candidate: id {c.id}, {c.name}, {c.rows or '?'} rows, license {sanitise_license(c.license, trusted=c.source == "bundled")}")
     if project.readiness_grade:

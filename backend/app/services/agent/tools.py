@@ -5,10 +5,10 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 import pandas as pd
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from ...db import Session
+from ...repositories import datasets as datasets_repo
 
-from ...db.tables import DatasetCandidate, Project
+from ...db.tables import Project
 from ...config import settings
 from ...ports import DatasetSource, SourceError
 from ...integrations.datasets.registry import SourceRegistry, as_registry
@@ -185,7 +185,7 @@ def load_skill(ctx, a):
 
 
 def inspect_candidate(ctx, a):
-    cand = ctx.session.get(DatasetCandidate, a["candidate_id"])
+    cand = datasets_repo.get_candidate(ctx.session, a["candidate_id"])
     if cand is None or cand.project_id != ctx.project.id or not cand.storage_key:
         return {"error": "unknown candidate"}
     df = pd.read_csv(io.BytesIO(ctx.storage.get(cand.storage_key)))
