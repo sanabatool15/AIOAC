@@ -85,27 +85,33 @@ Common rules (BUILT):
 - DB changes: `BaselineRun` row, `project.baseline_result`, `project.trust_level`, status -> `baseline_done`.
 - Failure: exception -> error result. Runs 5%, 10%, 20% samples plus the main fit; large data could exceed 60 s (W12).
 
+## run_pilot
+- Purpose: free pilot on about 5-10% of the data (never the locked rows), then a forecast of the full-run result against the user's target (a number from 0 to 1, for example 0.8). Gate `PILOT`, level 0.
+- Offered in: `baseline_done`.
+- Input: `{target}`. Output: the forecast with confidence, band and eligibility, plus a reason when not eligible. All values are estimates.
+- If confidence is below 0.60 the run is not sold ("Not eligible"). The agent then explains the data issues in plain words, asks the lowest result the user would accept, offers a suggested target, and may re-run the pilot. The "change of engineering approach" step is to be designed (`payments.md` section 2a).
+
 ## create_quote
-- Purpose: compute estimate, range, cap. Gate `CREATE_QUOTE`, level 0 (it only prepares the approval screen).
+- Purpose: compute estimate, range, cap (estimate includes the 5% success fee, which is charged only if the result is verified). Refused unless the forecast is eligible. Gate `CREATE_QUOTE`, level 0 (it only prepares the approval screen).
 - Offered in: `baseline_done`, `quoted`.
 - Input: none. Output: `{quote_id, estimate_cents, range_cents:[lo,hi], cap_cents, label:"estimate", next}`.
 - DB changes: new `Quote` (expires after `quote_ttl_minutes`), status -> `quoted`. Calling again in `quoted` makes another quote.
 - Failure: `{error}` (no baseline, too expensive, or any exception).
 
 ## request_payment
-- Purpose: create the PayPal order for the approved quote. `REQUEST_PAYMENT`, **level 2**.
+- Purpose: create the PayPal hold order for the approved quote (the hold is not a charge). `REQUEST_PAYMENT`, **level 2**.
 - Offered in: `awaiting_payment`.
 - Input: none. Output: `{payment_id, amount_cents, approve_url, next}`.
 - Gate (`gate.py`): a quote exists, is approved, not expired. The `approve` list is not used for level 2.
 - DB changes: `Payment` row (amount = quote cap). If a payment for the quote already exists it is returned (no second order). `payments.create_order` calls the gate again, so two `gate` steps appear.
-- The user pays in PayPal. The capture is confirmed by the HTTP routes, never by this tool.
+- The user approves the hold in PayPal. The server confirms the hold (`POST /payments/{id}/authorize`) and captures at the end; never this tool.
 
 ## start_training
 - Purpose: run paid training. `START_TRAINING`, **level 2**.
 - Offered in: `paid`.
 - Input: none. Output: `{status, cost_cents, result}`.
-- Gate: a verified payment for the current quote, status `paid`, global budget has room.
-- DB changes: via `training.run_training`: training run, model, ledger entries, refund. It blocks until done (MISMATCH with the background design in `training.md` section 7).
+- Gate: a server-confirmed hold for the current quote, status `paid`, global budget has room.
+- DB changes: via `training.run_training`: training run, model, ledger entries, capture and void (settle). It blocks until done (MISMATCH with the background design in `training.md` section 7).
 - Not covered here: the HTTP route `POST /projects/{id}/train` is the normal path.
 
 ## PROPOSED new tools
@@ -124,4 +130,4 @@ Common rules (BUILT):
 | `browse(url)` (simplified 2026-10-24: one tool, see file 11 section 5) | Find and read web pages (search pages, dataset cards, READMEs) with a headless Chromium; live view for the UI. | **Later (after the safety steps in file 04).** Level 0, gate action `BROWSE`, offered in `described`, limits per turn and per project, page text returned as untrusted and capped at 1,500 tokens. Tested live on 2026-10-24: Kaggle, Hugging Face, UCI and data.gov search pages work; DuckDuckGo, Google and Brave block; OpenML blocks the browser. Details in `11-dataset-discovery.md` section 12 |
 | `run_analysis_code` (sandbox) | Model-written analysis scripts | **Never for the MVP.** Fixed functions are testable and safe |
 | `explain_result` (read stored result) | Give the agent training results in `done` | **Build now** (read-only). Today only `load_skill` is offered in `done`, so the agent cannot read the result |
-| `refund_unused`, `apply_infrastructure` | Money or cloud actions | **Never as agent tools.** The system does these (`agent.md` section 4) |
+| `settle` (capture, void), `apply_infrastructure` | Money or cloud actions | **Never as agent tools.** The system does these (`agent.md` section 4) |

@@ -1,6 +1,6 @@
 # AIOAC (AI on a Click)
 
-Describe a prediction problem in plain words. An AI agent checks the data, runs a free baseline test, quotes an estimated cost, takes payment through PayPal (sandbox), trains the model, and refunds any unused amount.
+Describe a prediction problem in plain words. An AI agent checks the data, runs a free baseline test, runs a free pilot and forecasts the result, quotes an estimated cost, places a PayPal (sandbox) hold, trains the model, checks it once on locked test data, then charges the actual compute (plus a small success fee only if the check passes) and voids the rest of the hold. If our own code or infrastructure fails, the hold is voided and you pay nothing.
 
 Status: backend and agent core built and tested offline; PayPal sandbox is partly checked live; AWS training and the web app are not run or built. See `specs/status.md`. The web app is not built yet.
 
@@ -26,11 +26,15 @@ RUN_REAL=1 pytest tests/real -v -s            # real checks, uses your .env
 python -m evals.run --fake --repeats 1        # agent evals offline (use --model <id> for a real model)
 ```
 
-Offline tests ignore your `.env` and use a temporary database. The real checks are small: PayPal sandbox token and a 1.00 USD order (not captured), read-only AWS calls (identity, bucket, SageMaker list), one tiny LLM answer, a database connection test, and a live Hugging Face search. Each skips if its keys are missing. Layout: `specs/architecture.md`.
+Offline tests ignore your `.env` and use a temporary database. The real checks are small: PayPal sandbox token and a 50 cent hold order (not approved, nothing charged), read-only AWS calls (identity, bucket, SageMaker list), one tiny LLM answer, a database connection test, and a live Hugging Face search. Each skips if its keys are missing. Layout: `specs/architecture.md`.
+
+### PayPal sandbox: hold, capture, void
+
+The full money check needs a sandbox buyer to approve in a browser, so it has two steps (sandbox money only, 25 cents captured): `RUN_REAL=1 pytest tests/real/test_paypal_sandbox.py -k create -v -s` prints an approval link and an order id; approve it as the sandbox BUYER account; then `PAYPAL_APPROVED_ORDER_ID=<order id> RUN_REAL=1 pytest tests/real/test_paypal_sandbox.py -k lifecycle -v -s`. If you used an older version, delete the local `aioac.db` (the schema changed; there are no migrations).
 
 ## Background training
 
-`POST /projects/{id}/train` starts training and returns a run id at once. Poll `GET /projects/{id}/training` for the stage, elapsed time, spend so far and an estimated time left. `POST /projects/{id}/training/stop` stops it; unused money is refunded. When the API starts, any run left `running` by a crash is marked failed and refunded in full.
+`POST /projects/{id}/train` starts training and returns a run id at once. Poll `GET /projects/{id}/training` for the stage, elapsed time, spend so far and an estimated time left. `POST /projects/{id}/training/stop` stops it; you pay the compute used so far and no success fee. When the API starts, any run left `running` by a crash is marked failed and its whole hold is voided. See `specs/payments.md`.
 
 `JOB_RUNNER=inline` (default) runs the job in a thread of the API process. Nothing else is needed.
 

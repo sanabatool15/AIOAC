@@ -49,9 +49,9 @@ Limits are checked before a model call, so one step can overshoot (tokens are kn
 **Argument check.** Required keys present. String-typed keys must be non-empty strings. It does not check unknown extra keys, lengths, patterns or enums.
 
 **Claim guard.** Three regexes on the final reply, tested against the project status:
-- payment confirmed / "you have paid" / "I have charged": allowed only in `paid, training, done, refunded, failed, stopped`.
-- training started/finished/ready: allowed only in `training, done, refunded, failed, stopped`.
-- refund sent/issued/processed: allowed only in `done, refunded, failed, stopped`.
+- payment confirmed / "you have paid" / "I have charged": allowed only in `paid, training, done, voided, failed, stopped`.
+- training started/finished/ready: allowed only in `training, done, voided, failed, stopped`.
+- refund / money released: the guard's regex was written for the old refund wording. With hold, capture and void the wording is "released" or "voided"; the regex should be reviewed. Allowed only in `done, voided, failed, stopped`.
 A hit replaces the reply with: "I need to correct myself: ... Nothing was charged or started by me. We are at the '<status>' step." and traces `claim_blocked` with the original text.
 
 I ran the guard on sample sentences at status `quoted`:
@@ -59,7 +59,7 @@ I ran the guard on sample sentences at status `quoted`:
 | Sentence | Result |
 |---|---|
 | "Training starts only after your payment is confirmed." | BLOCKED (false positive) |
-| "Once training is complete, any unused money is refunded to you." | BLOCKED (false positive) |
+| "Once training is complete, any unused money is refunded to you." (old wording; the new wording is that the unused part of the hold is released) | BLOCKED (false positive) |
 | "The model is ready to be tested with a free check." | BLOCKED (false positive) |
 | "Your card has been charged $7." | passes (miss) |
 | "I started the job for you." | passes (miss) |
@@ -83,7 +83,7 @@ Each item: what happens, evidence, impact. Numbering is used by other files.
 
 **W5. User switches dataset after a quote.** Same as W4. Also an upload via `POST /projects/{id}/data` after selection creates a candidate that no tool can select (the state block only lists candidates when no dataset is chosen), so it sits until its expiry time.
 
-**W6. Off-topic, ambiguous, abusive input.** The prompt has no scope rule, no refusal rule and no "ask when unclear" rule beyond "One short question at a time". Behaviour is whatever the model does. No intent check exists. In statuses `training`, `done`, `failed`, `stopped`, `refunded`, only `load_skill` is offered and `NEXT_STEP` has no entry for failed/stopped/refunded ("Reply helpfully.").
+**W6. Off-topic, ambiguous, abusive input.** The prompt has no scope rule, no refusal rule and no "ask when unclear" rule beyond "One short question at a time". Behaviour is whatever the model does. No intent check exists. In statuses `training`, `done`, `failed`, `stopped`, `voided`, only `load_skill` is offered and `NEXT_STEP` has no entry for failed/stopped/voided ("Reply helpfully.").
 
 **W7. Non-English input.** Prompt, skills, claim guard and eval jargon checks are English only. The claim guard cannot see an Urdu or Hindi false claim. The language of the reply is not specified.
 

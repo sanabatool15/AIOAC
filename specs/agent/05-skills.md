@@ -18,7 +18,7 @@ Tests: `tests/test_context.py` checks that skills load, are listed, and that the
 
 1. **dataset-search.** Turn the goal into 2 to 3 short phrases; look at up to 3 results; a dataset fits only if tabular, has a usable answer column, at least 1,000 rows (300 minimum), not gated, small enough, one row means what the user cares about. Missing license is a note. Fetch 2 to 3, inspect each, recommend one, user decides. If nothing fits, offer the bundled sample or an upload. Weak point: its step count can exceed the 12-step limit (W11).
 2. **data-insights.** Quote tool numbers exactly, explain each finding, call the grade "readiness", warn when the smaller group is under 20%, say ignored copy-of-answer columns, always add one sentence of advice to the trust level.
-3. **cost-quote.** Every price is an estimate; give estimate, range and cap; explain the refund; training stops at the cap; the agent cannot take payment. It repeats payment facts in words. That is allowed (wording), but the rules are enforced in code.
+3. **cost-quote.** Every price is an estimate; give estimate, range and cap; explain that the PayPal hold is not a charge, that compute is paid either way and the success fee only if the result is verified, and that the rest of the hold is released; training stops at the cap; the agent cannot take payment. It repeats payment facts in words. That is allowed (wording), but the rules are enforced in code.
 4. **plain-language.** A table of jargon replaced by plain phrases; one question at a time; no tool or model names.
 5. **data-leakage.** Warning signs (copy of answer, after-the-fact names, IDs, near-perfect baseline) and what to say. Admits there is no tool to remove a column.
 6. **lopsided-classes.** Always show the simple-guess number next to the result; thresholds 20% and 5% / 100 rows; options to offer; cannot rebalance.
@@ -46,7 +46,7 @@ Observations:
 
 | Put it in... | When | Examples |
 |---|---|---|
-| **Code** (gate, tools, services) | Anything involving money, permissions, limits, data validity, or that must be true every time | approval, caps, verified payment, target must be a category, ids validated, claim checks against state |
+| **Code** (gate, tools, services) | Anything involving money, permissions, limits, data validity, or that must be true every time | approval, caps, confirmed hold, target must be a category, ids validated, claim checks against state |
 | **Base prompt** | Short rules needed in every step; under about 15 lines | scope, language, plain words, untrusted-text rule, "numbers come from tools" |
 | **State block** (per-status text) | What to do in this exact step | `NEXT_STEP`, allowed actions, pending question |
 | **Skill** | Judgment for a situation that comes up sometimes; examples; wording | leakage, lopsided data, unsupported task handling |

@@ -8,7 +8,7 @@ The demo is what gets judged, so testing aims at one result: the core path works
 2. **Insights.** Are the findings correct and plainly worded for known datasets?
 3. **Cost estimation.** How far is the estimate from the actual cost?
 4. **Permission gate.** Can the agent ever spend or start paid work without approval and a verified payment?
-5. **Payments and ledger.** Are repeats harmless and refunds correct?
+5. **Payments and ledger.** Are repeats harmless, and are captures and voids correct (never a capture above the hold or the compute cap)?
 
 ## 2. Layers
 
@@ -18,7 +18,7 @@ Four test folders under `backend/tests/`. Only `real/` touches outside services;
 |---|---|---|
 | `unit/` | Pure logic on in-memory SQLite: estimator math, ledger, gate, lifecycle, readiness, agent tools and guards, architecture rules | No outside systems |
 | `contract/` | Our code against each outside API as recorded or mocked HTTP, or mocked boto3: PayPal, OpenRouter, Azure, Hugging Face, UCI, OpenML, SageMaker | Mocked transport |
-| `e2e/` | Full flows through the API on doubles: approve, pay, train, refund; payment never confirmed; repeated webhook; cap reached; Stop; agent flows. `test_payments_and_demo.py` is the demo check | `MockPaymentProvider` and scripted model from `backend/doubles/`; local training, local storage, SQLite are real |
+| `e2e/` | Full flows through the API on doubles: approve, hold, train, verify, capture and void; hold never confirmed; repeated webhook; cap reached; target missed; our own failure; forecast too low; Stop; agent flows. `test_payments_and_demo.py` is the demo check | `MockPaymentProvider` and scripted model from `backend/doubles/`; local training, local storage, SQLite are real |
 | `real/` | Live PayPal sandbox, AWS, LLM, database and dataset sources, tiny and cheap | Real services. Skipped unless `RUN_REAL=1` and the keys exist |
 
 Commands (from `backend/`): `pytest` (unit, contract, e2e; real skips), `pytest tests/e2e/test_payments_and_demo.py` (demo check), `RUN_REAL=1 pytest tests/real -v -s`.
@@ -32,7 +32,9 @@ For each finished test job, compare estimate, range and actual. Track how often 
 ## 3. Safety checks that must always pass
 
 - No paid action runs without an approved, unexpired quote.
-- Training never starts before a verified payment.
+- Training never starts before a server-confirmed hold.
+- A capture or void repeated with the same request id moves no money a second time.
+- The success fee is never captured unless verification passed.
 - Actual cost never exceeds the cap.
 - A repeated payment event changes nothing the second time.
 - Leftover cloud resources are detected.

@@ -35,7 +35,7 @@ When a limit is hit, the agent stops and tells the user in plain words (`status:
 ### Guards on what the model says (built, cheap, not a security boundary)
 
 - Arguments are checked against the tool's schema before anything runs. Unreadable JSON, missing or wrongly typed arguments, and unknown tools come back to the model as errors.
-- A final reply that claims a payment, training or refund that the stored project state does not support is replaced with a plain correction and traced as `claim_blocked`. This is a keyword check and will miss rephrasings. The gate, not this check, is what stops spending.
+- A final reply that claims a payment, training or settlement that the stored project state does not support is replaced with a plain correction and traced as `claim_blocked`. This is a keyword check and will miss rephrasings. The gate, not this check, is what stops spending.
 
 ## 3. Capabilities (tools)
 
@@ -66,7 +66,7 @@ Status: sections 3.1 to 3.5 are the original design. Section 3.6 lists what actu
 - **Create quote.** Calls the cost estimator and stores a quote with an estimate, range and cap. Free to call; it only prepares the approval screen.
 - **Request payment.** Creates a payment request tied to an approved quote. The user pays; the agent cannot.
 - **Start training.** Only works after the server has confirmed the payment.
-- **Refund unused.** Triggered by the system when training ends, not chosen by the agent.
+- **Settle.** Captures the actual compute, captures the success fee only if verification passed, and voids the rest of the hold. Triggered by the system when training ends, not chosen by the agent.
 
 ### 3.5 Infrastructure (system-controlled)
 
@@ -80,7 +80,7 @@ Status: sections 3.1 to 3.5 are the original design. Section 3.6 lists what actu
 - `search_datasets`: bundled samples plus Hugging Face. Hugging Face is searched twice (tagged as tabular classification first, then untagged) and merged, because good datasets are often untagged.
 - `look_at_dataset`: size, columns, and whether it is a plain table, before anything is downloaded.
 - `fetch_dataset`: download into temporary storage, within row and size limits. Gated, non-table and oversized datasets are refused with a plain explanation.
-- `inspect_candidate`, `select_dataset`, `run_readiness`, `run_baseline`, `create_quote`, `request_payment`, `start_training`, `load_skill`.
+- `inspect_candidate`, `select_dataset`, `run_readiness`, `run_baseline`, `run_pilot` (free pilot on about 5-10% of the data plus a forecast against the user's target; level 0), `create_quote`, `request_payment`, `start_training`, `load_skill`.
 - Everything else in section 3 does not exist yet (see the status note under 3.1).
 
 Hugging Face is called directly through its public API, not through MCP. The runtime agent needs tools that are easy to test offline and that pass through our permission gate. MCP servers (Hugging Face, Kaggle) remain useful for developers working with Claude Code, and an MCP client can be added later behind the same tool interface. Kaggle is not part of the MVP.
@@ -93,7 +93,7 @@ Three levels, enforced by code outside the model.
 |---|---|---|---|
 | L0 Free | No cost, no lasting change | search, analyze, baseline | Nobody; runs automatically |
 | L1 Confirm | Changes the user's data or commits the project to a choice | select dataset, delete candidates | The user, with a plain card |
-| L2 Paid | Spends or could spend money | request payment, start training | The user *and* a verified PayPal capture |
+| L2 Paid | Spends or could spend money | request payment, start training | The user *and* a server-confirmed PayPal hold |
 
 ### 4.1 The approval card
 
@@ -102,7 +102,8 @@ Whenever the agent reaches L1 or L2, the user sees one card that states, in plai
 - what the agent wants to do,
 - the estimated cost, labeled as an estimate,
 - the maximum it can charge (the cap),
-- what is refunded if the job finishes cheaper.
+- what is voided (released) if the job costs less: the hold is not a charge, and compute is captured at actual cost;
+- that the success fee is charged only if the result is verified on locked test data (you pay compute either way).
 
 ### 4.2 Rules the gate enforces
 
@@ -123,7 +124,7 @@ Built (in `backend/app/skills/`, one file each, under 60 lines):
 
 Not built: **PayPal**.
 
-Rule: skills hold judgment and wording only. Rules about money (approval, caps, verified payment, refunds) live in code, in the permission gate, because a model can ignore or misread a playbook. A test checks that the data-science skills contain no payment or refund rules.
+Rule: skills hold judgment and wording only. Rules about money (approval, caps, hold confirmation, capture and void) live in code, in the permission gate, because a model can ignore or misread a playbook. A test checks that the data-science skills contain no payment or refund rules.
 
 ## 5.1 Context engineering
 

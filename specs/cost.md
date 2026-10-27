@@ -8,17 +8,19 @@ All figures below are placeholders until checked against current AWS pricing. Ev
 
 1. Quote a price before any money moves, with an honest range.
 2. Never spend more than the user approved (the cap).
-3. Return whatever was not used.
+3. Capture only what was used (actual compute, plus the success fee if the result is verified) and void the rest of the hold.
 4. Protect the shared AWS budget of about $160.
 
 ## 2. The quote
 
-A quote has four parts:
+A quote has four parts. Money model: "Forecast, then verify" (see `payments.md`).
 
 - **Estimate:** the most likely total.
 - **Range:** low to high.
-- **Cap:** the most that can ever be charged. Set at the top of the range.
-- **Breakdown:** compute, storage, platform fee.
+- **Cap:** the most that can ever be charged, and the amount of the PayPal hold. Set at the top of the range. It is the compute cap plus the maximum success fee.
+- **Breakdown:** compute, storage, platform fee, and the success fee (5% of compute, charged only if the result is verified on locked test data; the hold carries the maximum fee, 5% of the compute cap).
+
+Every figure is an estimate except the cap, which is a limit.
 
 The wireframe example: estimate $5.00, range $4 to $7, cap $7.00.
 
@@ -66,7 +68,7 @@ For the MVP: one CPU instance type, chosen in config. The agent does not pick in
 
 1. **Cap per job.** Set from the high end of the range, and never above a global per-job maximum.
 2. **Hard stop.** The cap is turned into a maximum runtime (cap minus fixed fees, divided by the hourly price, minus a safety margin that includes the 120 seconds SageMaker allows after the stop signal) and given to SageMaker as the job's `MaxRuntimeInSeconds`. AWS ends the job when it is reached, so the stop does not depend on our code running. Our own check on a timer is only a backstop.
-3. **Refund.** After the job, any difference between what was charged and the actual cost is refunded through PayPal. The refund is recorded in the ledger.
+3. **Capture and void.** Nothing is charged when the hold is placed. After the job and the one check on the locked test set, the actual compute is captured (never above the compute cap), the success fee only if verification passed, and the rest of the hold is voided. Captures are recorded in the ledger. If our own code or infrastructure fails, the whole hold is voided and the user pays $0.
 4. **Global budget guard.** A running total of actual AWS spend. Above a warning level the app warns the team; above a ceiling it refuses to start new paid jobs. This keeps testing money available for the demo.
 
 ### Proposed budget policy (to confirm)
@@ -94,7 +96,7 @@ Each finished job stores: the estimate, the range, the actual cost, and the data
 - Startup overhead varies on a busy cloud.
 - Prices change.
 
-The cap and the refund exist precisely because the estimate can be wrong.
+The cap and the void of the unused hold exist precisely because the estimate can be wrong.
 
 ## 7. Future: choosing the instance (not built)
 

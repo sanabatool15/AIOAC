@@ -33,13 +33,16 @@ The free test.
 Fields: project, dataset version, result, comparison with a simple guess, sample sizes and timings used by the cost estimator.
 
 ### Quote
-Fields: project, estimate, low, high, cap, breakdown, price config version, expiry, approved time.
+Fields: project, estimate, low, high, cap (estimate, low, high and cap include the success fee), compute cap, success fee, forecast, breakdown, price config version, expiry, approved time.
 
-### Payment
-Fields: project, quote, provider, provider order id, provider capture id, amount, verified flag.
+### Payment (a PayPal hold, table `payments`)
+Fields: project, quote, provider, provider order id, authorization id, hold amount, compute amount, fee amount, state (`none`, `held`, `compute_captured`, `fee_captured`, `fee_skipped`, `released`, `voided`, `expired`, `declined`), capture ids, captured and released amounts, verified flag (set only in `held`). Unused holds expire after 24 hours. See `payments.md`.
+
+### Forecast
+Fields: project, target, confidence, band low, band high, predicted metric, eligible flag, reason, pilot details.
 
 ### Ledger entry (append-only)
-Fields: project, kind (capture, usage, refund), signed amount, unique key, time.
+Fields: project, kind (`compute_capture`, `fee_capture`), positive amount charged to the buyer, unique key, time. A void moves no money and is recorded on the hold, not in the ledger.
 
 ### Webhook event (insert-only)
 Fields: event id (unique), type, raw content, received time.
@@ -57,22 +60,22 @@ Fields: run (project, start, end, limits used) and steps (order, kind: model cal
 ### Spend budget
 A single running record of actual AWS spend, used by the global guard.
 
-### Funding campaign and contribution (stretch, simulated)
-Fields: campaign (project, goal, raised, deadline, license note) and contributions (campaign, amount, simulated flag).
+### Funding campaign and contribution (removed, unused)
+Crowdfunding was dropped from the product. The tables may still exist in the code but nothing uses them.
 
 ### User (placeholder)
 Minimal identity for the demo; real login is deferred.
 
 ## 3. Relationships
 
-A project has many candidates, dataset versions, quotes and agent runs. A quote leads to at most one payment. A payment has many ledger entries. A project has at most one active training run and ends with at most one model.
+A project has many candidates, dataset versions, quotes and agent runs. A quote leads to at most one payment hold. A hold has up to two ledger entries (compute and fee). A project has at most one forecast per pilot run. A project has at most one active training run and ends with at most one model.
 
 ## 4. Integrity rules
 
-1. A project can only be marked paid if a verified payment exists for its approved quote.
+1. A project can only be marked paid if a server-confirmed hold exists for its approved quote.
 2. A training run cannot start without that paid state.
 3. Ledger and webhook tables accept inserts only.
-4. The sum of a project's ledger entries must never go below zero.
+4. Total captures for a hold never exceed the hold, and compute is never captured above the compute cap. A capture on a voided or fully captured hold is refused.
 5. Accumulated training cost can never exceed the quote's cap.
 
 ## 5. Not decided yet

@@ -11,7 +11,7 @@ Each has my recommendation.
 1. **Which model for real runs?** Config default is `anthropic/claude-sonnet-4.5` (`config.py`). Recommend: pick one strong model for the first measurement, then test one cheaper model. Needs an OpenRouter key and credit.
 2. **Model spend budget for evals.** Recommend the tiers in file 07 section 8 (smoke USD 0.50, standard USD 5, release USD 15). OK?
 3. **Reply language.** Reply in the user's language, or always English? Recommend: reply in the user's language, keep English internals, and test Urdu and Hindi in the eval set. If you want English only, say so and the agent should say it only speaks English.
-4. **What if the user changes their mind after choosing data?** Recommend: add a `restart_project`/`change_dataset` path allowed before quote approval; after a verified payment, no change (new project).
+4. **What if the user changes their mind after choosing data?** Recommend: add a `restart_project`/`change_dataset` path allowed before quote approval; after a confirmed hold, no change (new project).
 5. **Should the approval card carry details?** Recommend yes: code-built sentence with dataset name, rows, target, and bound to the exact args.
 6. **Ask or assume?** Recommend: ask at most one question, only when there is no outcome to predict or the outcome is a number; otherwise proceed with a stated assumption.
 7. **Unsupported requests** (images, text, numbers). Recommend: decline in one sentence and offer a table-based version, as in cases 05 and 06. Confirm that "numbers" (regression) stays out of scope for the demo.
@@ -51,7 +51,7 @@ Each step is small. "Works" says how we will know.
 
 ### Step 6. Tools that unblock flows (file 03)
 - Change: `use_uploaded_file`, `explain_result` (read-only), `restart_project` / `change_dataset`, then `fetch_from_url` with SSRF protection. The browser tools (`browser_search`, `browser_open`, `browser_screenshot`) follow the steps B1 to B9 in `11-dataset-discovery.md` section 12.7; they need the safety work of Step 4 and the URL policy shared with `fetch_from_url` first.
-- Works when: eval cases exist for each (upload path, change of mind, link path) and pass; gate tests prove the restart cannot run after a verified payment.
+- Works when: eval cases exist for each (upload path, change of mind, link path) and pass; gate tests prove the restart cannot run after a confirmed hold.
 
 ### Step 7. Source registry, then Kaggle (file 08)
 - Change: registry refactor (no behaviour change), then read the current Kaggle docs and write the exact calls into file 08, then `KaggleSource` with offline fakes, then one manual real run.

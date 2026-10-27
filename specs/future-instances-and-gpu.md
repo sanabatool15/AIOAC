@@ -44,7 +44,7 @@ What a GPU path needs:
 6. **Money.** GPU costs roughly three times a CPU instance per hour (to verify). With $160 total and a $7 per-job cap only short jobs fit. The global budget guard applies unchanged.
 7. **Honesty.** On tabular data, deep learning often does not beat gradient boosting. Never imply a GPU makes the result better (hard rule 7). The readiness score and held-out baseline remain the honest signal.
 
-What stays the same: the permission gate, the payment flow, the ledger, the cap becoming `MaxRuntimeInSeconds`, the refund, background run and Stop. These do not care what the machine is.
+What stays the same: the permission gate, the payment flow, the ledger, the cap becoming `MaxRuntimeInSeconds`, the hold, capture and void steps, background run and Stop. These do not care what the machine is.
 
 Fit with the design: `TrainingBackend` is already the swap point. A GPU job can be a new model family behind the same interface rather than a change to the existing backend.
 
