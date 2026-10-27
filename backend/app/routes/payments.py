@@ -1,12 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-
 from ..config import settings
-from ..db import get_session
-from ..db.tables import Payment, Project
+from ..db import Session, get_session
 from ..integrations.factory import get_payment_provider
 from ..ports import ProviderError
+from ..repositories import payments as payments_repo
+from ..repositories import projects as projects_repo
 from ..services import gate, payments
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -18,7 +17,7 @@ class OrderIn(BaseModel):
 
 @router.post("/orders")
 def create_order(body: OrderIn, s: Session = Depends(get_session)):
-    project = s.get(Project, body.project_id)
+    project = projects_repo.get(s, body.project_id)
     if project is None:
         raise HTTPException(404)
     try:
@@ -33,7 +32,7 @@ def create_order(body: OrderIn, s: Session = Depends(get_session)):
 @router.post("/{payment_id}/capture")
 def capture(payment_id: str, s: Session = Depends(get_session)):
     """The browser asks us to finish the payment. Only the server's own check marks it paid."""
-    pay = s.get(Payment, payment_id)
+    pay = payments_repo.get(s, payment_id)
     if pay is None:
         raise HTTPException(404)
     try:

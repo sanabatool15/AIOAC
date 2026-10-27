@@ -1,8 +1,8 @@
 """Project state machine (specs/spec1.md section 5)."""
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from ..db.tables import Payment, Project
+from ..db import Session
+from ..db.tables import Project
+from ..repositories import payments as payments_repo
+from ..repositories import projects as projects_repo
 
 ORDER = ["described", "data_chosen", "readiness_done", "baseline_done", "quoted",
          "awaiting_payment", "paid", "training", "done"]
@@ -26,8 +26,7 @@ def transition(session: Session, project: Project, new: str) -> None:
     if not ok:
         raise BadTransition(f"{cur} -> {new}")
     if new == "paid":
-        verified = session.scalar(select(Payment).where(Payment.project_id == project.id, Payment.verified.is_(True)))
+        verified = payments_repo.verified_for_project(session, project.id)
         if verified is None:
             raise BadTransition("paid requires a verified payment")  # db.md integrity rule 1
-    project.status = new
-    session.commit()
+    projects_repo.set_status(session, project, new)

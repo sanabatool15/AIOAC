@@ -5,10 +5,10 @@ It reads stored state, never what the model claims. Every decision is traced.
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from ..db.tables import Payment, Project, Quote
+from ..db import Session
+from ..db.tables import Project, Quote
+from ..repositories import payments as payments_repo
+from ..repositories import quotes as quotes_repo
 from ..repositories.traces import TraceRepository
 from .cost import budget
 
@@ -44,7 +44,7 @@ class NeedsApproval(Exception):
 
 
 def latest_quote(session: Session, project_id: str) -> Quote | None:
-    return session.scalar(select(Quote).where(Quote.project_id == project_id).order_by(Quote.created_at.desc()))
+    return quotes_repo.latest_for_project(session, project_id)
 
 
 def _aware(dt: datetime) -> datetime:
@@ -78,8 +78,7 @@ def authorize(session: Session, project: Project, action: Action, user_approved:
             if _aware(quote.expires_at) < now:
                 deny("the approved quote has expired")
         if action == Action.START_TRAINING:
-            paid = session.scalar(select(Payment).where(Payment.project_id == project.id, Payment.quote_id == quote.id,
-                                                        Payment.verified.is_(True)))
+            paid = payments_repo.verified_for_quote(session, project.id, quote.id)
             if paid is None:
                 deny("no server-verified payment for the current quote")
             if project.status != "paid":

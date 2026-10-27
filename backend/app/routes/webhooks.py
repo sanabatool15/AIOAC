@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-
-from ..db import get_session
+from ..db import Session, get_session
 from ..integrations.factory import get_payment_provider
 from ..services import payments
 

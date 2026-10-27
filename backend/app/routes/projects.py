@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-
-from ..db import get_session
+from ..db import Session, get_session
 from ..integrations.factory import get_job_runner
 from ..deps import get_ctx_factory
 from ..db.tables import Project
 from ..integrations.factory import get_llm
 from ..ports import ProviderError
 from ..integrations.factory import get_storage
+from ..repositories import projects as projects_repo
 from ..repositories.traces import TraceRepository
 from ..services.data import datasets
 from ..services import gate, lifecycle, payments, training
@@ -20,7 +19,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _project(s: Session, pid: str) -> Project:
-    p = s.get(Project, pid)
+    p = projects_repo.get(s, pid)
     if p is None:
         raise HTTPException(404, "project not found")
     return p
@@ -42,9 +41,7 @@ class UploadIn(BaseModel):
 
 @router.post("")
 def create(body: ProjectIn, s: Session = Depends(get_session)):
-    p = Project(goal=body.goal)
-    s.add(p)
-    s.commit()
+    p = projects_repo.create(s, body.goal)
     return {"id": p.id, "status": p.status}
 
 

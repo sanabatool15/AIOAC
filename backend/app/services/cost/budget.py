@@ -1,7 +1,6 @@
 """Global budget guard (specs/cost.md section 4)."""
-from sqlalchemy.orm import Session
-
 from ...config import settings
+from ...db import Session
 from ...repositories.budget import BudgetRepository
 
 

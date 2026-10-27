@@ -3,11 +3,11 @@
 Rule 1: paid work starts only after the SERVER verifies the capture.
 By proposal the buyer is charged the quote's cap and unused money is refunded (specs/payments.md).
 """
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from ..db.tables import Payment, Project, Quote, TrainingRun
+from ..db import Session
+from ..db.tables import Payment, Project, TrainingRun
 from ..ports import PaymentProvider
+from ..repositories import payments as payments_repo
+from ..repositories import projects as projects_repo
 from ..repositories.ledger import LedgerRepository
 from ..repositories.webhooks import WebhookRepository
 from . import gate, lifecycle
@@ -23,15 +23,13 @@ class InvalidWebhook(Exception):
 
 def create_order(session: Session, provider: PaymentProvider, provider_name: str, project: Project) -> tuple[Payment, str | None]:
     quote = gate.authorize(session, project, gate.Action.REQUEST_PAYMENT)
-    existing = session.scalar(select(Payment).where(Payment.quote_id == quote.id))
+    existing = payments_repo.for_quote(session, quote.id)
     if existing:
         return existing, existing.approve_url
     order = provider.create_order(quote.cap_cents, project.id)
-    pay = Payment(project_id=project.id, quote_id=quote.id, provider=provider_name,
-                  provider_order_id=order.order_id, amount_cents=quote.cap_cents,
-                  approve_url=order.approve_url)
-    session.add(pay)
-    session.commit()
+    pay = payments_repo.add(session, project_id=project.id, quote_id=quote.id, provider=provider_name,
+                            provider_order_id=order.order_id, amount_cents=quote.cap_cents,
+                            approve_url=order.approve_url)
     return pay, order.approve_url
 
 
@@ -40,11 +38,9 @@ def _apply_capture(session: Session, payment: Payment, capture_id: str, amount_c
     if amount_cents != payment.amount_cents:
         raise PaymentError(f"captured {amount_cents} but expected {payment.amount_cents}")
     if not payment.verified:
-        payment.provider_capture_id = capture_id
-        payment.verified = True
-        session.commit()
+        payments_repo.mark_verified(session, payment, capture_id)
     LedgerRepository(session).append(payment.project_id, "capture", amount_cents, f"capture:{capture_id}")
-    project = session.get(Project, payment.project_id)
+    project = projects_repo.get(session, payment.project_id)
     if project.status == "awaiting_payment":
         lifecycle.transition(session, project, "paid")
     return True
@@ -71,7 +67,7 @@ def handle_webhook(session: Session, provider: PaymentProvider, headers: dict, b
         return "duplicate"
     if event.kind != "capture_completed" or not event.order_id:
         return "ignored"
-    payment = session.scalar(select(Payment).where(Payment.provider_order_id == event.order_id))
+    payment = payments_repo.for_order(session, event.order_id)
     if payment is None:
         return "ignored"
     _apply_capture(session, payment, event.capture_id, event.amount_cents)
@@ -80,7 +76,7 @@ def handle_webhook(session: Session, provider: PaymentProvider, headers: dict, b
 
 def settle(session: Session, provider: PaymentProvider, project: Project, run: TrainingRun) -> int:
     """Record actual usage and refund the unused amount. Idempotent per training run. Returns cents refunded."""
-    payment = session.scalar(select(Payment).where(Payment.project_id == project.id, Payment.verified.is_(True)))
+    payment = payments_repo.verified_for_project(session, project.id)
     if payment is None:
         raise PaymentError("no verified payment to settle")
     ledger = LedgerRepository(session)

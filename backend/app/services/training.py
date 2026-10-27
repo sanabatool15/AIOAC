@@ -16,12 +16,14 @@ also idempotent per run id (ledger keys `usage:<run>` and `refund:<run>`).
 import math
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
-
-from ..db.tables import DatasetVersion, Model, Project, TrainingRun
+from ..db import Session
+from ..db.tables import Project, TrainingRun
 from ..ports import PaymentProvider, ProviderError, Storage, TrainingBackend
+from ..repositories import datasets as datasets_repo
+from ..repositories import projects as projects_repo
+from ..repositories import training_runs as runs_repo
 from ..repositories.budget import BudgetRepository
+from ..repositories.transactions import rollback
 from ..repositories.traces import TraceRepository
 from . import gate, lifecycle, payments
 from .cost.prices import INSTANCES, PLATFORM_FEE_CENTS, STORAGE_CENTS
@@ -43,37 +45,21 @@ def start_training(session: Session, project: Project, backend: TrainingBackend)
     """Gate check, status -> training, create the run. Returns at once; the work happens in execute_run."""
     gate.authorize(session, project, gate.Action.START_TRAINING)  # raises GateDenied unless payment is server-verified
     lifecycle.transition(session, project, "training")
-    run = TrainingRun(project_id=project.id, backend=backend.name, instance_type=backend.instance_type,
-                      progress_stage="waiting to start", started_at=_now(), updated_at=_now())
-    session.add(run)
-    session.commit()
-    return run
+    return runs_repo.create(session, project.id, backend.name, backend.instance_type, "waiting to start", _now())
 
 
 def active_run(session: Session, project_id: str) -> TrainingRun | None:
-    return session.scalar(select(TrainingRun).where(TrainingRun.project_id == project_id)
-                          .order_by(TrainingRun.started_at.desc()))
+    return runs_repo.latest_for_project(session, project_id)
 
 
 def _claim_start(session: Session, run: TrainingRun) -> bool:
-    """Take the right to start the backend, exactly once per run. True only for the first caller.
-    A worker that dies after claiming leaves a silent `running` run; crash recovery fails and refunds it,
-    and the job is never started a second time."""
-    res = session.execute(update(TrainingRun).where(TrainingRun.id == run.id, TrainingRun.status == "running",
-                                                    TrainingRun.claimed_at.is_(None))
-                          .values(claimed_at=_now(), updated_at=_now()))
-    session.commit()
-    session.refresh(run)
-    return res.rowcount == 1
+    """Take the right to start the backend, exactly once per run (see runs_repo.claim_start)."""
+    return runs_repo.claim_start(session, run)
 
 
 def _claim(session: Session, run: TrainingRun, **values) -> bool:
     """Finish the run exactly once. True only for the caller that moved it out of `running`."""
-    res = session.execute(update(TrainingRun).where(TrainingRun.id == run.id, TrainingRun.status == "running")
-                          .values(finished_at=_now(), updated_at=_now(), **values))
-    session.commit()
-    session.refresh(run)
-    return res.rowcount == 1
+    return runs_repo.finish_if_running(session, run, **values)
 
 
 def _settle(session: Session, provider: PaymentProvider, project: Project, run: TrainingRun) -> bool:
@@ -83,7 +69,7 @@ def _settle(session: Session, provider: PaymentProvider, project: Project, run: 
         payments.settle(session, provider, project, run)
         return True
     except ProviderError as exc:
-        session.rollback()
+        rollback(session)
         TraceRepository(session).add(project.id, "refund_failed", {"run_id": run.id, "error": type(exc).__name__})
         return False
 
@@ -92,7 +78,7 @@ def fail_run(session: Session, provider: PaymentProvider, run: TrainingRun, erro
     """The user gets everything back: cost 0, refund the whole capture. False if the run had already ended."""
     if not _claim(session, run, status="failed", cost_cents=0, result={"error": error}):
         return False
-    project = session.get(Project, run.project_id)
+    project = projects_repo.get(session, run.project_id)
     if project.status == "training":
         lifecycle.transition(session, project, "failed")
     if _settle(session, provider, project, run) and project.status == "failed":
@@ -103,32 +89,26 @@ def fail_run(session: Session, provider: PaymentProvider, run: TrainingRun, erro
 def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage: Storage,
                 provider: PaymentProvider) -> TrainingRun | None:
     """The job body. Safe to call twice for the same run: the second call does nothing."""
-    run = session.get(TrainingRun, run_id)
+    run = runs_repo.get(session, run_id)
     if run is None or run.status != "running":
         return run
     if not _claim_start(session, run):
         return run   # another delivery of the same task already owns this run; never start the backend twice
-    project = session.get(Project, run.project_id)
+    project = projects_repo.get(session, run.project_id)
     quote = gate.latest_quote(session, project.id)
-    version = session.get(DatasetVersion, project.chosen_dataset_version_id)
+    version = datasets_repo.get_version(session, project.chosen_dataset_version_id)
 
     def on_progress(stage: str, fraction: float) -> None:
-        run.progress_stage = stage
-        run.progress_fraction = max(0.0, min(1.0, fraction))
-        run.updated_at = _now()
-        session.commit()
+        runs_repo.set_progress(session, run, stage, fraction)
 
     def should_stop() -> bool:
-        session.refresh(run, ["stop_requested"])
-        run.updated_at = _now()  # heartbeat
-        session.commit()
-        return bool(run.stop_requested)
+        return runs_repo.heartbeat_and_stop_requested(session, run)
 
     try:
         res = backend.run(storage.path(version.storage_key), version.target_column, quote.cap_cents,
                           on_progress=on_progress, should_stop=should_stop, job_key=run.id)
     except Exception as exc:
-        session.rollback()
+        rollback(session)
         fail_run(session, provider, run, type(exc).__name__)
         return run
 
@@ -149,8 +129,7 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     if res.model_bytes:
         key = f"models/{project.id}/{run.id}.joblib"
         storage.put(key, res.model_bytes)
-        session.add(Model(project_id=project.id, training_run_id=run.id, storage_key=key, quality=result))
-        session.commit()
+        runs_repo.add_model(session, project.id, run.id, key, result)
     BudgetRepository(session).add_spend(cost)
     _settle(session, provider, project, run)
     lifecycle.transition(session, project, "done")
@@ -161,9 +140,7 @@ def request_stop(session: Session, project: Project) -> TrainingRun:
     run = active_run(session, project.id)
     if run is None or run.status != "running":
         raise NoActiveRun("there is no training running for this project")
-    run.stop_requested = True
-    run.progress_stage = "stopping"
-    session.commit()
+    runs_repo.mark_stop_requested(session, run)
     return run
 
 
@@ -203,7 +180,7 @@ def recover_stale_runs(session: Session, provider: PaymentProvider, is_active, s
     `stale_after_seconds`. Dead runs are failed and refunded in full through the normal settle path."""
     cutoff = _now() - timedelta(seconds=stale_after_seconds)
     recovered = []
-    for run in list(session.scalars(select(TrainingRun).where(TrainingRun.status == "running"))):
+    for run in runs_repo.running(session):
         if is_active(run.id) or _aware(run.updated_at) > cutoff:
             continue
         if fail_run(session, provider, run, "interrupted"):
@@ -221,9 +198,7 @@ def run_training(session: Session, project: Project, backend: TrainingBackend, s
 
 def retry_refund(session: Session, provider: PaymentProvider, project: Project) -> int:
     """Re-run settlement for the latest finished run. Safe to repeat: usage and refund are keyed per run."""
-    run = session.scalar(select(TrainingRun).where(TrainingRun.project_id == project.id,
-                                                    TrainingRun.status.in_(("done", "failed", "stopped")))
-                         .order_by(TrainingRun.created_at.desc()))
+    run = runs_repo.latest_finished(session, project.id)
     if run is None:
         raise payments.PaymentError("no finished training run to settle")
     refunded = payments.settle(session, provider, project, run)
