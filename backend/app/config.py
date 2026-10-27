@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     inngest_signing_key: str = ""
     inngest_dev: bool = False  # true only for the local Inngest dev server, never for Inngest Cloud
     run_stale_seconds: int = 300  # a run with no heartbeat for this long and no live worker is treated as crashed
-    payment_provider: str = "mock"  # mock | paypal
+    payment_provider: str = "paypal"  # recorded on each payment; the app only builds the PayPal provider (tests inject a double)
     training_backend: str = "local"  # local | sagemaker
     llm_provider: str = "openrouter"
     openrouter_api_key: str = ""

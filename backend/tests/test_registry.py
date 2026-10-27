@@ -1,5 +1,5 @@
-from app.providers.datasets import build_registry
-from app.providers.datasets.registry import as_registry, single
+from app.integrations.factory import build_registry
+from app.integrations.datasets.registry import as_registry, single
 from tests.fakes import FakeSource
 
 SAMPLES = {"sample-churn"}

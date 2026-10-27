@@ -2,8 +2,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.samples import churn_csv
-from app.services import datasets
+from app.services.data.samples import churn_csv
+from app.services.data import datasets
 
 
 def test_select_keeps_one_and_deletes_the_rest(session, storage, project):
@@ -40,7 +40,7 @@ def test_orphan_report(session, storage, project):
 
 
 def test_clean_creates_new_version_and_keeps_original(session, storage, chosen):
-    from app.models import DatasetVersion
+    from app.db.tables import DatasetVersion
     v1 = session.get(DatasetVersion, chosen.chosen_dataset_version_id)
     v2 = datasets.clean(session, storage, v1)
     assert v2.parent_id == v1.id and storage.exists(v1.storage_key) and storage.exists(v2.storage_key)

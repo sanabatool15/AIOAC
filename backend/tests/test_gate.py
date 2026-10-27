@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.models import Payment, Quote
+from app.db.tables import Payment, Quote
 from app.services import gate
 
 

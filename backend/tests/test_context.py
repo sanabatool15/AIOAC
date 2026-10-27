@@ -72,7 +72,7 @@ def test_load_skill_tool_serves_them(session, storage, provider, project):
 
 
 def test_state_block_lists_fetched_candidates_so_the_model_can_propose_select_again(session, storage, project):
-    from app.samples import churn_csv
-    from app.services import datasets
+    from app.services.data.samples import churn_csv
+    from app.services.data import datasets
     c = datasets.add_candidate(session, storage, project, "churn", "bundled", churn_csv(300))
     assert c.id in context.state_block(session, project)

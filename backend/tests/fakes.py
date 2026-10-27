@@ -2,8 +2,8 @@ import io
 
 import pandas as pd
 
-from app.providers.datasets.base import DatasetHit, DatasetInfo, FetchedCsv, SourceError
-from app.samples import churn_csv
+from app.ports import DatasetHit, DatasetInfo, FetchedCsv, SourceError
+from app.services.data.samples import churn_csv
 
 
 class FakeSource:

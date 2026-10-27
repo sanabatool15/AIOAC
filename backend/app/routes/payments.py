@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import get_session
-from ..models import Payment, Project
-from ..providers.payments import get_payment_provider
-from ..providers.payments.base import ProviderError
+from ..db.tables import Payment, Project
+from ..integrations.factory import get_payment_provider
+from ..ports import ProviderError
 from ..services import gate, payments
 
 router = APIRouter(prefix="/payments", tags=["payments"])

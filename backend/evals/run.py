@@ -22,18 +22,19 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 from app.db import Base
-from app.models import DatasetVersion, Payment, Project
-from app.providers.llm.base import LLMClient
-from app.providers.payments.mock import MockPaymentProvider
-from app.providers.storage.local import LocalStorage
-from app.providers.training.local import LocalBackend
+from app.db.tables import DatasetVersion, Payment, Project
+from app.ports import LLMClient
+from doubles.payments import MockPaymentProvider
+from app.integrations.storage.local import LocalStorage
+from app.integrations.training_local.backend import LocalBackend
 from app.repositories.traces import TraceRepository
 from app.services.agent import memory
 from app.services.agent.loop import run_agent
 from app.services.agent.runlog import ConsoleSink, JsonlSink, MarkdownSink, RunLog
 from app.services.agent.tools import ToolContext
 
-from .fake import OfflineSource, ReactiveFake
+from doubles.datasets import OfflineSource
+from doubles.llm import ReactiveFake
 
 CASES_DIR = Path(__file__).parent / "cases"
 LOG_ROOT = Path(__file__).resolve().parents[1] / "logs"
@@ -193,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.model and not (azure and settings.azure_openai_model.strip()):
             print("Refusing to run: pass --model <model id, or the Azure deployment name>.", file=sys.stderr)
             return 2
-        from app.providers.llm import get_llm
+        from app.integrations.factory import get_llm
 
         def make_llm(case):
             return get_llm(model=args.model)
@@ -201,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.offline_data:
             make_source = OfflineSource
         else:
-            from app.providers.datasets import get_dataset_source
+            from app.integrations.factory import get_dataset_source
             make_source = get_dataset_source
 
     cases = load_cases(args.cases)

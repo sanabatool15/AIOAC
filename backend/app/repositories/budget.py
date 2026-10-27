@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from ..models import SpendBudget
+from ..db.tables import SpendBudget
 
 
 class BudgetRepository:

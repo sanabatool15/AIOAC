@@ -1,10 +1,10 @@
 import httpx
 import pytest
 
-from app.providers.llm import get_llm
-from app.providers.llm.azure import AzureFoundryClient, chat_url
-from app.providers.llm.base import LLMError
-from app.providers.llm.openrouter import OpenRouterClient
+from app.integrations.factory import get_llm
+from app.integrations.llm.azure import AzureFoundryClient, chat_url
+from app.ports import LLMError
+from app.integrations.llm.openrouter import OpenRouterClient
 
 BASE = "https://res.openai.azure.com/openai/v1/"
 TOOLS = [{"name": "t", "description": "d", "parameters": {"type": "object", "properties": {}}}]

@@ -19,14 +19,12 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from ..models import DatasetVersion, Model, Project, TrainingRun
-from ..providers.payments.base import PaymentProvider, ProviderError
-from ..providers.storage.base import Storage
-from ..providers.training.base import TrainingBackend
+from ..db.tables import DatasetVersion, Model, Project, TrainingRun
+from ..ports import PaymentProvider, ProviderError, Storage, TrainingBackend
 from ..repositories.budget import BudgetRepository
 from ..repositories.traces import TraceRepository
 from . import gate, lifecycle, payments
-from .prices import INSTANCES, PLATFORM_FEE_CENTS, STORAGE_CENTS
+from .cost.prices import INSTANCES, PLATFORM_FEE_CENTS, STORAGE_CENTS
 
 
 class NoActiveRun(Exception):

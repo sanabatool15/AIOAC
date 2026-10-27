@@ -2,7 +2,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Payment, Project
+from ..db.tables import Payment, Project
 
 ORDER = ["described", "data_chosen", "readiness_done", "baseline_done", "quoted",
          "awaiting_payment", "paid", "training", "done"]

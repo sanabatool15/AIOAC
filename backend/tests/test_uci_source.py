@@ -5,8 +5,8 @@ import httpx
 import pandas as pd
 import pytest
 
-from app.providers.datasets.base import SourceError
-from app.providers.datasets.uci import UCISource
+from app.ports import SourceError
+from app.integrations.datasets.uci import UCISource
 from tests.replay import uci_transport
 
 

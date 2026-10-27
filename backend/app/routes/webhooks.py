@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..db import get_session
-from ..providers.payments import get_payment_provider
+from ..integrations.factory import get_payment_provider
 from ..services import payments
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])

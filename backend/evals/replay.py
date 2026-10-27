@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base
-from app.models import Message, Project
+from app.db.tables import Message, Project
 from app.services.agent import memory
 
 from .show import resolve

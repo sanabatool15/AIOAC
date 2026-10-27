@@ -8,17 +8,17 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ...models import DatasetCandidate, Project
+from ...db.tables import DatasetCandidate, Project
 from ...config import settings
-from ...providers.datasets.base import DatasetSource, SourceError
-from ...providers.datasets.registry import SourceRegistry, as_registry
-from ...providers.payments.base import PaymentProvider
-from ...providers.storage.base import Storage
-from ...providers.training.base import TrainingBackend
-from ...samples import CATALOG
-from .. import analysis, cost, datasets, discovery, gate, payments, quotes, training
+from ...ports import DatasetSource, SourceError
+from ...integrations.datasets.registry import SourceRegistry, as_registry
+from ...ports import PaymentProvider, Storage, TrainingBackend
+from ..data.samples import CATALOG
+from ..data import analysis, datasets, discovery
+from ..cost import cost, quotes
+from .. import gate, payments, training
 from . import skills
-from ..insights import analyze
+from ..data.insights import analyze
 from .context import mark, sanitise_license
 
 

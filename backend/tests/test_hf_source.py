@@ -6,8 +6,8 @@ import httpx
 import pandas as pd
 import pytest
 
-from app.providers.datasets.base import SourceError
-from app.providers.datasets.huggingface import HuggingFaceSource
+from app.ports import SourceError
+from app.integrations.datasets.huggingface import HuggingFaceSource
 
 TABULAR = {"id": "o/tab", "description": "x" * 500, "downloads": 9, "likes": 1, "gated": False, "private": False,
            "cardData": {"license": "cc-by-4.0"}}

@@ -2,11 +2,13 @@ import json
 
 import pytest
 
-from app.providers.payments.mock import MockPaymentProvider
-from app.providers.training.base import TrainingResult
-from app.providers.training.local import LocalBackend
+from doubles.payments import MockPaymentProvider
+from app.ports import TrainingResult
+from app.integrations.training_local.backend import LocalBackend
 from app.repositories.ledger import LedgerRepository
-from app.services import analysis, gate, payments, quotes, training
+from app.services.data import analysis
+from app.services import gate, payments, training
+from app.services.cost import quotes
 
 
 class ScriptedBackend:
@@ -108,8 +110,8 @@ def test_baseline_ignores_row_id_columns(session, storage, project):
     """Regression from the real Telco data: a unique customerID column must not be one-hot encoded."""
     import io
     import pandas as pd
-    from app.samples import churn_csv
-    from app.services import datasets
+    from app.services.data.samples import churn_csv
+    from app.services.data import datasets
     df = pd.read_csv(io.BytesIO(churn_csv(1500)))
     df.insert(0, "customerID", [f"C{i:05d}" for i in range(len(df))])
     c = datasets.add_candidate(session, storage, project, "withid", "bundled", df.to_csv(index=False).encode())
@@ -126,7 +128,7 @@ class FlakyRefundProvider(MockPaymentProvider):
 
     def refund(self, capture_id, amount_cents):
         if self.fail_refunds:
-            from app.providers.payments.base import ProviderError
+            from app.ports import ProviderError
             raise ProviderError("down")
         return super().refund(capture_id, amount_cents)
 

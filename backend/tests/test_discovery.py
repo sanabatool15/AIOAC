@@ -3,17 +3,17 @@ import json
 
 import pytest
 
-from app.models import DatasetCandidate
-from app.providers.datasets import build_registry
-from app.providers.datasets.base import DatasetHit, SourceError
-from app.providers.datasets.curated import PATH, load_curated, parse
-from app.providers.datasets.huggingface import HuggingFaceSource
-from app.providers.datasets.openml import OpenMLSource
-from app.providers.datasets.uci import UCISource
-from app.providers.llm.base import LLMResponse, ToolCall
-from app.providers.llm.fake import FakeLLM
-from app.samples import CATALOG
-from app.services import discovery
+from app.db.tables import DatasetCandidate
+from app.integrations.factory import build_registry
+from app.ports import DatasetHit, SourceError
+from app.integrations.datasets.curated import PATH, load_curated, parse
+from app.integrations.datasets.huggingface import HuggingFaceSource
+from app.integrations.datasets.openml import OpenMLSource
+from app.integrations.datasets.uci import UCISource
+from app.ports import LLMResponse, ToolCall
+from doubles.llm import FakeLLM
+from app.services.data.samples import CATALOG
+from app.services.data import discovery
 from app.services.agent import context, tools
 from app.services.agent.loop import run_agent
 from tests.fakes import FakeSource

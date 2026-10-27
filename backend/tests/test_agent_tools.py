@@ -1,5 +1,5 @@
-from app.models import DatasetCandidate
-from app.providers.datasets.base import DatasetHit
+from app.db.tables import DatasetCandidate
+from app.ports import DatasetHit
 from app.services.agent import tools
 from tests.fakes import FakeSource
 from tests.test_agent import ctx

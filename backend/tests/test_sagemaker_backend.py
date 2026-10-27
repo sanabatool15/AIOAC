@@ -8,12 +8,12 @@ import tarfile
 
 import pytest
 
-from app.providers.training import sagemaker as sm
-from app.providers.training.sagemaker import SageMakerBackend, SageMakerJobError
-from app.samples import churn_csv
-from app.services import sagemaker_cost as costs
-from app.services.cost_report import CostRecord, cost_accuracy_report
-from app.services.prices import INSTANCES, PLATFORM_FEE_CENTS, STORAGE_CENTS
+from app.integrations.aws import sagemaker as sm
+from app.integrations.aws.sagemaker import SageMakerBackend, SageMakerJobError
+from app.services.data.samples import churn_csv
+from app.integrations.aws import sagemaker_cost as costs
+from app.services.cost.report import CostRecord, cost_accuracy_report
+from app.services.cost.prices import INSTANCES, PLATFORM_FEE_CENTS, STORAGE_CENTS
 
 INSTANCE = "ml.m5.xlarge"
 HOURLY = INSTANCES[INSTANCE].hourly_cents
@@ -286,7 +286,7 @@ def test_script_saves_partial_model_on_stop(tmp_path, csv_path):
     sys.modules.setdefault("aioac_core", type(sys)("aioac_core"))
     try:
         import importlib.util
-        from app.services import baseline, features
+        from app.services.data import baseline, features
         sys.modules["aioac_core.baseline"], sys.modules["aioac_core.features"] = baseline, features
         spec = importlib.util.spec_from_file_location("sm_train", sm.SCRIPT_DIR / "train.py")
         mod = importlib.util.module_from_spec(spec)

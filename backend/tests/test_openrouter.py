@@ -3,8 +3,8 @@ import json
 import httpx
 import pytest
 
-from app.providers.llm.base import LLMError
-from app.providers.llm.openrouter import OpenRouterClient
+from app.ports import LLMError
+from app.integrations.llm.openrouter import OpenRouterClient
 
 TOOLS = [{"name": "search_datasets", "description": "d", "parameters": {"type": "object", "properties": {}}}]
 

@@ -1,6 +1,6 @@
-from app.providers.llm.base import LLMResponse, ToolCall
-from app.providers.llm.fake import FakeLLM
-from app.providers.training.local import LocalBackend
+from app.ports import LLMResponse, ToolCall
+from doubles.llm import FakeLLM
+from app.integrations.training_local.backend import LocalBackend
 from app.services.agent.loop import run_agent
 from app.services.agent.tools import ToolContext
 from tests.fakes import FakeSource
@@ -23,7 +23,7 @@ def test_selecting_a_dataset_stops_for_user_approval(session, storage, provider,
     llm = FakeLLM([call("search_datasets", query="churn"), call("fetch_dataset", dataset_id="sample-churn")])
     r = run_agent(ctx(session, storage, provider, project), llm, "predict churn")
     assert r.status == "reply" or r.status == "awaiting_approval"
-    from app.models import DatasetCandidate
+    from app.db.tables import DatasetCandidate
     cand = session.query(DatasetCandidate).one()
     llm2 = FakeLLM([call("select_dataset", candidate_id=cand.id, target="left")])
     r2 = run_agent(ctx(session, storage, provider, project), llm2, "that one")

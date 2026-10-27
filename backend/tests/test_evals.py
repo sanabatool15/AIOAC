@@ -2,10 +2,10 @@
 import json
 
 from app.config import settings
-from app.providers.llm.base import LLMResponse, ToolCall
-from app.providers.llm.fake import FakeLLM
+from app.ports import LLMResponse, ToolCall
+from doubles.llm import FakeLLM
 from evals import run as evals_run
-from evals.fake import OfflineSource
+from doubles.datasets import OfflineSource
 
 
 def test_cases_are_well_formed():

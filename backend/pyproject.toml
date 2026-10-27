@@ -13,7 +13,7 @@ inngest = ["inngest>=0.5"]
 testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "doubles*"]
 
 [tool.setuptools.package-data]
-app = ["skills/*.md", "providers/training/sagemaker_script/*.py"]
+app = ["skills/*.md", "integrations/aws/train_script/*.py", "integrations/datasets/curated.json"]

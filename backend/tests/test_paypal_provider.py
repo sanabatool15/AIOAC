@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from app.providers.payments.paypal import PayPalError, PayPalProvider, cents_to_value, value_to_cents
+from app.integrations.paypal.provider import PayPalError, PayPalProvider, cents_to_value, value_to_cents
 
 
 def make(handler, webhook_id="WH-1"):

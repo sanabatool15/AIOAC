@@ -5,8 +5,8 @@ import httpx
 import pandas as pd
 import pytest
 
-from app.providers.datasets.base import SourceError
-from app.providers.datasets.openml import OpenMLSource
+from app.ports import SourceError
+from app.integrations.datasets.openml import OpenMLSource
 from tests.replay import openml_transport, rec
 
 

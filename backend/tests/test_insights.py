@@ -1,7 +1,7 @@
 import pandas as pd
 
-from app.samples import churn_csv
-from app.services.insights import analyze, grade_for, trust_level
+from app.services.data.samples import churn_csv
+from app.services.data.insights import analyze, grade_for, trust_level
 import io
 
 
@@ -35,12 +35,12 @@ def test_row_id_and_text_numbers_are_detected_and_ignored():
                        "plan": ["a", "b"] * (n // 2), "y": ["x", "y"] * (n // 2)})
     r = analyze(df, "y")
     assert r["measurements"]["id_columns"] == ["customerID"] and r["measurements"]["numbers_stored_as_text"] == ["total"]
-    from app.services.features import prepare_features
+    from app.services.data.features import prepare_features
     prep = prepare_features(df, "y")
     assert "customerID" not in prep.columns and pd.api.types.is_numeric_dtype(prep["total"])
 
 
 def test_duplicates_reported_are_actually_removed_before_training():
-    from app.services.features import prepare_features
+    from app.services.data.features import prepare_features
     df = pd.DataFrame({"a": [1, 1, 2, 3], "y": ["x", "x", "y", "x"]})
     assert analyze(df, "y")["measurements"]["duplicates"] == 1 and len(prepare_features(df, "y")) == 3

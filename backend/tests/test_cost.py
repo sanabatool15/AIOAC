@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.cost import QuoteTooExpensive, estimate_quote, project_seconds
+from app.services.cost.cost import QuoteTooExpensive, estimate_quote, project_seconds
 
 
 def test_projection_grows_with_rows():

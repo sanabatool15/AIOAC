@@ -1,9 +1,8 @@
 """Small safety fixes around the agent loop: generic tool errors (W16), id hints (W14), word matching (W13), untrusted text (T4)."""
 import json
 
-from app.providers.datasets.base import DatasetHit, DatasetInfo
-from app.providers.llm.base import LLMResponse, ToolCall
-from app.providers.llm.fake import FakeLLM
+from app.ports import DatasetHit, DatasetInfo, LLMResponse, ToolCall
+from doubles.llm import FakeLLM
 from app.services.agent import context, tools as agent_tools
 from app.services.agent.loop import GENERIC_TOOL_ERROR, run_agent
 from app.services.agent.runlog import ConsoleSink, RunLog
@@ -25,7 +24,7 @@ def test_tool_crash_gives_the_model_a_generic_message_and_the_log_the_detail(ses
     run_agent(ctx(session, storage, provider, project), llm, "hi", log=log)
     sent = json.dumps(llm.calls[-1])
     assert GENERIC_TOOL_ERROR in sent and "/home/user" not in sent and "RuntimeError" not in sent and "sk-" not in sent
-    from app.models import AgentStep
+    from app.db.tables import AgentStep
     from sqlalchemy import select
     stored = json.dumps([s.content for s in session.scalars(select(AgentStep))])
     assert "/home/user" not in stored  # not in the stored trace either

@@ -5,7 +5,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ...models import DatasetCandidate, DatasetVersion, Project
+from ...db.tables import DatasetCandidate, DatasetVersion, Project
 from .. import gate
 from . import skills
 

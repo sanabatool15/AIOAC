@@ -3,11 +3,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from . import models  # noqa: F401
 from .config import settings
-from .db import Base, SessionLocal, engine
-from .jobs import get_job_runner
-from .providers.payments import get_payment_provider
+from .db import Base, SessionLocal, engine, tables  # noqa: F401  (importing tables registers them)
+from .integrations.factory import get_job_runner, get_payment_provider
 from .routes import health, payments, projects, webhooks
 from .services import training
 

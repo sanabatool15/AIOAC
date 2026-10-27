@@ -10,12 +10,12 @@ from sqlalchemy.orm import sessionmaker
 from app.config import settings
 from app.db import Base, get_session
 from app.main import app
-from app.models import AgentRun, Conversation, Message, Project
-from app.providers.llm.base import LLMError, LLMResponse, ToolCall
-from app.providers.llm.fake import FakeLLM
-from app.providers.payments.mock import MockPaymentProvider
-from app.providers.storage.local import LocalStorage
-from app.providers.training.local import LocalBackend
+from app.db.tables import AgentRun, Conversation, Message, Project
+from app.ports import LLMError, LLMResponse, ToolCall
+from doubles.llm import FakeLLM
+from doubles.payments import MockPaymentProvider
+from app.integrations.storage.local import LocalStorage
+from app.integrations.training_local.backend import LocalBackend
 from app.services.agent import loop, memory
 from app.services.agent.loop import TurnInProgress, run_agent
 from app.services.agent.tools import ToolContext

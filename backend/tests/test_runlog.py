@@ -6,9 +6,9 @@ import pytest
 from sqlalchemy import select
 
 from app.config import settings
-from app.models import AgentStep
-from app.providers.llm.base import LLMResponse, ToolCall, Usage
-from app.providers.llm.fake import FakeLLM
+from app.db.tables import AgentStep
+from app.ports import LLMResponse, ToolCall, Usage
+from doubles.llm import FakeLLM
 from app.services.agent.loop import run_agent
 from app.services.agent.runlog import ConsoleSink, DbSink, JsonlSink, MarkdownSink, RunLog, format_line, redact
 from tests.test_agent import call, ctx
@@ -134,7 +134,7 @@ def test_default_log_is_a_no_op(session, storage, provider, project):
 
 
 def test_llm_error_and_limit_are_logged(session, storage, provider, project, monkeypatch):
-    from app.providers.llm.base import LLMError
+    from app.ports import LLMError
 
     class Broken:
         def chat(self, m, t):

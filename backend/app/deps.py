@@ -3,10 +3,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_session
-from .providers.datasets import get_dataset_source
-from .providers.payments import get_payment_provider
-from .providers.storage import get_storage
-from .providers.training import get_training_backend
+from .integrations.factory import get_dataset_source, get_payment_provider, get_storage, get_training_backend
 from .services.agent.tools import ToolContext
 
 

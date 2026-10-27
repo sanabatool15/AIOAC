@@ -8,9 +8,9 @@ from enum import Enum
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Payment, Project, Quote
+from ..db.tables import Payment, Project, Quote
 from ..repositories.traces import TraceRepository
-from . import budget
+from .cost import budget
 
 
 class Action(str, Enum):

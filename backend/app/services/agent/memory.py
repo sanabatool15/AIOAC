@@ -21,8 +21,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ...config import settings
-from ...models import Conversation, Message, Project
-from ...providers.llm.base import LLMResponse, ToolCall
+from ...db.tables import Conversation, Message, Project
+from ...ports import LLMResponse, ToolCall
 from . import context
 
 SKILL_LIMIT = 8000   # playbooks are kept nearly whole

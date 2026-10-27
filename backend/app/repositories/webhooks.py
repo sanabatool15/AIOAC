@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import WebhookEvent
+from ..db.tables import WebhookEvent
 
 
 class WebhookRepository:

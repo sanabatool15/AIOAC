@@ -6,8 +6,8 @@ By proposal the buyer is charged the quote's cap and unused money is refunded (s
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Payment, Project, Quote, TrainingRun
-from ..providers.payments.base import PaymentProvider
+from ..db.tables import Payment, Project, Quote, TrainingRun
+from ..ports import PaymentProvider
 from ..repositories.ledger import LedgerRepository
 from ..repositories.webhooks import WebhookRepository
 from . import gate, lifecycle

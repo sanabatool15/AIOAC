@@ -11,8 +11,8 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select, update
 
 from ...config import settings
-from ...models import AgentRun, AgentStep
-from ...providers.llm.base import LLMClient, LLMError
+from ...db.tables import AgentRun, AgentStep
+from ...ports import LLMClient, LLMError
 from ...repositories.traces import TraceRepository
 from .. import gate
 from . import context, guards, memory

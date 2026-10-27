@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import LedgerEntry
+from ..db.tables import LedgerEntry
 
 
 class NegativeBalance(Exception):

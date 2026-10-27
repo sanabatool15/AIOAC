@@ -4,9 +4,9 @@ import time
 from sqlalchemy import select
 
 from app.config import settings
-from app.models import AgentRun, AgentStep, Payment
-from app.providers.llm.base import LLMError, LLMResponse, ToolCall, Usage
-from app.providers.llm.fake import FakeLLM
+from app.db.tables import AgentRun, AgentStep, Payment
+from app.ports import LLMError, LLMResponse, ToolCall, Usage
+from doubles.llm import FakeLLM
 from app.repositories.traces import TraceRepository
 from app.services.agent import tools as agent_tools
 from app.services.agent.loop import run_agent

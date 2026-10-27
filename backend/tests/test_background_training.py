@@ -9,10 +9,10 @@ from sqlalchemy import func, select
 
 from app.db import build_engine, get_session
 from app.deps import get_ctx_factory
-from app.jobs.inline import InlineJobRunner
-from app.models import LedgerEntry, TrainingRun
-from app.providers.training.base import TrainingResult
-from app.providers.training.local import LocalBackend
+from app.integrations.jobs.inline import InlineJobRunner
+from app.db.tables import LedgerEntry, TrainingRun
+from app.ports import TrainingResult
+from app.integrations.training_local.backend import LocalBackend
 from app.repositories.ledger import LedgerRepository
 from app.routes import projects as project_routes
 from app.services import gate, payments, training
@@ -56,7 +56,7 @@ def test_start_returns_a_running_run_and_does_not_train(session, chosen, paid):
 
 
 def test_start_still_needs_a_verified_payment(session, storage, chosen, provider):
-    from app.providers.payments.mock import MockPaymentProvider
+    from doubles.payments import MockPaymentProvider
     prov = MockPaymentProvider(auto_confirm=False)
     _, pay = ready_to_pay(session, storage, chosen, prov)
     payments.confirm_capture(session, prov, pay)
@@ -198,7 +198,7 @@ def test_backend_error_still_refunds_in_full(session, storage, chosen, provider,
 
 
 def test_local_backend_reports_stages_and_honours_stop(tmp_path, storage, session, chosen):
-    from app.models import DatasetVersion
+    from app.db.tables import DatasetVersion
     v = session.get(DatasetVersion, chosen.chosen_dataset_version_id)
     stages = []
     res = LocalBackend().run(storage.path(v.storage_key), v.target_column, 100, on_progress=lambda s, f: stages.append((s, f)))
@@ -236,7 +236,7 @@ def test_inline_runner_sync_runs_before_returning():
 
 def test_inngest_runner_sends_one_event_per_run():
     pytest.importorskip("inngest")
-    from app.jobs.inngest_runner import EVENT_NAME, InngestJobRunner
+    from app.integrations.jobs.inngest_runner import EVENT_NAME, InngestJobRunner
 
     class FakeClient:
         sent = []
@@ -252,7 +252,7 @@ def test_inngest_runner_sends_one_event_per_run():
 
 def test_inngest_function_is_served_by_fastapi():
     inngest = pytest.importorskip("inngest")
-    from app.jobs.inngest_runner import InngestJobRunner
+    from app.integrations.jobs.inngest_runner import InngestJobRunner
 
     client = inngest.Inngest(app_id="aioac-test", is_production=False)  # dev mode: no keys, no network at import
     app = FastAPI()
@@ -325,7 +325,7 @@ def test_worker_that_died_after_claiming_is_refunded_not_rerun(session, storage,
 
 def test_inngest_function_has_idempotency_and_one_at_a_time():
     import inngest
-    from app.jobs.inngest_runner import make_client, make_function
+    from app.integrations.jobs.inngest_runner import make_client, make_function
     fn = make_function(make_client(), lambda run_id: None)
     cfg = fn.get_config("http://localhost").main
     assert cfg.idempotency == "event.data.run_id"
