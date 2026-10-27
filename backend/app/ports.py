@@ -20,6 +20,14 @@ class Order:
 
 
 @dataclass
+class Authorization:
+    """Result of asking the provider to place the hold after the buyer approved."""
+    authorization_id: str
+    amount_cents: int
+    status: str  # held | declined | pending. Only 'held' lets paid work be considered.
+
+
+@dataclass
 class Capture:
     capture_id: str
     amount_cents: int
@@ -38,9 +46,13 @@ class PaymentEvent:
 
 
 class PaymentProvider(Protocol):
-    def create_order(self, amount_cents: int, project_id: str) -> Order: ...
-    def capture_order(self, order_id: str) -> Capture: ...
-    def refund(self, capture_id: str, amount_cents: int) -> str: ...
+    """Hold, then capture part of the hold, then void the rest. Every call that moves money takes a
+    `request_id`; calling again with the same id must return the first result and never move money twice."""
+
+    def create_hold(self, amount_cents: int, project_id: str) -> Order: ...
+    def authorize_order(self, order_id: str) -> Authorization: ...
+    def capture(self, authorization_id: str, amount_cents: int, request_id: str) -> Capture: ...
+    def void(self, authorization_id: str, request_id: str) -> str: ...
     def verify_webhook(self, headers: dict, body: bytes) -> bool: ...
     def parse_webhook(self, body: bytes) -> PaymentEvent | None: ...
 
@@ -52,7 +64,7 @@ class TrainingResult:
     accuracy: float
     simple_guess_accuracy: float
     runtime_seconds: float
-    cost_cents: int            # actual cost of the run, never above the cap
+    cost_cents: int            # actual compute cost of the run, never above the compute cap
     stopped_at_cap: bool = False
     model_bytes: bytes | None = None
     stopped: bool = False      # True when the run ended because should_stop() returned True

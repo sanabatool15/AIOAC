@@ -31,59 +31,80 @@ def test_live_host_is_refused():
         PayPalProvider("a", "b", "c", "https://api-m.paypal.com")
 
 
-def test_create_order_sends_cap_and_returns_payer_link():
+def test_create_hold_sends_authorize_intent_and_returns_payer_link():
     def h(req):
         body = json.loads(req.content)
         assert req.url.path == "/v2/checkout/orders" and req.headers["authorization"] == "Bearer tok"
-        assert body["intent"] == "CAPTURE"
-        assert body["purchase_units"][0]["amount"] == {"currency_code": "USD", "value": "7.00"}
+        assert body["intent"] == "AUTHORIZE"
+        assert body["purchase_units"][0]["amount"] == {"currency_code": "USD", "value": "8.00"}
         assert body["purchase_units"][0]["custom_id"] == "proj1" and req.headers["paypal-request-id"]
         return httpx.Response(201, json={"id": "ORD1", "links": [{"rel": "self", "href": "x"}, {"rel": "payer-action", "href": "https://pp/approve"}]})
 
     p, _ = make(h)
-    o = p.create_order(700, "proj1")
+    o = p.create_hold(800, "proj1")
     assert o.order_id == "ORD1" and o.approve_url == "https://pp/approve"
 
 
-def capture_json(order="COMPLETED", cap="COMPLETED", value="7.00"):
-    return {"id": "ORD1", "status": order, "purchase_units": [{"payments": {"captures": [{"id": "CAP1", "status": cap, "amount": {"currency_code": "USD", "value": value}}]}}]}
+def auth_json(status="CREATED", value="8.00"):
+    return {"id": "ORD1", "status": "COMPLETED", "purchase_units": [{"payments": {"authorizations": [
+        {"id": "AUTH1", "status": status, "amount": {"currency_code": "USD", "value": value}}]}}]}
 
 
-def test_capture_confirmed_only_when_completed():
-    p, _ = make(lambda r: httpx.Response(201, json=capture_json()))
-    c = p.capture_order("ORD1")
-    assert c.confirmed and c.capture_id == "CAP1" and c.amount_cents == 700
-    p, _ = make(lambda r: httpx.Response(201, json=capture_json(cap="PENDING")))
-    assert not p.capture_order("ORD1").confirmed
-    p, _ = make(lambda r: httpx.Response(201, json={"id": "ORD1", "status": "COMPLETED", "purchase_units": [{}]}))
-    assert not p.capture_order("ORD1").confirmed
+def test_authorize_reports_held_declined_and_pending():
+    p, _ = make(lambda r: httpx.Response(201, json=auth_json()))
+    a = p.authorize_order("ORD1")
+    assert (a.status, a.authorization_id, a.amount_cents) == ("held", "AUTH1", 800)
+    p, _ = make(lambda r: httpx.Response(201, json=auth_json(status="DENIED")))
+    assert p.authorize_order("ORD1").status == "declined"
+    p, _ = make(lambda r: httpx.Response(201, json=auth_json(status="PENDING")))
+    assert p.authorize_order("ORD1").status == "pending"  # never treated as held
+    p, _ = make(lambda r: httpx.Response(201, json={"id": "ORD1", "purchase_units": [{}]}))
+    assert p.authorize_order("ORD1").status == "pending"
 
 
-def test_capture_error_raises_and_repeat_capture_reads_order():
+def test_authorize_error_raises_and_a_repeat_reads_the_order():
     p, _ = make(lambda r: httpx.Response(500, json={}))
     with pytest.raises(PayPalError):
-        p.capture_order("ORD1")
+        p.authorize_order("ORD1")
 
     def h(req):
         if req.method == "POST":
-            return httpx.Response(422, json={"details": [{"issue": "ORDER_ALREADY_CAPTURED"}]})
-        return httpx.Response(200, json=capture_json())
+            return httpx.Response(422, json={"details": [{"issue": "SOMETHING"}]})
+        return httpx.Response(200, json=auth_json())
 
     p, _ = make(h)
-    assert p.capture_order("ORD1").confirmed
+    assert p.authorize_order("ORD1").status == "held"  # decided from the order, not from an error code
 
 
-def test_refund_request_and_status():
+def test_capture_is_partial_not_final_and_keyed():
     def h(req):
-        assert req.url.path == "/v2/payments/captures/CAP1/refund"
-        assert json.loads(req.content)["amount"] == {"currency_code": "USD", "value": "6.47"}
-        return httpx.Response(201, json={"id": "REF1", "status": "COMPLETED"})
+        assert req.url.path == "/v2/payments/authorizations/AUTH1/capture" and req.headers["paypal-request-id"] == "compute-1"
+        body = json.loads(req.content)
+        assert body["amount"] == {"currency_code": "USD", "value": "0.40"} and body["final_capture"] is False
+        return httpx.Response(201, json={"id": "CAP1", "status": "COMPLETED"})
 
     p, _ = make(h)
-    assert p.refund("CAP1", 647) == "REF1"
-    p, _ = make(lambda r: httpx.Response(201, json={"id": "REF1", "status": "FAILED"}))
+    c = p.capture("AUTH1", 40, "compute-1")
+    assert c.confirmed and c.capture_id == "CAP1" and c.amount_cents == 40
+    p, _ = make(lambda r: httpx.Response(201, json={"id": "CAP1", "status": "PENDING"}))
+    assert not p.capture("AUTH1", 40, "x").confirmed
+    p, _ = make(lambda r: httpx.Response(500, json={}))
     with pytest.raises(PayPalError):
-        p.refund("CAP1", 647)
+        p.capture("AUTH1", 40, "x")
+
+
+def test_void_request_and_previous_void_is_fine():
+    def h(req):
+        assert req.url.path == "/v2/payments/authorizations/AUTH1/void" and req.headers["paypal-request-id"] == "void-1"
+        return httpx.Response(204)
+
+    p, _ = make(h)
+    assert p.void("AUTH1", "void-1")
+    p, _ = make(lambda r: httpx.Response(422, text='{"details":[{"issue":"PREVIOUSLY_VOIDED"}]}'))
+    assert p.void("AUTH1", "void-1")
+    p, _ = make(lambda r: httpx.Response(422, text='{"details":[{"issue":"PREVIOUSLY_CAPTURED"}]}'))
+    with pytest.raises(PayPalError):
+        p.void("AUTH1", "void-1")
 
 
 HEADERS = {"PayPal-Transmission-Id": "t1", "PayPal-Transmission-Time": "2026-10-24T00:00:00Z",
@@ -130,5 +151,5 @@ def test_bad_credentials_raise_without_leaking_secret():
 
     p = PayPalProvider("id", "supersecret", "w", client=httpx.Client(transport=httpx.MockTransport(transport)))
     with pytest.raises(PayPalError) as ei:
-        p.create_order(100, "p")
+        p.create_hold(100, "p")
     assert "supersecret" not in str(ei.value)

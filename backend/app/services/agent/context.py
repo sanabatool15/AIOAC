@@ -71,9 +71,9 @@ NEXT_STEP = {
     "described": "If the user has no data, call discover_datasets; if they gave a file or link, use that. Then inspect a dataset and ask the user to approve one.",
     "data_chosen": "Run the readiness check.",
     "readiness_done": "Run the free baseline test.",
-    "baseline_done": "Create the quote and explain estimate, range, cap and refund.",
-    "quoted": "Wait for the user to approve the quote on screen.",
-    "awaiting_payment": "Request the payment, then wait for the user to pay.",
+    "baseline_done": "Ask the user for their target if you do not have it, run the free pilot, and explain the forecast. If it is eligible create the quote; if not, say honestly why.",
+    "quoted": "Wait for the user to approve the quote on screen. A new target means a new free pilot.",
+    "awaiting_payment": "Request the hold, then wait for the user to approve it in PayPal. Nothing is charged yet.",
     "paid": "Start training.",
     "training": "Training is running. Report progress in plain words.",
     "done": "Help the user use the result.",
@@ -83,8 +83,8 @@ TOOLS_BY_STATUS = {
     "described": ["load_skill", "discover_datasets", "search_datasets", "look_at_dataset", "fetch_dataset", "inspect_candidate", "select_dataset"],
     "data_chosen": ["load_skill", "run_readiness"],
     "readiness_done": ["load_skill", "run_baseline"],
-    "baseline_done": ["load_skill", "create_quote"],
-    "quoted": ["load_skill", "create_quote"],
+    "baseline_done": ["load_skill", "run_pilot", "create_quote"],
+    "quoted": ["load_skill", "run_pilot", "create_quote"],
     "awaiting_payment": ["load_skill", "request_payment"],
     "paid": ["load_skill", "start_training"],
 }
@@ -112,7 +112,7 @@ def state_block(session: Session, project: Project, approved=(), pending: dict |
         lines.append(f"Free test: {b['accuracy']:.2f} right vs {b['simple_guess_accuracy']:.2f} for a simple guess; trust {project.trust_level}")
     q = gate.latest_quote(session, project.id)
     if q:
-        lines.append(f"Quote (estimate): {q.estimate_cents}c, range {q.low_cents}-{q.high_cents}c, cap {q.cap_cents}c, "
+        lines.append(f"Quote (estimate): {q.estimate_cents}c (compute + success fee of 5% of compute, at most {q.fee_cents}c), range {q.low_cents}-{q.high_cents}c, cap {q.cap_cents}c, "
                      f"{'approved' if q.approved_at else 'not approved yet'}")
     if pending and not approved:
         lines.append(f"Waiting for the user to approve: {pending.get('tool')}({json.dumps(pending.get('args'), default=str)[:200]}). "

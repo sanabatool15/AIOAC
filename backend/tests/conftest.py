@@ -84,6 +84,23 @@ def _payment_double(monkeypatch):
     return double
 
 
+@pytest.fixture
+def verdict(monkeypatch):
+    """Replaces the locked-test-set check with a chosen result, for tests that use a scripted backend whose
+    'model' is not a real file. Set verdict['value'] (default 0.9, above the 0.8 target) or verdict['error']."""
+    from app.services.data import verification
+    box = {"value": 0.9, "error": None, "calls": 0}
+
+    def fake(model_bytes, storage, locked_key, target):
+        box["calls"] += 1
+        if box["error"]:
+            raise verification.VerificationError(box["error"])
+        return {"metric": "accuracy", "value": box["value"], "rows": 100}
+
+    monkeypatch.setattr(verification, "verify_model", fake)
+    return box
+
+
 def pytest_collection_modifyitems(config, items):
     """Everything under tests/real carries the `real` marker (select with `-m real`)."""
     for item in items:

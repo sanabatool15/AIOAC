@@ -1,4 +1,4 @@
-"""PayPal sandbox provider (Orders v2, Payments v2 refunds, webhook signature verification).
+"""PayPal sandbox provider (Orders v2 authorize, Payments v2 capture and void, webhook signature verification).
 
 Endpoints, fields and statuses were checked against PayPal's published OpenAPI specs
 (developer.paypal.com/api/{orders/v2,payments/v2,webhooks/v1}/schema.json). Sandbox only:
@@ -11,7 +11,7 @@ import uuid
 import httpx
 
 from ...config import settings
-from ...ports import Capture, Order, PaymentEvent, ProviderError
+from ...ports import Authorization, Capture, Order, PaymentEvent, ProviderError
 
 SANDBOX_HOST = "api-m.sandbox.paypal.com"
 CURRENCY = "USD"
@@ -64,18 +64,24 @@ class PayPalProvider:
         return self.http.request(method, f"{self.base_url}{path}", headers=headers, **kw)
 
     # --- PaymentProvider interface ---
-    def create_order(self, amount_cents: int, project_id: str) -> Order:
+    # Hold = Orders v2 with intent AUTHORIZE, then POST /v2/checkout/orders/{id}/authorize after the buyer approves.
+    # Capture = POST /v2/payments/authorizations/{id}/capture with an amount and final_capture=false (so a second,
+    # smaller capture for the success fee is possible). Void = POST /v2/payments/authorizations/{id}/void.
+    # Checked against developer.paypal.com/api/{orders,payments}/v2/schema.json on 2026-10-27. NOT yet run against the
+    # sandbox: authorize after buyer approval, two partial captures on one hold, and void of the remainder.
+    def create_hold(self, amount_cents: int, project_id: str) -> Order:
         body = {
-            "intent": "CAPTURE",
+            "intent": "AUTHORIZE",
             "purchase_units": [{
                 "custom_id": project_id,
-                "description": "AIOAC model training (maximum charge; unused amount is refunded)",
+                "description": "AIOAC model training: a hold for the maximum price. You are charged for the compute used, "
+                               "plus the success fee only if the result is verified. Anything left on the hold is released.",
                 "amount": {"currency_code": CURRENCY, "value": cents_to_value(amount_cents)},
             }],
             "payment_source": {"paypal": {"experience_context": {
                 "return_url": settings.paypal_return_url,
                 "cancel_url": settings.paypal_cancel_url,
-                "user_action": "PAY_NOW",
+                "user_action": "CONTINUE",
                 "shipping_preference": "NO_SHIPPING",
             }}},
         }
@@ -86,31 +92,36 @@ class PayPalProvider:
         links = {l["rel"]: l["href"] for l in d.get("links", [])}
         return Order(d["id"], links.get("payer-action") or links.get("approve"))
 
-    def capture_order(self, order_id: str) -> Capture:
-        r = self._request("POST", f"/v2/checkout/orders/{order_id}/capture", request_id=f"capture-{order_id}")
-        if r.status_code == 422 and "ORDER_ALREADY_CAPTURED" in r.text:
-            r = self._request("GET", f"/v2/checkout/orders/{order_id}")  # repeat call: read what happened
+    def authorize_order(self, order_id: str) -> Authorization:
+        r = self._request("POST", f"/v2/checkout/orders/{order_id}/authorize", request_id=f"authorize-{order_id}")
+        if r.status_code == 422:
+            # Either this order is already authorized (a repeat call) or the buyer has not approved it yet.
+            # Read the order instead of guessing from an error code: authorizations present means held, otherwise pending.
+            r = self._request("GET", f"/v2/checkout/orders/{order_id}")
         if r.status_code not in (200, 201):
-            raise PayPalError(f"Could not capture PayPal order ({r.status_code})")
+            raise PayPalError(f"Could not authorize PayPal order ({r.status_code})")
         d = r.json()
-        caps = [c for u in d.get("purchase_units", []) for c in u.get("payments", {}).get("captures", [])]
-        if not caps:
-            return Capture("", 0, False)
-        c = caps[0]
-        confirmed = d.get("status") == "COMPLETED" and c.get("status") == "COMPLETED"
-        return Capture(c["id"], value_to_cents(c["amount"]["value"]), confirmed)
+        auths = [a for u in d.get("purchase_units", []) for a in u.get("payments", {}).get("authorizations", [])]
+        if not auths:
+            return Authorization("", 0, "pending")
+        a = auths[0]
+        status = {"CREATED": "held", "DENIED": "declined"}.get(a.get("status"), "pending")  # PENDING stays pending
+        return Authorization(a["id"], value_to_cents(a["amount"]["value"]), status)
 
-    def refund(self, capture_id: str, amount_cents: int) -> str:
-        body = {"amount": {"currency_code": CURRENCY, "value": cents_to_value(amount_cents)},
-                "note_to_payer": "Unused training budget"}
-        r = self._request("POST", f"/v2/payments/captures/{capture_id}/refund",
-                          request_id=f"refund-{capture_id}-{amount_cents}", json=body)
+    def capture(self, authorization_id: str, amount_cents: int, request_id: str) -> Capture:
+        body = {"amount": {"currency_code": CURRENCY, "value": cents_to_value(amount_cents)}, "final_capture": False}
+        r = self._request("POST", f"/v2/payments/authorizations/{authorization_id}/capture",
+                          request_id=request_id, json=body)
         if r.status_code not in (200, 201):
-            raise PayPalError(f"Could not refund PayPal capture ({r.status_code})")
+            raise PayPalError(f"Could not capture the PayPal hold ({r.status_code})")
         d = r.json()
-        if d.get("status") not in ("COMPLETED", "PENDING"):
-            raise PayPalError(f"PayPal refund status was {d.get('status')}")
-        return d["id"]
+        return Capture(d["id"], amount_cents, d.get("status") == "COMPLETED")
+
+    def void(self, authorization_id: str, request_id: str) -> str:
+        r = self._request("POST", f"/v2/payments/authorizations/{authorization_id}/void", request_id=request_id)
+        if r.status_code in (200, 204) or (r.status_code == 422 and "PREVIOUSLY_VOIDED" in r.text):
+            return f"void-{authorization_id}"
+        raise PayPalError(f"Could not void the PayPal hold ({r.status_code})")
 
     def verify_webhook(self, headers: dict, body: bytes) -> bool:
         h = {k.lower(): v for k, v in headers.items()}

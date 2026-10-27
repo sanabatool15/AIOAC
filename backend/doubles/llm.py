@@ -24,7 +24,7 @@ class ReactiveFake:
     harness approves a card it proposes the same call again, like a real model would.
     """
 
-    STAGES = ["search_datasets", "look_at_dataset", "fetch_dataset", "select_dataset", "run_readiness", "run_baseline", "create_quote"]
+    STAGES = ["search_datasets", "look_at_dataset", "fetch_dataset", "select_dataset", "run_readiness", "run_baseline", "run_pilot", "create_quote"]
 
     def __init__(self, case: dict):
         spec = case.get("fake", {})
@@ -61,7 +61,8 @@ class ReactiveFake:
         return {"search_datasets": {"query": self.query},
                 "discover_datasets": {"goal_summary": self.goal_summary, "queries": self.queries}, "look_at_dataset": {"dataset_id": self.mem.get("dataset_id", "")},
                 "fetch_dataset": {"dataset_id": self.mem.get("dataset_id", "")},
-                "select_dataset": {"candidate_id": self.mem.get("candidate_id", ""), "target": self.target}}.get(name, {})
+                "select_dataset": {"candidate_id": self.mem.get("candidate_id", ""), "target": self.target},
+                "run_pilot": {"target": 0.7}}.get(name, {})
 
     def chat(self, messages, tools):
         if self.behavior == "ask":

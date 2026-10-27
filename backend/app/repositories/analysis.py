@@ -24,3 +24,8 @@ def add_baseline_run(session: Session, project: Project, baseline_result: dict, 
 
 def latest_baseline_run(session: Session, project_id: str) -> BaselineRun | None:
     return session.scalar(select(BaselineRun).where(BaselineRun.project_id == project_id).order_by(BaselineRun.created_at.desc()))
+
+
+def latest_insight_report(session: Session, dataset_version_id: str) -> InsightReport | None:
+    return session.scalar(select(InsightReport).where(InsightReport.dataset_version_id == dataset_version_id)
+                          .order_by(InsightReport.created_at.desc()))
