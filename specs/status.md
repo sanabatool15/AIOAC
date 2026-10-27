@@ -26,7 +26,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Database | SQLite default. Postgres/Supabase configurable, never connected to a real database |
 | Training backends | Local done (reports progress, honours stop). SageMaker backend, training script and cap math written and tested on mocked boto3 only; never run against AWS |
 | Terraform, AWS storage | Written in `infra/terraform/` (bucket, roles, app policy, budget alert). Not validated (terraform not installed) and never applied. No S3 storage provider for the app yet; the SageMaker backend uploads its own job files |
-| Web app | Not started (placeholder folder) |
+| Web app | Built on a typed mock API (`frontend/`, 35 screens; builds, typechecks and lints clean). Not connected to the backend: every call goes through `frontend/lib/mock-api.ts`. Mismatches with the backend are listed in `specs/frontend-integration.md` |
 | Login | Not started. Crowdfunding was removed from the product (2026-10-26) |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
@@ -41,7 +41,7 @@ How to view a log: `cd backend && python -m evals.run --fake --repeats 1 -v` pri
 Full tree and rules: `specs/architecture.md`. Short version:
 
 ```
-CLAUDE.md  specs/  infra/terraform/  frontend/ (placeholder)
+CLAUDE.md  specs/  infra/terraform/  frontend/ (Next.js, mock API)
 backend/app/
   db/              engine, session, tables
   repositories/    the only code that talks to the database (ledger and webhook tables are insert-only)
@@ -141,7 +141,7 @@ There is no login. Anyone who can reach the API can call everything. That is a d
 | First paid job | CPU, scikit-learn on SageMaker |
 | Database | SQLite for the demo, Postgres-compatible |
 | Branching | Work on the session branch, merged to `main` when reviewed |
-| Frontend | Placeholder until the API is stable |
+| Frontend | Next.js on a mock API first; wire to the backend in the steps of `frontend-integration.md` |
 | AWS money | $160 of new-account promotional credit (check expiry in the Billing console) |
 | Where the app runs for the demo | Locally. AWS used only for S3 and SageMaker |
 | Training on SageMaker | AWS scikit-learn image plus our script, no custom Docker image |

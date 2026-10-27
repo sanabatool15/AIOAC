@@ -1,0 +1,262 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   AIOAC design tokens. The ONLY place raw colors/shadows live.
+   Source: Figma High Fidelity (screen 7) + docs aioac-hifi-design-rules.
+   ------------------------------------------------------------------ */
+:root {
+  /* neutrals */
+  --bg: #f8fafc;
+  --surface: #f1f5f9;
+  --border: #e2e8f0;
+  --ink: #0f172a;
+  --ink-2: #475569;
+  --muted: #64748b;
+  --pending: #a8b2c4;
+  --card: #ffffff;
+
+  /* brand (violet, the only accent) */
+  --brand: #7c3aed;
+  --brand-light: #a78bfa;
+  --brand-soft: #f5f3ff;
+  --brand-tint: #ede9fe;
+  --brand-line: #ddd6fe;
+  --brand-edge: #c4b5fd;
+  --brand-ink: #5b21b6;
+  --brand-mid: #6d28d9;
+  --brand-deep: #4c1d95;
+
+  /* semantic */
+  --success: #16a34a;
+  --success-light: #4ade80;
+  --danger-light: #f87171;
+  --banner: #f5f3ff;
+  --danger: #dc2626;
+  --secondary: #f5f5f5;
+  --secondary-fg: #171717;
+
+  /* component colors */
+  --track: #d3c5f5;
+  --track-blue: #cbbdf2;
+  --switch-off: #d0d5da;
+  --hold-buffer: #f2cfa6;
+  --orb-bg: #e0b8ff;
+  --bar-baseline: #1e1b4b;
+  --code-bg: #1e1b4b;
+  --bar-target: #cbd5e1;
+  --detected-from: #dce6ff;
+  --detected-to: #ddf5ea;
+  --detected-edge: #c3d3f3;
+  --overlay-from: #e4dcf7;
+  --overlay-to: #f5f2fc;
+
+  /* trace card */
+  --trace-from: #f1e9ff;
+  --trace-border: #dccff7;
+  --trace-head-from: #e9deff;
+  --trace-head-to: #f6f0ff;
+
+  /* pastel card pairs (from -> to) + border */
+  --card-violet-from: #e6d9ff;
+  --card-violet-to: #faf6ff;
+  --card-violet-edge: #d8c6f8;
+  --card-blue-from: #e4d9ff;
+  --card-blue-to: #d3e3ff;
+  --card-blue-edge: #cdbff5;
+  --card-peach-from: #ffe4cc;
+  --card-peach-to: #fff7ee;
+  --card-peach-edge: #f5d3b4;
+  --card-mint-from: #dce6ff;
+  --card-mint-to: #ddf5ea;
+  --card-mint-edge: #c3d3f3;
+  --card-green-from: #d4f2e1;
+  --card-green-to: #f4fbf7;
+  --card-green-edge: #b7e4cb;
+  --card-red-from: #ffdada;
+  --card-red-to: #fff5f5;
+  --card-red-edge: #f5b8b8;
+  --card-amber-from: #ffedb8;
+  --card-amber-to: #fffae8;
+  --card-amber-edge: #f2dda0;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-pending: var(--pending);
+  --color-card: var(--card);
+
+  --color-banner: var(--banner);
+  --color-brand: var(--brand);
+  --color-brand-light: var(--brand-light);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-tint: var(--brand-tint);
+  --color-brand-line: var(--brand-line);
+  --color-brand-edge: var(--brand-edge);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-mid: var(--brand-mid);
+  --color-brand-deep: var(--brand-deep);
+
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-secondary: var(--secondary);
+  --color-secondary-fg: var(--secondary-fg);
+
+  --color-track: var(--track);
+  --color-track-blue: var(--track-blue);
+  --color-switch-off: var(--switch-off);
+  --color-hold-buffer: var(--hold-buffer);
+  --color-orb-bg: var(--orb-bg);
+  --color-bar-baseline: var(--bar-baseline);
+  --color-code: var(--code-bg);
+  --color-bar-target: var(--bar-target);
+  --color-trace-border: var(--trace-border);
+
+  --shadow-card:
+    0 1px 2px rgb(15 23 42 / 0.06), 0 10px 24px 0 rgb(91 33 182 / 0.18);
+  --shadow-card-tight:
+    0 1px 2px rgb(15 23 42 / 0.06), 0 10px 24px -6px rgb(91 33 182 / 0.18);
+  --shadow-trace:
+    0 1px 2px rgb(15 23 42 / 0.06), 0 10px 24px 0 rgb(91 33 182 / 0.2);
+  --shadow-composer:
+    0 1px 2px rgb(15 23 42 / 0.06), 0 14px 32px 0 rgb(91 33 182 / 0.22);
+  --shadow-glow:
+    0 1px 2px rgb(76 29 149 / 0.2), 0 6px 14px -3px rgb(124 58 237 / 0.38);
+  --shadow-btn-primary:
+    0 1px 2px rgb(76 29 149 / 0.2), 0 6px 14px 0 rgb(124 58 237 / 0.38);
+  --shadow-popover: 0 10px 28px 0 rgb(0 0 0 / 0.14);
+  --shadow-drawer: -8px 0 28px 0 rgb(0 0 0 / 0.14);
+  --shadow-menu: 0 8px 24px 0 rgb(0 0 0 / 0.14);
+  --shadow-btn-danger: 0 4px 10px -2px rgb(220 38 38 / 0.35);
+  --shadow-btn-neutral:
+    0 1px 2px rgb(15 23 42 / 0.08), 0 4px 10px 0 rgb(15 23 42 / 0.1);
+}
+
+/* gradients */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(
+    90deg,
+    var(--brand-light) 0%,
+    var(--brand) 100%
+  );
+}
+@utility bg-success-gradient {
+  background-image: linear-gradient(
+    90deg,
+    var(--success-light) 0%,
+    var(--success) 100%
+  );
+}
+@utility bg-danger-gradient {
+  background-image: linear-gradient(
+    90deg,
+    var(--danger-light) 0%,
+    var(--danger) 100%
+  );
+}
+@utility bg-brand-gradient-diag {
+  background-image: linear-gradient(
+    135deg,
+    var(--brand-light) 14.3%,
+    var(--brand) 85.7%
+  );
+}
+@utility surface-detected {
+  background-image: linear-gradient(
+    170deg,
+    var(--detected-from) 14.3%,
+    var(--detected-to) 85.7%
+  );
+  border-color: var(--detected-edge);
+}
+@utility bg-overlay {
+  background-image: linear-gradient(
+    148deg,
+    var(--overlay-from) 14.3%,
+    var(--overlay-to) 85.7%
+  );
+}
+@utility bg-trace {
+  background-image: linear-gradient(
+    150deg,
+    var(--trace-from) 14.3%,
+    #ffffff 85.7%
+  );
+}
+@utility bg-trace-head {
+  background-image: linear-gradient(
+    90deg,
+    var(--trace-head-from),
+    var(--trace-head-to)
+  );
+}
+
+/* pastel card surfaces: gradient + matching border */
+@utility surface-violet {
+  background-image: linear-gradient(
+    150deg,
+    var(--card-violet-from) 14.3%,
+    var(--card-violet-to) 85.7%
+  );
+  border-color: var(--card-violet-edge);
+}
+@utility surface-blue {
+  background-image: linear-gradient(
+    150deg,
+    var(--card-blue-from) 14.3%,
+    var(--card-blue-to) 85.7%
+  );
+  border-color: var(--card-blue-edge);
+}
+@utility surface-peach {
+  background-image: linear-gradient(
+    150deg,
+    var(--card-peach-from) 14.3%,
+    var(--card-peach-to) 85.7%
+  );
+  border-color: var(--card-peach-edge);
+}
+@utility surface-mint {
+  background-image: linear-gradient(
+    150deg,
+    var(--card-mint-from) 14.3%,
+    var(--card-mint-to) 85.7%
+  );
+  border-color: var(--card-mint-edge);
+}
+@utility surface-green {
+  background-image: linear-gradient(
+    150deg,
+    var(--card-green-from) 14.3%,
+    var(--card-green-to) 85.7%
+  );
+  border-color: var(--card-green-edge);
+}
+@utility surface-red {
+  background-image: linear-gradient(
+    150deg,
+    var(--card-red-from) 14.3%,
+    var(--card-red-to) 85.7%
+  );
+  border-color: var(--card-red-edge);
+}
+@utility surface-amber {
+  background-image: linear-gradient(
+    150deg,
+    var(--card-amber-from) 14.3%,
+    var(--card-amber-to) 85.7%
+  );
+  border-color: var(--card-amber-edge);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}

@@ -16,6 +16,19 @@ uvicorn app.main:app --reload
 
 Training runs locally by default (`TRAINING_BACKEND=local`), which costs nothing. Payments always use the PayPal provider (`PAYMENT_PROVIDER=paypal`); there is no mock mode in the app, so real payment calls need PayPal SANDBOX keys in `.env` (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`). Use sandbox accounts only, never real money or cards. AWS SageMaker is used only with `TRAINING_BACKEND=sagemaker` and the `SAGEMAKER_*` variables. LLM: `LLM_PROVIDER=openrouter` (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`) or `azure`.
 
+## Run the frontend
+
+```
+cd frontend
+cp .env.example .env.local   # fake values only
+npm install
+npm run dev                  # http://localhost:3000
+```
+
+Mock mode (default, `NEXT_PUBLIC_USE_MOCK_API=true`): all screens run on built-in sample data, no backend needed. Add `?mock=error|empty|slow` to a URL to see those states. Checks: `npm run typecheck`, `npm run lint`, `npm run build`; browser tests with `npx playwright install chromium && npm test`.
+
+Against the backend: start it as above (it listens on `http://localhost:8000`; `NEXT_PUBLIC_API_BASE_URL` points there) and set `NEXT_PUBLIC_USE_MOCK_API=false`. The screens are not wired to the real endpoints yet, so real mode currently shows an error. The plan and the list of mismatches are in `specs/frontend-integration.md`.
+
 ## Test
 
 ```

@@ -26,7 +26,7 @@ doubles/                        in-memory stand-ins (mock payments, scripted mod
 tests/  unit/ contract/ e2e/ real/ helpers/    see testing.md
 evals/                          real-model evaluation harness (see agent/07)
 ```
-Outside `backend/`: `infra/terraform/` (AWS bucket, roles, budget alert), `specs/`, `frontend/` (placeholder).
+Outside `backend/`: `infra/terraform/` (AWS bucket, roles, budget alert), `specs/`, `frontend/` (Next.js app on a mock API; backend wiring is planned in `frontend-integration.md`).
 
 ## Dependency direction
 
