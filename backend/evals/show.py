@@ -60,7 +60,7 @@ def show_run(target: str, tools: bool = False, md: bool = False, raw: bool = Fal
     """Return (and in a notebook, with display=True, render) the log of one run."""
     folder = resolve(target, log_dir)
     if (folder / "index.json").exists():
-        rows = json.loads((folder / "index.json").read_text())
+        rows = json.loads((folder / "index.json").read_text(encoding="utf-8"))
         text = "\n".join(f"{'PASS' if r['passed'] else 'FAIL'}  {r['case']} #{r['repeat']}  {r['folder']}"
                          + ("" if r["passed"] else "  failed: " + ", ".join(r["failed_checks"])) for r in rows)
     elif md and (folder / "transcript.md").exists() and not tools:

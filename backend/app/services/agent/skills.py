@@ -9,7 +9,7 @@ SKILLS_DIR = Path(__file__).resolve().parents[2] / "skills"
 def _load() -> dict[str, tuple[str, str]]:
     out = {}
     for f in sorted(SKILLS_DIR.glob("*.md")):
-        text = f.read_text()
+        text = f.read_text(encoding="utf-8")
         _, front, body = text.split("---", 2)
         meta = dict(line.split(":", 1) for line in front.strip().splitlines())
         out[meta["name"].strip()] = (meta["description"].strip(), body.strip())

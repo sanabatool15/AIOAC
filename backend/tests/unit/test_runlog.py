@@ -11,7 +11,7 @@ from app.ports import LLMResponse, ToolCall, Usage
 from doubles.llm import FakeLLM
 from app.services.agent.loop import run_agent
 from app.services.agent.runlog import ConsoleSink, DbSink, JsonlSink, MarkdownSink, RunLog, format_line, redact
-from tests.test_agent import call, ctx
+from tests.helpers.builders import call, ctx
 
 FAKE_KEY = "sk-or-v1-abcdefghijklmnopqrstuvwxyz012345"
 FAKE_BEARER = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abcdefghijklmnop"
@@ -25,7 +25,7 @@ def all_sinks(tmp_path, session=None, stream=None, **kw):
 
 
 def events_of(tmp_path):
-    return [json.loads(l) for l in (tmp_path / "events.jsonl").read_text().splitlines()]
+    return [json.loads(l) for l in (tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()]
 
 
 def test_events_match_the_tool_calls_and_every_call_has_an_outcome(session, storage, provider, project, tmp_path):
@@ -49,7 +49,7 @@ def test_events_match_the_tool_calls_and_every_call_has_an_outcome(session, stor
     assert card["tool"] == "select_dataset" and card["args"]["target"] == "left"
     llm_calls = [e for e in ev if e["type"] == "llm_call"]
     assert len(llm_calls) == 4 and llm_calls[0]["tool_calls"][0]["name"] == "load_skill"
-    assert (tmp_path / "transcript.md").read_text().startswith("# ")
+    assert (tmp_path / "transcript.md").read_text(encoding="utf-8").startswith("# ")
     assert "search_datasets" in "\n".join(format_line(e) for e in ev)
 
 
@@ -77,7 +77,7 @@ def test_secrets_never_appear_in_any_sink(session, storage, provider, project, t
     llm = FakeLLM([LLMResponse(text=f"I saw {FAKE_KEY}", tool_calls=[ToolCall("c1", "select_dataset", {"candidate_id": FAKE_KEY, "target": FAKE_BEARER})])])
     run_agent(ctx(session, storage, provider, project), llm, secret_text, log=log)
     log.close()
-    blob = "\n".join([(tmp_path / "events.jsonl").read_text(), (tmp_path / "transcript.md").read_text(), stream.getvalue(),
+    blob = "\n".join([(tmp_path / "events.jsonl").read_text(encoding="utf-8"), (tmp_path / "transcript.md").read_text(encoding="utf-8"), stream.getvalue(),
                       json.dumps([s.content for s in session.scalars(select(AgentStep).where(AgentStep.kind == "approval_card"))])])
     for needle in (FAKE_KEY, "eyJhbGciOiJIUzI1NiIs", "4111111111111111", "my-real-looking-key-123456", "abcdefghijklmnop"):
         assert needle not in blob, needle
@@ -108,7 +108,7 @@ def test_user_text_can_be_turned_off(session, storage, provider, project, tmp_pa
     run_agent(ctx(session, storage, provider, project), FakeLLM([LLMResponse(text="hello")]), "my private goal", log=log)
     u = next(e for e in events_of(tmp_path) if e["type"] == "user_message")
     assert "text" not in u and u["text_chars"] == 15 and len(u["text_sha256"]) == 64
-    assert "my private goal" not in (tmp_path / "events.jsonl").read_text()
+    assert "my private goal" not in (tmp_path / "events.jsonl").read_text(encoding="utf-8")
 
 
 def test_a_broken_sink_or_redaction_never_breaks_a_turn(session, storage, provider, project, monkeypatch):
@@ -159,7 +159,7 @@ def test_eval_run_writes_a_folder_per_case_and_show_reads_it(tmp_path, capsys):
     batch = next((tmp_path / "logs").glob("eval-*"))
     run_dir = batch / "churn-subscription" / "r1"
     assert {p.name for p in run_dir.iterdir()} >= {"events.jsonl", "transcript.md", "conversation.json"}
-    index = json.loads((batch / "index.json").read_text())
+    index = json.loads((batch / "index.json").read_text(encoding="utf-8"))
     assert index[0]["passed"] is True and index[0]["folder"] == str(run_dir)
     ev = show.load_events(run_dir)
     assert ev[-1]["type"] == "run_end" and ev[-1]["turns"] == 2

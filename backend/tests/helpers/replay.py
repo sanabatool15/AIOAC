@@ -4,12 +4,12 @@ from pathlib import Path
 
 import httpx
 
-REC = Path(__file__).parent / "recordings"
+REC = Path(__file__).resolve().parent.parent / "recordings"
 
 
 def rec(path: str):
     p = REC / path
-    return p.read_bytes() if p.suffix in (".parquet", ".csv") else json.loads(p.read_text())
+    return p.read_bytes() if p.suffix in (".parquet", ".csv") else json.loads(p.read_text(encoding="utf-8"))
 
 
 def uci_transport(csv_name: str = "data_144_head.csv", fail: bool = False) -> httpx.MockTransport:
@@ -24,7 +24,7 @@ def uci_transport(csv_name: str = "data_144_head.csv", fail: bool = False) -> ht
             return httpx.Response(200, json=rec(f"uci/{name}") if name else {"status": 200, "statusText": "OK", "data": []})
         if u.path == "/api/dataset":
             f = REC / "uci" / f"dataset_{q.get('id')}.json"
-            return httpx.Response(200, json=json.loads(f.read_text())) if f.exists() else httpx.Response(200, json=rec("uci/not_found.json"))
+            return httpx.Response(200, json=json.loads(f.read_text(encoding="utf-8"))) if f.exists() else httpx.Response(200, json=rec("uci/not_found.json"))
         if u.path == "/static/public/144/data.csv":
             return httpx.Response(200, content=rec(f"uci/{csv_name}"))
         return httpx.Response(404)

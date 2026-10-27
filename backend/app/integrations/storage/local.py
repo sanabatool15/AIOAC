@@ -33,4 +33,4 @@ class LocalStorage:
         if not base.exists():
             return []
         files = [base] if base.is_file() else [f for f in base.rglob("*") if f.is_file()]
-        return sorted(str(f.relative_to(self.root)) for f in files)
+        return sorted(f.relative_to(self.root).as_posix() for f in files)

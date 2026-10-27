@@ -7,7 +7,7 @@ import pytest
 
 from app.ports import SourceError
 from app.integrations.datasets.uci import UCISource
-from tests.replay import uci_transport
+from tests.helpers.replay import uci_transport
 
 
 @pytest.fixture

@@ -10,8 +10,8 @@ from doubles.llm import FakeLLM
 from app.repositories.traces import TraceRepository
 from app.services.agent import tools as agent_tools
 from app.services.agent.loop import run_agent
-from tests.test_agent import call, ctx
-from tests.test_gate import make_quote
+from tests.helpers.builders import call, ctx
+from tests.helpers.builders import make_quote
 
 
 def results(session, project):

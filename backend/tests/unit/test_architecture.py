@@ -2,7 +2,7 @@
 import re
 from pathlib import Path
 
-APP = Path(__file__).resolve().parent.parent / "app"
+APP = Path(__file__).resolve().parents[2] / "app"
 ALLOWED = {"db", "repositories"}
 FORBIDDEN = re.compile(r"sqlalchemy|session\.(execute|query|add|commit|flush|scalar|scalars|delete|refresh|rollback|get)\b|\bselect\(")
 
@@ -15,13 +15,13 @@ def _files():
 
 def test_no_database_access_outside_db_and_repositories():
     bad = [f"{p.relative_to(APP)}:{n}: {line.strip()}" for p in _files()
-           for n, line in enumerate(p.read_text().splitlines(), 1) if FORBIDDEN.search(line)]
+           for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if FORBIDDEN.search(line)]
     assert not bad, "database access outside app/db and app/repositories:\n" + "\n".join(bad)
 
 
 def test_app_never_imports_doubles():
     bad = [str(p.relative_to(APP)) for p in APP.rglob("*.py")
-           if re.search(r"^\s*(from|import)\s+(\.+|app\.)?doubles\b", p.read_text(), re.M)]
+           if re.search(r"^\s*(from|import)\s+(\.+|app\.)?doubles\b", p.read_text(encoding="utf-8"), re.M)]
     assert not bad, f"app imports doubles: {bad}"
 
 

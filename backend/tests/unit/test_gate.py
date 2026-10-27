@@ -4,15 +4,9 @@ import pytest
 
 from app.db.tables import Payment, Quote
 from app.services import gate
+from tests.helpers.builders import make_quote
 
 
-def make_quote(session, project, approved=True, expired=False):
-    exp = datetime.now(timezone.utc) + timedelta(minutes=-5 if expired else 60)
-    q = Quote(project_id=project.id, instance_type="x", estimate_cents=500, low_cents=400, high_cents=700, cap_cents=700,
-              breakdown={}, prices_version="t", expires_at=exp, approved_at=datetime.now(timezone.utc) if approved else None)
-    session.add(q)
-    session.commit()
-    return q
 
 
 def test_l0_is_free(session, project):

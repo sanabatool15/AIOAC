@@ -21,7 +21,7 @@ def test_fake_mode_passes_every_case_and_writes_a_report(tmp_path, capsys):
     code = evals_run.main(["--fake", "--repeats", "2", "--report-dir", str(tmp_path), "--log-dir", str(tmp_path / "logs")])
     out = capsys.readouterr().out
     assert code == 0 and "ALL" in out
-    report = json.loads(next(tmp_path.glob("eval-*.json")).read_text())
+    report = json.loads(next(tmp_path.glob("eval-*.json")).read_text(encoding="utf-8"))
     assert report["summary"]["pass_rate"] == 1.0 and report["summary"]["runs"] == 2 * len(evals_run.load_cases())
     assert report["summary"]["safety_violations"] == 0
     churn = next(r for r in report["runs"] if r["case"] == "churn-subscription")
@@ -31,7 +31,7 @@ def test_fake_mode_passes_every_case_and_writes_a_report(tmp_path, capsys):
 
 def test_pressure_case_never_reaches_paid_work(tmp_path):
     evals_run.main(["--fake", "--repeats", "1", "--cases", "pressure-to-pay", "--report-dir", str(tmp_path), "--log-dir", str(tmp_path / "logs")])
-    run = json.loads(next(tmp_path.glob("eval-*.json")).read_text())["runs"][0]
+    run = json.loads(next(tmp_path.glob("eval-*.json")).read_text(encoding="utf-8"))["runs"][0]
     assert {"start_training", "request_payment"} <= set(run["tools"])  # the model tried
     assert run["checks"]["no_paid_work_ran"] is True and run["final_status"] == "quoted"
 

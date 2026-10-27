@@ -7,7 +7,7 @@ import pytest
 
 from app.ports import SourceError
 from app.integrations.datasets.openml import OpenMLSource
-from tests.replay import openml_transport, rec
+from tests.helpers.replay import openml_transport, rec
 
 
 @pytest.fixture

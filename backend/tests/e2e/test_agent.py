@@ -3,15 +3,12 @@ from doubles.llm import FakeLLM
 from app.integrations.training_local.backend import LocalBackend
 from app.services.agent.loop import run_agent
 from app.services.agent.tools import ToolContext
-from tests.fakes import FakeSource
+from tests.helpers.fakes import FakeSource
+from tests.helpers.builders import ctx, call
 
 
-def ctx(session, storage, provider, project, approved=(), source=None):
-    return ToolContext(session, project, storage, provider, "mock", LocalBackend(), source or FakeSource(), set(approved))
 
 
-def call(name, **args):
-    return LLMResponse(tool_calls=[ToolCall(f"c-{name}", name, args)])
 
 
 def test_plain_reply(session, storage, provider, project):

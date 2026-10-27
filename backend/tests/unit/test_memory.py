@@ -19,8 +19,8 @@ from app.integrations.training_local.backend import LocalBackend
 from app.services.agent import loop, memory
 from app.services.agent.loop import TurnInProgress, run_agent
 from app.services.agent.tools import ToolContext
-from tests.fakes import FakeSource
-from tests.test_agent import call, ctx
+from tests.helpers.fakes import FakeSource
+from tests.helpers.builders import call, ctx
 
 
 class HistoryReader:

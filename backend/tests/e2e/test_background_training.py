@@ -18,7 +18,7 @@ from app.routes import projects as project_routes
 from app.services import gate, payments, training
 from app.services.agent.tools import ToolContext
 
-from .test_payments_and_demo import ready_to_pay
+from tests.helpers.builders import ready_to_pay
 
 
 class StoppableBackend:

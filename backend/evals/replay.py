@@ -46,7 +46,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     folder = resolve(a.target, Path(a.log_dir) if a.log_dir else None)
     path = folder / "conversation.json" if folder.is_dir() else folder
-    print(replay(json.loads(path.read_text()), a.full))
+    print(replay(json.loads(path.read_text(encoding="utf-8")), a.full))
     return 0
 
 

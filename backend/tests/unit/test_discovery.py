@@ -16,9 +16,9 @@ from app.services.data.samples import CATALOG
 from app.services.data import discovery
 from app.services.agent import context, tools
 from app.services.agent.loop import run_agent
-from tests.fakes import FakeSource
-from tests.replay import hf_search_transport, openml_transport, uci_transport
-from tests.test_agent import call, ctx
+from tests.helpers.fakes import FakeSource
+from tests.helpers.replay import hf_search_transport, openml_transport, uci_transport
+from tests.helpers.builders import call, ctx
 
 
 def recorded_registry(**kw):
@@ -205,7 +205,7 @@ def test_curated_json_is_valid_and_every_id_resolves_through_the_registry():
 
 
 def test_curated_parse_rejects_bad_items():
-    good = json.loads(PATH.read_text())["items"][0]
+    good = json.loads(PATH.read_text(encoding="utf-8"))["items"][0]
     for patch in ({"id": "kaggle:x/y"}, {"id": "hf:"}, {"rows": 0}, {"target": ""}, {"keywords": []}):
         with pytest.raises(ValueError):
             parse({"items": [{**good, **patch}]})

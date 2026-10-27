@@ -49,4 +49,4 @@ def parse(data: dict) -> list[CuratedItem]:
 
 @lru_cache
 def load_curated() -> list[CuratedItem]:
-    return parse(json.loads(PATH.read_text()))
+    return parse(json.loads(PATH.read_text(encoding="utf-8")))

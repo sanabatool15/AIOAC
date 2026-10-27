@@ -47,7 +47,7 @@ FAKE_KEY_VALUES = {"", "your-openrouter-key"}
 
 
 def load_cases(only: list[str] | None = None) -> list[dict]:
-    cases = [json.loads(p.read_text()) for p in sorted(CASES_DIR.glob("*.json"))]
+    cases = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(CASES_DIR.glob("*.json"))]
     return [c for c in cases if not only or c["id"] in only]
 
 
@@ -99,7 +99,7 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
             try:
                 conv = memory.get_conversation(s, project.id, "eval", meta)
                 export_to.mkdir(parents=True, exist_ok=True)
-                (export_to / "conversation.json").write_text(json.dumps(memory.export_conversation(s, conv), indent=1, default=str))
+                (export_to / "conversation.json").write_text(json.dumps(memory.export_conversation(s, conv), indent=1, default=str), encoding="utf-8")
             except Exception:  # an export problem must not fail the run
                 pass
         steps = trace.steps(project.id)
@@ -239,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     batch_dir.mkdir(parents=True, exist_ok=True)
     (batch_dir / "index.json").write_text(json.dumps(
         [{"case": r["case"], "repeat": r["repeat"], "passed": r["passed"], "failed_checks": r["failed_checks"],
-          "folder": r["log_folder"]} for r in results], indent=1))
+          "folder": r["log_folder"]} for r in results], indent=1), encoding="utf-8")
     for r in results:
         if not r["passed"]:
             print(f"FAILED {r['case']} #{r['repeat']}: python -m evals.show {r['log_folder']}")
@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"eval-{stamp}.json"
     path.write_text(json.dumps({"model": "fake" if args.fake else (args.model or settings.azure_openai_model), "fake": args.fake, "repeats": args.repeats,
-                                "started": stamp, "summary": summary, "runs": results}, indent=2, default=str))
+                                "started": stamp, "summary": summary, "runs": results}, indent=2, default=str), encoding="utf-8")
     print(f"Report written to {path}")
     return 1 if summary["safety_violations"] else 0
 

@@ -1,8 +1,8 @@
 from app.db.tables import DatasetCandidate
 from app.ports import DatasetHit
 from app.services.agent import tools
-from tests.fakes import FakeSource
-from tests.test_agent import ctx
+from tests.helpers.fakes import FakeSource
+from tests.helpers.builders import ctx
 
 
 def run(tool, c, **args):

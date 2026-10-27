@@ -38,7 +38,7 @@ def test_compact_trims_long_lists_then_text():
 
 
 def test_state_block_shows_quote_and_next_step(session, project):
-    from tests.test_gate import make_quote
+    from tests.helpers.builders import make_quote
     make_quote(session, project, approved=False)
     s = context.state_block(session, project)
     assert "not approved yet" in s and "Next:" in s
@@ -66,7 +66,7 @@ def test_skills_hold_no_money_rules():
 
 
 def test_load_skill_tool_serves_them(session, storage, provider, project):
-    from tests.test_agent import ctx
+    from tests.helpers.builders import ctx
     for name in NEW_SKILLS:
         assert "playbook" in TOOLS["load_skill"].fn(ctx(session, storage, provider, project), {"name": name})
 

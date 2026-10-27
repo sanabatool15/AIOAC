@@ -232,7 +232,10 @@ def test_backstop_timer_stops_a_runaway_job(csv_path):
     assert smc.stopped == 1
 
 
-def test_missing_config_refused(csv_path):
+def test_missing_config_refused(csv_path, monkeypatch):
+    from app.config import settings  # the backend falls back to settings; make sure a developer's .env cannot fill them
+    monkeypatch.setattr(settings, "sagemaker_bucket", "")
+    monkeypatch.setattr(settings, "sagemaker_role_arn", "")
     b = SageMakerBackend(FakeSM([]), FakeS3(), bucket="", role_arn="")
     with pytest.raises(SageMakerJobError) as e:
         b.run(csv_path, "churn", 200)
@@ -276,7 +279,7 @@ def test_tarball_contents_and_script_runs_locally(tmp_path, csv_path):
     out = subprocess.run([sys.executable, "-I", "-c", "import sys; sys.path.insert(0, %r); import train; train.main(['--target','left','--n_estimators','50'])" % str(src)],
                          env={k: v for k, v in env.items()}, capture_output=True, text=True, timeout=300)
     assert out.returncode == 0, out.stderr
-    metrics = json.loads((model_dir / "metrics.json").read_text())
+    metrics = json.loads((model_dir / "metrics.json").read_text(encoding="utf-8"))
     assert (model_dir / "model.joblib").exists()
     assert metrics["trees_built"] == 50 and not metrics["interrupted"] and 0 < metrics["accuracy"] <= 1
 

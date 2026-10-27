@@ -2,6 +2,8 @@ import json
 
 import pytest
 
+from tests.helpers.builders import ready_to_pay
+
 from doubles.payments import MockPaymentProvider
 from app.ports import TrainingResult
 from app.integrations.training_local.backend import LocalBackend
@@ -23,13 +25,6 @@ class ScriptedBackend:
         return TrainingResult(0.8, 0.7, 1.0, self.cost, False, b"model")
 
 
-def ready_to_pay(session, storage, chosen, provider):
-    analysis.readiness(session, storage, chosen)
-    analysis.baseline(session, storage, chosen)
-    q = quotes.create_quote(session, chosen)
-    quotes.approve_quote(session, chosen, q)
-    pay, _ = payments.create_order(session, provider, "mock", chosen)
-    return q, pay
 
 
 def test_full_demo_flow_on_mock(session, storage, chosen, provider):

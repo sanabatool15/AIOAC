@@ -73,7 +73,7 @@ def train(train_dir: str, model_dir: str, target: str, n_estimators: int = 300, 
     }
     os.makedirs(model_dir, exist_ok=True)
     joblib.dump(pipe, os.path.join(model_dir, "model.joblib"))
-    with open(os.path.join(model_dir, "metrics.json"), "w") as f:
+    with open(os.path.join(model_dir, "metrics.json"), "w", encoding="utf-8") as f:
         json.dump(metrics, f)
     return metrics
 
