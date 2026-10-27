@@ -1,6 +1,5 @@
 """Hugging Face client against canned responses shaped like the live API (verified by hand on 2026-10)."""
 import io
-import json
 
 import httpx
 import pandas as pd

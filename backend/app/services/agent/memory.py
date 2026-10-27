@@ -88,10 +88,6 @@ class Group:
     def is_user(self) -> bool:
         return self.msgs[0].role == "user"
 
-    @property
-    def has_skill(self) -> bool:
-        return any(m.kind == "skill" for m in self.msgs)
-
 
 def _tool_text(m: Message, stub: bool) -> str:
     if stub and m.kind != "skill":

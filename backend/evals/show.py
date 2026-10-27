@@ -76,14 +76,6 @@ def show_run(target: str, tools: bool = False, md: bool = False, raw: bool = Fal
     return text
 
 
-def tail(n: int = 20, root: Path | None = None) -> str:
-    """The newest n console lines of the newest log under the log directory (handy in a notebook)."""
-    files = sorted((root or LOG_ROOT).rglob("events.jsonl"), key=lambda f: f.stat().st_mtime)
-    if not files:
-        return "(no logs yet)"
-    return "\n".join(format_line(json.loads(l)) for l in files[-1].read_text(encoding="utf-8").splitlines()[-n:])
-
-
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m evals.show", description=__doc__.split("\n\n")[0])
     ap.add_argument("target", help="log id or folder (an eval batch folder lists its runs)")

@@ -1,7 +1,7 @@
 """Small safety fixes around the agent loop: generic tool errors (W16), id hints (W14), word matching (W13), untrusted text (T4)."""
 import json
 
-from app.ports import DatasetHit, DatasetInfo, LLMResponse, ToolCall
+from app.ports import DatasetHit, DatasetInfo, LLMResponse
 from doubles.llm import FakeLLM
 from app.services.agent import context, tools as agent_tools
 from app.services.agent.loop import GENERIC_TOOL_ERROR, run_agent

@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.db.tables import Payment, Quote
+from app.db.tables import Payment
 from app.services import gate
 from tests.helpers.builders import make_quote
 

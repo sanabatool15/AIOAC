@@ -57,11 +57,6 @@ def container_sklearn_minor(image_version: str) -> str:
     return ".".join(image_version.split("-")[0].split(".")[:2])
 
 
-def local_sklearn_matches_container(image_version: str) -> bool:
-    """Explicit version check: local scikit-learn must match the container's, or pickled models can fail to load."""
-    return ".".join(sklearn.__version__.split(".")[:2]) == container_sklearn_minor(image_version)
-
-
 def image_uri(region: str, image_version: str, override: str = "") -> str:
     if override:
         return override
@@ -226,9 +221,6 @@ class SageMakerBackend:
             elapsed = self._clock() - started
             stage = STAGES.get(desc.get("SecondaryStatus", ""), last_stage)
             last_stage = stage
-            running_for = 0.0
-            if desc.get("TrainingStartTime"):
-                running_for = max(0.0, self._clock() - desc["TrainingStartTime"].timestamp())
             progress(stage, min(0.95, elapsed / max_runtime))  # time against the runtime ceiling; no honest step count
             if not stop_sent and (stop_check() or elapsed > backstop):   # backstop only: AWS enforces the cap
                 self.sm.stop_training_job(TrainingJobName=job)

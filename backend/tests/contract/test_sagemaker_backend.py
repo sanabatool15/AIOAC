@@ -1,4 +1,3 @@
-import datetime as dt
 import io
 import json
 import os
@@ -248,7 +247,6 @@ def test_version_mismatch_warning(csv_path):
     b.run(csv_path, "churn", 200)
     assert b.last_warnings and "0.0.1" in b.last_warnings[0]
     assert sm.container_sklearn_minor("1.4-2") == "1.4"
-    assert isinstance(sm.local_sklearn_matches_container("1.4-2"), bool)
 
 
 def test_unknown_region_needs_image_override():

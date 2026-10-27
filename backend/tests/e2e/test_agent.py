@@ -1,9 +1,6 @@
-from app.ports import LLMResponse, ToolCall
+from app.ports import LLMResponse
 from doubles.llm import FakeLLM
-from app.integrations.training_local.backend import LocalBackend
 from app.services.agent.loop import run_agent
-from app.services.agent.tools import ToolContext
-from tests.helpers.fakes import FakeSource
 from tests.helpers.builders import ctx, call
 
 
@@ -43,7 +40,7 @@ def test_tools_not_offered_at_this_step_are_refused(session, storage, provider, 
 def test_gate_still_blocks_training_even_when_status_says_paid(session, storage, provider, project):
     project.status = "paid"  # wrongly marked paid, no quote and no verified payment exist
     session.commit()
-    r = run_agent(ctx(session, storage, provider, project), FakeLLM([call("start_training"), LLMResponse(text="no")]), "go")
+    run_agent(ctx(session, storage, provider, project), FakeLLM([call("start_training"), LLMResponse(text="no")]), "go")
     from app.repositories.traces import TraceRepository
     res = [s.content["result"] for s in TraceRepository(session).steps(project.id, ("tool_result",))]
     assert "not allowed" in res[0]["error"] and project.status == "paid"

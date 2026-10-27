@@ -35,7 +35,6 @@ from app.db import Base
 from app.db.tables import Project
 from doubles.payments import MockPaymentProvider
 from app.integrations.storage.local import LocalStorage
-from app.integrations.training_local.backend import LocalBackend
 from app.services.data.samples import churn_csv
 from app.services.data import datasets
 

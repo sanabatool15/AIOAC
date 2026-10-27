@@ -2,12 +2,11 @@
 import io
 import json
 
-import pytest
 from sqlalchemy import select
 
 from app.config import settings
 from app.db.tables import AgentStep
-from app.ports import LLMResponse, ToolCall, Usage
+from app.ports import LLMResponse, ToolCall
 from doubles.llm import FakeLLM
 from app.services.agent.loop import run_agent
 from app.services.agent.runlog import ConsoleSink, DbSink, JsonlSink, MarkdownSink, RunLog, format_line, redact

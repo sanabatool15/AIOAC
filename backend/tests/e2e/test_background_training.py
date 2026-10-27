@@ -324,7 +324,6 @@ def test_worker_that_died_after_claiming_is_refunded_not_rerun(session, storage,
 
 
 def test_inngest_function_has_idempotency_and_one_at_a_time():
-    import inngest
     from app.integrations.jobs.inngest_runner import make_client, make_function
     fn = make_function(make_client(), lambda run_id: None)
     cfg = fn.get_config("http://localhost").main

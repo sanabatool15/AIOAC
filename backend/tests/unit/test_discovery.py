@@ -10,7 +10,7 @@ from app.integrations.datasets.curated import PATH, load_curated, parse
 from app.integrations.datasets.huggingface import HuggingFaceSource
 from app.integrations.datasets.openml import OpenMLSource
 from app.integrations.datasets.uci import UCISource
-from app.ports import LLMResponse, ToolCall
+from app.ports import LLMResponse
 from doubles.llm import FakeLLM
 from app.services.data.samples import CATALOG
 from app.services.data import discovery

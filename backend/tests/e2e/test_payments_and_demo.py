@@ -10,7 +10,6 @@ from app.integrations.training_local.backend import LocalBackend
 from app.repositories.ledger import LedgerRepository
 from app.services.data import analysis
 from app.services import gate, payments, training
-from app.services.cost import quotes
 
 
 class ScriptedBackend:
