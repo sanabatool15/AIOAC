@@ -29,7 +29,7 @@ When a limit is hit, the agent stops and tells the user in plain words (`status:
 ### Memory, logging and turn lock (built 2026-10-24)
 
 - Every message is stored in `conversations` / `messages` (user text, assistant text with tool calls, full tool results with a one-line stub, loaded skills, approval cards). Each model step rebuilds its input from those rows inside a token budget (default 30,000), never splitting a call from its results. Details: `specs/agent/10-memory-and-context-store.md`. A code-built summary of old history is not built.
-- `RunLog` (`services/agent/runlog.py`) writes one event stream to console, JSON Lines, a Markdown transcript and `agent_steps`, with secrets scrubbed. View a run: `python -m evals.show <log id or folder>`; from the app database: `python scripts/show_run.py <run or project id>`. Details: `specs/agent/06-observability-and-logging.md`.
+- `RunLog` (`services/agent/runlog.py`) writes one event stream to console, JSON Lines, a Markdown transcript and `agent_steps`, with secrets scrubbed. View a run: `python -m evals.show <log id or folder>`; from the app database: `GET /projects/{id}/trace`. Details: `specs/agent/06-observability-and-logging.md`.
 - Only one turn per project runs at a time; a second `/chat` gets HTTP 409. Tool crashes give the model a generic message (detail in the log only). Dataset descriptions, column names, sample rows and licenses are wrapped as untrusted data.
 
 ### Guards on what the model says (built, cheap, not a security boundary)

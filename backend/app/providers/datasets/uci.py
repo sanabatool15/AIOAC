@@ -5,7 +5,7 @@ Detail:  GET https://archive.ics.uci.edu/api/dataset?id=N                -> {"da
          tasks, characteristics, variables[{name, role, type}], ...}}  (404 body: {"status": 404, "message": ...})
 Data:    GET https://archive.ics.uci.edu/static/public/N/data.csv        (we build this address ourselves; we never follow
          an address given inside the response)
-License: not in the API. The dataset pages state CC BY 4.0 (checked for the hand-checked list by scripts/check_curated.py).
+License: not in the API. The dataset pages state CC BY 4.0 (checked when the hand-checked list was made).
 """
 import io
 import re

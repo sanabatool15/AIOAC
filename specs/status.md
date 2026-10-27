@@ -19,7 +19,6 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24 |
 | OpenRouter model client | Rewritten against the current OpenRouter docs: argument parsing, null content, several calls per reply, retry once, usage and cost. Tested on mocked HTTP only; never run against the real service (no API key yet) |
 | Agent evaluation harness (`backend/evals/`) | Built and tested offline (`--fake`). Never run with a real model |
-| Agent playground notebook (`backend/notebooks/`) | Built, runs on the fake model |
 | Hugging Face dataset tools | Done, verified against the live service |
 | Dataset discovery (2026-10-25) | Built: source registry (`hf:`, `uci:`, `oml:`), UCI and OpenML sources (shapes read from the live services, tests use recordings), hand-checked list of 12 (all re-checked live), ranking and copy-collapse pipeline, `discover_datasets` tool (level 0, offered in `described`), `discover-datasets` skill, 4 offline eval cases. Not built: browser tool, Kaggle. Never run with a real model. See `specs/agent/11-dataset-discovery.md` |
 | Dataset storage lifecycle | Done (local folder storage) |
@@ -36,9 +35,9 @@ What has been built, what is stubbed, what has not been started, and what we lea
 
 Tests: 281, all passing, no network needed. Run `pytest` in `backend/`.
 
-Agent memory, logging and turn lock (2026-10-24): `conversations` and `messages` tables (delete any old local `aioac.db`), `services/agent/memory.py`, `services/agent/runlog.py`, `evals/show.py`, `evals/replay.py`, `scripts/show_run.py`. See `specs/agent/06` and `10`. Never run against a real model yet.
+Agent memory, logging and turn lock (2026-10-24): `conversations` and `messages` tables (delete any old local `aioac.db`), `services/agent/memory.py`, `services/agent/runlog.py`, `evals/show.py`, `evals/replay.py`. See `specs/agent/06` and `10`. Never run against a real model yet.
 
-How to view a log: `cd backend && python -m evals.run --fake --repeats 1 -v` prints live lines; `python -m evals.show <log id or folder> [--tools] [--md] [--raw] [--level]` reads a past run under `backend/logs/` (git-ignored); `python scripts/show_run.py <agent_run_id or project_id>` reads the app database.
+How to view a log: `cd backend && python -m evals.run --fake --repeats 1 -v` prints live lines; `python -m evals.show <log id or folder> [--tools] [--md] [--raw] [--level]` reads a past run under `backend/logs/` (git-ignored). (The `backend/scripts/` and `backend/notebooks/` folders were removed on 2026-10-27; the app database trace is available at `GET /projects/{id}/trace`.)
 
 ## 2. Repository layout
 
@@ -189,7 +188,7 @@ AWS architecture is decided (section 4 and `training.md` section 2a). Remaining:
 
 ## 8. SageMaker backend update (2026-10-24)
 
-Built without AWS credentials: `providers/training/sagemaker.py`, `sagemaker_script/train.py`, `services/sagemaker_cost.py` (cap to `MaxRuntimeInSeconds`, cost from billable seconds), `services/cost_report.py`, `infra/terraform/`, `backend/scripts/sagemaker_smoke.py`, and 28 mocked tests. Contract in `training.md` section 2b. Everything touching real AWS is unverified. A human must: create a limited IAM user (not root), review and apply the Terraform, check the `ml.m5.xlarge` training quota, pick the scikit-learn image version available in the region (default `1.4-2` does not match local 1.9.x), then run the smoke script once and use its output to calibrate `prices.py`. The backend expects the new `run(..., on_progress, should_stop)` signature; `services/training.py` and the interface in `base.py` are not changed here. With placeholder prices, caps under about 53 cents are refused as too small to run.
+Built without AWS credentials: `providers/training/sagemaker.py`, `sagemaker_script/train.py`, `services/sagemaker_cost.py` (cap to `MaxRuntimeInSeconds`, cost from billable seconds), `services/cost_report.py`, `infra/terraform/`, and 28 mocked tests. Contract in `training.md` section 2b. Everything touching real AWS is unverified. A human must: create a limited IAM user (not root), review and apply the Terraform, check the `ml.m5.xlarge` training quota, pick the scikit-learn image version available in the region (default `1.4-2` does not match local 1.9.x), then run one real job through the app (the smoke script was removed on 2026-10-27) and use its output to calibrate `prices.py`. The backend expects the new `run(..., on_progress, should_stop)` signature; `services/training.py` and the interface in `base.py` are not changed here. With placeholder prices, caps under about 53 cents are refused as too small to run.
 
 ## 9. Future work note (2026-10-26)
 

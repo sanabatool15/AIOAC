@@ -5,13 +5,11 @@ Sections 1 and 2 describe the code before 2026-10-24. Sections 3 to 9 are now **
 ## 0. How to see a log (BUILT)
 
 - **Live, in a terminal:** `cd backend && python -m evals.run --fake --repeats 1 --cases churn-subscription -v` prints one line per event to stderr (`-vv` adds debug lines such as the state block summary). With a real model: `python -m evals.run --model <id> -v`.
-- **Live, in the notebook:** `notebooks/agent_playground.ipynb` passes a `RunLog` with a console sink; every model call, gate decision and tool result prints as it happens.
 - **A past eval run:** every run writes a folder `backend/logs/eval-<time>/<case>/r<n>/` with `events.jsonl`, `transcript.md` and `conversation.json`, plus `index.json` in the batch folder. Failed runs print their folder at the end of `evals.run`.
   - `python -m evals.show eval-20261101-101500` lists the runs of a batch (PASS or FAIL, folder).
   - `python -m evals.show eval-20261101-101500/churn-subscription/r1 [--tools] [--md] [--raw] [--level WARN|DEBUG]`.
   - `python -m evals.replay <run folder> [--full]` rebuilds, from `conversation.json`, what the model was shown before each reply (no model, no network).
-- **A turn from the app database:** `cd backend && python scripts/show_run.py <agent_run_id or project_id> [--tools]`. It prints the audit steps (`agent_steps`) in the same console format.
-- **Notebook helpers:** `from evals.show import show_run, tail`; `show_run("nb-<time>/t1", tools=True, display=True)`; `tail(20)`.
+- **A turn from the app database:** `GET /projects/{id}/trace` returns the audit steps (`agent_steps`).
 - Logs are git-ignored (`backend/logs/`).
 
 
@@ -41,7 +39,6 @@ Sections 1 and 2 describe the code before 2026-10-24. Sections 3 to 9 are now **
 1. Not recorded: the prompt sent to the model, the model id, call latency, the state block text, the offered tool list, text the model wrote next to tool calls, the approval card (it is only in the HTTP reply), the step number inside a turn, guard checks that passed.
 2. `llm` steps are missing when the service reports no usage.
 3. Evals and the notebook use an **in-memory SQLite database**. It is discarded after each case. `evals/run.py` keeps only tool names, gate dicts, turn texts and check results in the report JSON. **Tool arguments and results are lost.** This is why a failed eval cannot be read.
-4. The notebook prints one `MODEL ->` line per model call and, at the end, a trace dump cut to 150 characters per step (`agent_playground.ipynb`).
 5. Nothing is printed live while an eval runs except `<case> #n: pass/FAIL ...`.
 6. Tool results contain real cell values (`inspect_candidate` preview, 3 rows). They are stored in the database trace.
 
@@ -180,8 +177,7 @@ Readable by a person with no code open. Per turn: a heading, the user text, then
 ## 8. How to view a past run (BUILT)
 
 - Command: `python -m evals.show <log_id or folder> [--tools] [--md] [--raw] [--level WARN]`. `--tools` prints only tool calls and results. Reads `events.jsonl`.
-- App database: `python backend/scripts/show_run.py <agent_run_id or project_id>` reads `agent_steps` and prints the same console format.
-- Notebook: `from evals.show import show_run, tail` then `show_run("nb-.../t1")` renders the transcript with `IPython.display.Markdown`. `tail(n=20)` shows the newest events of the last turn.
+- App database: `GET /projects/{id}/trace` returns `agent_steps`.
 - The notebook's `Watching` wrapper is replaced by passing a `RunLog` with the console sink, so tool calls and gate decisions print live, not only model replies.
 - Eval runner: `--log-dir` (default `backend/logs/`) and `-v`. The summary table prints the folder of every failed run.
 

@@ -51,7 +51,6 @@ Code: `providers/training/sagemaker.py`, `providers/training/sagemaker_script/tr
 - **Same model as local:** the tarball carries verbatim copies of `services/features.py` and `services/baseline.py` as package `aioac_core`, so feature preparation and model family cannot drift. The forest is grown 25 trees at a time so SIGTERM can save a partial forest.
 - **Config (env):** `SAGEMAKER_REGION`, `SAGEMAKER_BUCKET`, `SAGEMAKER_ROLE_ARN`, `SAGEMAKER_INSTANCE_TYPE`, `SAGEMAKER_SKLEARN_VERSION`, optional `SAGEMAKER_IMAGE_URI`. Credentials come from the standard AWS chain, never from the repo. Prices stay in `services/prices.py`.
 - **Terraform:** `infra/terraform/` (bucket with public access blocked and expiry rules, training role, least-privilege app policy, budget alerts). Not validated or applied.
-- **Smoke test:** `backend/scripts/sagemaker_smoke.py --yes` runs one tiny real job and prints estimate against actual. It prints the maximum possible cost first and refuses without `--yes`.
 - **Cost accuracy:** `cost_report.cost_accuracy_report` gives the share of jobs whose actual cost fell inside the quoted range.
 - **Tool access:** the AWS plugins (`aws-core`, `sagemaker-ai`) are installed and can search documentation. They have no AWS credentials in this cloud session, so they cannot touch an account. The `terraform` plugin server failed to connect.
 

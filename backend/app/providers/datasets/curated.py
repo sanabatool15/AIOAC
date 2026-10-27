@@ -1,6 +1,6 @@
 """The hand-checked dataset list (specs/agent/11-dataset-discovery.md section 7), loaded from curated.json.
 
-Re-check it against the live services with `python scripts/check_curated.py` (by hand, needs network).
+Re-check it against the live services by hand when needed (the check script was removed).
 """
 import json
 from dataclasses import dataclass

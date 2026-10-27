@@ -5,7 +5,7 @@ Labels used in all files in this folder:
 - **PROPOSED** = an idea or design. Not in the code.
 - **MISMATCH** = the code and an older spec disagree.
 
-Read date: 2026-10-24. Code read: `backend/app/services/agent/*`, `services/gate.py`, `providers/llm/*`, `providers/datasets/*`, `skills/*`, `routes/projects.py`, `backend/evals/`, `backend/notebooks/`.
+Read date: 2026-10-24. Code read: `backend/app/services/agent/*`, `services/gate.py`, `providers/llm/*`, `providers/datasets/*`, `skills/*`, `routes/projects.py`, `backend/evals/`.
 
 ## 1. What the agent is (BUILT)
 
@@ -63,7 +63,6 @@ Result is `AgentResult(status = reply | awaiting_approval | limit | error)`.
 | Dataset source (Hugging Face) | `providers/datasets/` | BUILT |
 | Trace tables `agent_runs`, `agent_steps` | `models/tables.py`, `repositories/traces.py` | BUILT |
 | Eval harness, 7 cases | `backend/evals/` | BUILT, offline only |
-| Notebook | `backend/notebooks/agent_playground.ipynb` | BUILT, fake model unless key set |
 
 ## 4. Worked example (illustrative numbers)
 

@@ -1,7 +1,7 @@
 {
  "version": 1,
  "checked": "2026-10-25",
- "note": "Hand-checked list for the demo (specs/agent/11-dataset-discovery.md section 7). Re-check with backend/scripts/check_curated.py.",
+ "note": "Hand-checked list for the demo (specs/agent/11-dataset-discovery.md section 7).",
  "items": [
   {
    "id": "hf:scikit-learn/churn-prediction",

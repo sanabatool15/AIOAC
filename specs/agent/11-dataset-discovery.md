@@ -68,7 +68,6 @@ Where it looks, in order:
 **Which search engine:** not decided. Tested on 2026-10-24 from a cloud machine (a datacenter address), where Google and Brave showed a CAPTCHA, DuckDuckGo returned 403, and Bing loaded but gave no dataset results. A laptop with a home address often behaves better. So:
 
 - The search engine is a setting, not fixed in code.
-- A small script, `backend/scripts/check_search_engines.py`, lets you try each engine on your own machine and prints which ones work. We pick the default from your result.
 - If an engine shows a CAPTCHA or an error, the agent moves on quietly to the next source. It never shows a blocked page to the user as if it were a result.
 - We do not disguise the browser to get past blocks.
 
@@ -93,7 +92,7 @@ Already in the code (BUILT): dataset names are validated, there are size and row
 
 ## 7. Hand-checked list for the demo (BUILT: `providers/datasets/curated.json`)
 
-Facts read from live APIs on 2026-10-24, and all 12 re-checked on 2026-10-25 with `backend/scripts/check_curated.py` (rows within 2%, license, answer column present in the real download). Note: the UCI copy of Adult has 48,842 rows; the list uses the Hugging Face copy (32,561). Licenses are what each source states.
+Facts read from live APIs on 2026-10-24, and all 12 re-checked on 2026-10-25 with a throwaway script, since removed (rows within 2%, license, answer column present in the real download). Note: the UCI copy of Adult has 48,842 rows; the list uses the Hugging Face copy (32,561). Licenses are what each source states.
 
 | # | Name | Source id | Rows | Target | Domain |
 |---|---|---|---|---|---|
