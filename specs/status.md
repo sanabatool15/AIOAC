@@ -12,28 +12,24 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Project lifecycle (state machine) | Done |
 | Permission gate | Done |
 | Cost estimator and quotes | Done, with placeholder prices |
-| Payment orchestration, ledger, webhooks, refunds | Done on the mock provider |
+| Payment orchestration, ledger, webhooks, refunds | Done, tested on the mock double |
 | PayPal sandbox provider | Written against the current PayPal OpenAPI specs and tested on mocked HTTP. Checked against the real sandbox on 2026-10-25: token request and create order work (the order returned a sandbox approval link), and capturing before the buyer approves is correctly refused (422). Not yet checked against the real sandbox: a buyer approving and capture, refund, webhook signature. Needs human review |
-| Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Conversation memory (stored messages, token-budgeted history), run log, per-project turn lock, generic tool errors, untrusted-text wrapping added 2026-10-24 |
-| OpenRouter model client | Written, never run (no API key yet) |
-| Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24 |
+| Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Memory, run log and turn lock added 2026-10-24 (below). Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24 |
 | OpenRouter model client | Rewritten against the current OpenRouter docs: argument parsing, null content, several calls per reply, retry once, usage and cost. Tested on mocked HTTP only; never run against the real service (no API key yet) |
 | Agent evaluation harness (`backend/evals/`) | Built and tested offline (`--fake`). Never run with a real model |
 | Hugging Face dataset tools | Done, verified against the live service |
 | Dataset discovery (2026-10-25) | Built: source registry (`hf:`, `uci:`, `oml:`), UCI and OpenML sources (shapes read from the live services, tests use recordings), hand-checked list of 12 (all re-checked live), ranking and copy-collapse pipeline, `discover_datasets` tool (level 0, offered in `described`), `discover-datasets` skill, 4 offline eval cases. Not built: browser tool, Kaggle. Never run with a real model. See `specs/agent/11-dataset-discovery.md` |
 | Dataset storage lifecycle | Done (local folder storage) |
 | Insights, readiness grade, free baseline | Done, verified on real data |
-| Training backends | Local done (reports progress, honours stop). SageMaker is a stub |
 | Background training, progress, Stop, crash recovery | Done on the inline runner (tested). Inngest Cloud runner written against SDK 0.5.19, never run against real Inngest Cloud |
 | Database | SQLite default. Postgres/Supabase configurable, never connected to a real database |
-| Terraform, AWS storage | Not started |
-| Training backends | Local done. SageMaker backend, training script and cap math written and tested on mocked boto3 only; never run against AWS |
+| Training backends | Local done (reports progress, honours stop). SageMaker backend, training script and cap math written and tested on mocked boto3 only; never run against AWS |
 | Terraform, AWS storage | Written in `infra/terraform/` (bucket, roles, app policy, budget alert). Not validated (terraform not installed) and never applied. No S3 storage provider for the app yet; the SageMaker backend uploads its own job files |
 | Web app | Not started (placeholder folder) |
 | Funding stretch, login | Not started |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 281, all passing, no network needed. Run `pytest` in `backend/`.
+Tests: 302 passed, 9 real-service tests skipped (unit 141, contract 107, e2e 54; `tests/real` only runs with `RUN_REAL=1`). No network needed. Run `pytest` in `backend/`.
 
 Agent memory, logging and turn lock (2026-10-24): `conversations` and `messages` tables (delete any old local `aioac.db`), `services/agent/memory.py`, `services/agent/runlog.py`, `evals/show.py`, `evals/replay.py`. See `specs/agent/06` and `10`. Never run against a real model yet.
 
@@ -41,19 +37,21 @@ How to view a log: `cd backend && python -m evals.run --fake --repeats 1 -v` pri
 
 ## 2. Repository layout
 
+Full tree and rules: `specs/architecture.md`. Short version:
+
 ```
-CLAUDE.md          project instructions and hard rules
-specs/             system specification (this folder)
+CLAUDE.md  specs/  infra/terraform/  frontend/ (placeholder)
 backend/app/
-  models/          database tables
-  repositories/    database access (ledger and webhook tables are insert-only)
-  services/        business logic
-    agent/         loop, tools, skills loader, context building, memory (stored history), runlog (event log)
-  providers/       swappable parts: payments, training, storage, datasets, llm
+  db/              engine, session, tables
+  repositories/    the only code that talks to the database (ledger and webhook tables are insert-only)
+  services/        business logic, no SQL: agent/, data/, cost/, payments, training, gate, lifecycle
+  integrations/    one folder per outside system: paypal, aws, llm, datasets, jobs, storage, training_local; factory.py
+  ports.py         all interfaces (PaymentProvider, TrainingBackend, DatasetSource, LLM client, Storage, JobRunner)
   routes/          HTTP endpoints
   skills/          markdown playbooks the agent loads on demand
-backend/tests/     281 tests
-frontend/          placeholder only
+backend/doubles/   in-memory stand-ins for tests and evals only (app never imports them)
+backend/tests/     unit/ contract/ e2e/ real/ (+ helpers/)
+backend/evals/     real-model evaluation harness
 ```
 
 ## 3. What each part does
@@ -68,12 +66,12 @@ Three levels. L0 runs freely. L1 (choosing a dataset) needs the user's approval.
 
 Every decision, allowed or refused, is written to the trace.
 
-### 3.3 Cost (`services/cost.py`, `prices.py`, `quotes.py`)
+### 3.3 Cost (`services/cost/cost.py`, `prices.py`, `quotes.py`, `budget.py`, `report.py`)
 Implements the formula in `cost.md`: time the baseline on 5%, 10% and 20% samples, fit a curve on a log scale, project to full size, convert to money, add storage and platform fee, produce estimate, low, high, and cap (cap equals the high end). A quote above the per-job maximum ($7) is refused. Quotes expire after 60 minutes.
 
 Prices in `prices.py` are placeholders (one instance type, 25 cents per hour, 240 seconds of startup, 1 cent storage, 50 cents platform fee).
 
-### 3.4 Payments (`services/payments.py`, `providers/payments/`)
+### 3.4 Payments (`services/payments.py`, `integrations/paypal/`, `doubles/payments.py`)
 - The user is charged the quote's cap. Unused money is refunded after training (cap minus actual cost). This is the proposal in `payments.md` and is not yet confirmed by you.
 - A capture only counts when the provider reports it confirmed and the amount matches.
 - The browser route and the webhook route both end in the same idempotent step, so a repeat is harmless.
@@ -82,23 +80,23 @@ Prices in `prices.py` are placeholders (one instance type, 25 cents per hour, 24
 - If the provider fails during a refund, the job still finishes, a `refund_failed` trace step is written, and the owed amount stays visible in the ledger. `POST /projects/{id}/refund/retry` sends it again; repeats are harmless. Provider outages return a plain 502 instead of a crash.
 - The PayPal approval link is stored on the payment, so a page reload resumes the same payment. (This added a column: delete any old local `aioac.db` before running.)
 - The ledger refuses an entry that would take a project's balance below zero.
-- `mock.py` is complete. `paypal.py` implements create order, capture, refund and webhook signature verification (Orders v2, Payments v2, verify-webhook-signature). It refuses any host but the sandbox and sends the webhook body to PayPal byte-for-byte. Tests use a mocked transport (`tests/test_paypal_provider.py`). Not yet exercised against the real sandbox.
+- `doubles/payments.py` (the mock, tests and evals only) is complete. `integrations/paypal/provider.py` implements create order, capture, refund and webhook signature verification (Orders v2, Payments v2, verify-webhook-signature). It refuses any host but the sandbox and sends the webhook body to PayPal byte-for-byte. Tests use a mocked transport (`tests/contract/test_paypal_provider.py`). Not yet exercised against the real sandbox.
 
-### 3.5 Training (`services/training.py`, `providers/training/`)
+### 3.5 Training (`services/training.py`, `integrations/training_local/`, `integrations/aws/`)
 After the gate allows it: run the backend, cap the cost at the quote's cap, store the model, add the cost to the global spend, settle and refund. If the backend fails, the project goes to failed and then refunded, with the full amount returned. By default the backend is `local`, which costs nothing, so the default demo refunds the entire cap. The `sagemaker` backend is implemented against mocked clients (see `training.md` section 2b) and has never talked to AWS.
 
 Training runs in the background (see `training.md` section 7): `/train` returns a run id, `GET /projects/{id}/training` shows progress, `POST /projects/{id}/training/stop` stops it. Exception: the agent's `start_training` tool still blocks on `training.run_training`.
 
-### 3.6 Datasets (`services/datasets.py`, `providers/storage/`, `providers/datasets/`)
+### 3.6 Datasets (`services/data/datasets.py`, `integrations/storage/`, `integrations/datasets/`)
 - Candidates are stored temporarily with an expiry time. Selecting one copies it to permanent storage and deletes the others. Expired candidates are purged by a function that nothing calls on a schedule yet. An orphan report lists stored files the database does not know about.
 - Storage is a local folder behind an interface. There is no S3 implementation yet.
 - Hugging Face is the only live source. Search runs a tabular-classification filter first and an unfiltered search second, then merges. Limits: 50,000 rows and 50 MB. Gated and non-table datasets are refused. Dataset names are validated because they go into URLs.
 - A bundled synthetic churn dataset is the offline fallback.
 
 ### 3.6a Cleaning
-`datasets.clean()` exists (creates a new version without duplicates) but no agent tool or route calls it. In practice, cleaning happens inside `features.prepare_features`, which is used for readiness and training: it drops ID-like columns, converts numbers stored as text, and drops duplicate rows.
+`services/data/datasets.clean()` exists (creates a new version without duplicates) but no agent tool or route calls it. In practice, cleaning happens inside `services/data/features.prepare_features`, which is used for readiness and training: it drops ID-like columns, converts numbers stored as text, and drops duplicate rows.
 
-### 3.7 Insights and baseline (`insights.py`, `baseline.py`, `analysis.py`)
+### 3.7 Insights and baseline (`services/data/insights.py`, `baseline.py`, `analysis.py`)
 Readiness grade from a documented scoring (rows, duplicates, missing values, lopsided answer, constant columns, copy-of-answer columns). Trust level combines the grade and how far the baseline beats a simple guess. The baseline is a scikit-learn random forest on 80% of rows, tested on the other 20%.
 
 ### 3.8 Agent (`services/agent/`)
@@ -188,8 +186,12 @@ AWS architecture is decided (section 4 and `training.md` section 2a). Remaining:
 
 ## 8. SageMaker backend update (2026-10-24)
 
-Built without AWS credentials: `providers/training/sagemaker.py`, `sagemaker_script/train.py`, `services/sagemaker_cost.py` (cap to `MaxRuntimeInSeconds`, cost from billable seconds), `services/cost_report.py`, `infra/terraform/`, and 28 mocked tests. Contract in `training.md` section 2b. Everything touching real AWS is unverified. A human must: create a limited IAM user (not root), review and apply the Terraform, check the `ml.m5.xlarge` training quota, pick the scikit-learn image version available in the region (default `1.4-2` does not match local 1.9.x), then run one real job through the app (the smoke script was removed on 2026-10-27) and use its output to calibrate `prices.py`. The backend expects the new `run(..., on_progress, should_stop)` signature; `services/training.py` and the interface in `base.py` are not changed here. With placeholder prices, caps under about 53 cents are refused as too small to run.
+Built without AWS credentials: `integrations/aws/sagemaker.py`, `integrations/aws/train_script/train.py`, `integrations/aws/sagemaker_cost.py` (cap to `MaxRuntimeInSeconds`, cost from billable seconds), `services/cost/report.py`, `infra/terraform/`, and 28 mocked tests. Contract in `training.md` section 2b. Everything touching real AWS is unverified. A human must: create a limited IAM user (not root), review and apply the Terraform, check the `ml.m5.xlarge` training quota, pick the scikit-learn image version available in the region (default `1.4-2` does not match local 1.9.x), then run one real job through the app (the smoke script was removed on 2026-10-27) and use its output to calibrate `services/cost/prices.py`. The backend expects the new `run(..., on_progress, should_stop)` signature; `services/training.py` and the interface in `ports.py` are not changed here. With placeholder prices, caps under about 53 cents are refused as too small to run.
 
 ## 9. Future work note (2026-10-26)
 
 Instance selection from data size and a GPU / deep learning extension are written up as future work in `specs/future-instances-and-gpu.md`. Nothing is built; the demo uses the single CPU instance.
+
+## 10. Restructure note (2026-10-27)
+
+Behaviour unchanged; folders renamed so the layout explains itself. `providers/`, `app/jobs/` and `models/` are gone: outside systems are under `integrations/` (one folder each), interfaces are in `ports.py`, tables are in `db/`, all SQL is in `repositories/` (services have none; `tests/unit/test_architecture.py` enforces this and that `app/` never imports `doubles/`). The mock payment provider and the scripted fake model and offline dataset source moved to `backend/doubles/` and are used only by tests and evals. The app has no mock mode: `PAYMENT_PROVIDER` defaults to `paypal`. Tests are split into `unit/`, `contract/`, `e2e/` and `real/`; `tests/conftest.py` isolates tests from the developer's `.env`. Real-service checks: `RUN_REAL=1 pytest tests/real -v -s`.

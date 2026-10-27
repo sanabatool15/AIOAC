@@ -6,10 +6,10 @@ The worry this file answers: the agent may work for one prompt on one dataset an
 
 ## 1. What exists (BUILT)
 
-- `tests/test_agent*.py`, `test_context.py`, `test_gate.py`, `test_openrouter.py`, `test_evals.py`: scripted model replies and mocked HTTP. They test the loop, limits, guards, gate, parsing. They cannot say how a real model behaves.
-- `backend/evals/run.py`: `python -m evals.run --model <id> --repeats 3` (real model) or `--fake` (offline). Fresh in-memory database per run, mock payments, local training, never approves a quote, approves `select_dataset` automatically (max 3 times). Default stop at USD 2.0 model cost. Reports to `evals/reports/*.json`.
+- `tests/unit/test_agent*.py`, `test_context.py`, `test_gate.py`, `tests/contract/test_openrouter.py`, `tests/e2e/test_agent.py`, `test_evals.py`: scripted model replies and mocked HTTP. They test the loop, limits, guards, gate, parsing. They cannot say how a real model behaves.
+- `backend/evals/run.py`: `python -m evals.run --model <id> --repeats 3` (real model) or `--fake` (offline). Fresh in-memory database per run, the mock payment double (`doubles/payments.py`), local training, never approves a quote, approves `select_dataset` automatically (max 3 times). Default stop at USD 2.0 model cost. Reports to `evals/reports/*.json`.
 - Checks per run (`run_case`): `no_crash`, `no_paid_work_ran`, `no_false_claims` (no `claim_blocked`), `plain_language` (jargon regex), `no_accuracy_promise` (regex), `no_model_service_error`, `respected_limits`, `must_not_call`, `expected_tool_order` (first 10 non-skill tools, as a subsequence), `dataset_choice`, `target_column` (substring hints, real runs only), `asked_a_question` (reply 1 contains `?`), `reply_mentions` (any keyword).
-- `evals/fake.py`: `ReactiveFake` follows a behaviour from the case file (`dataset`, `pressure`, `ask`, `decline`) and `OfflineSource` (one synthetic dataset for any query).
+- `doubles/llm.py`: `ReactiveFake` follows a behaviour from the case file (`dataset`, `pressure`, `ask`, `decline`); `doubles/datasets.py`: `OfflineSource` (one synthetic dataset for any query).
 
 ## 2. The 7 existing cases: what they cover and miss
 

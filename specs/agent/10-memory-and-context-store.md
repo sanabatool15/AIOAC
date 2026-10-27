@@ -4,7 +4,7 @@ Sections 2 to 7 are built (`services/agent/memory.py`, tests in `tests/test_memo
 
 Goal: the agent never loses what happened. Every user message, every model reply, every tool call and its result, every skill it loaded, and every gate decision is stored, and is given back to the model on the next turn, until the work is done.
 
-## 1. What exists today (BUILT, see `models/tables.py`, `services/agent/context.py`)
+## 1. What exists today (BUILT, see `db/tables.py`, `services/agent/context.py`)
 
 - `agent_steps` stores each event (`user`, `assistant`, `tool_call`, `tool_result`, `gate`) with `project_id`, `run_id`, `seq`, and a JSON `content`.
 - `agent_runs` stores one row per turn (tokens, cost, stop reason).

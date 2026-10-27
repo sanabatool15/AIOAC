@@ -5,11 +5,11 @@ Labels used in all files in this folder:
 - **PROPOSED** = an idea or design. Not in the code.
 - **MISMATCH** = the code and an older spec disagree.
 
-Read date: 2026-10-24. Code read: `backend/app/services/agent/*`, `services/gate.py`, `providers/llm/*`, `providers/datasets/*`, `skills/*`, `routes/projects.py`, `backend/evals/`.
+Read date: 2026-10-24. Code read: `backend/app/services/agent/*`, `services/gate.py`, `integrations/llm/*`, `integrations/datasets/*`, `skills/*`, `routes/projects.py`, `backend/evals/`.
 
 ## 1. What the agent is (BUILT)
 
-A custom tool-calling loop (`services/agent/loop.py`, `run_agent`). One call = one "turn". An LLM (OpenRouter, `providers/llm/openrouter.py`) either answers or asks for tools. The system checks each request, then runs the tool. The loop ends on a text reply, an approval card, a limit, or an error.
+A custom tool-calling loop (`services/agent/loop.py`, `run_agent`). One call = one "turn". An LLM (OpenRouter, `integrations/llm/openrouter.py`) either answers or asks for tools. The system checks each request, then runs the tool. The loop ends on a text reply, an approval card, a limit, or an error.
 
 The agent never moves money. The gate (`services/gate.py`) and the HTTP routes do that.
 
@@ -59,9 +59,9 @@ Result is `AgentResult(status = reply | awaiting_approval | limit | error)`.
 | 11 tools | `services/agent/tools.py` | BUILT |
 | Permission gate | `services/gate.py` | BUILT |
 | Skills loader + 10 skill files | `services/agent/skills.py`, `skills/*.md` | BUILT |
-| OpenRouter client, scripted fake | `providers/llm/` | BUILT (OpenRouter never run for real) |
-| Dataset source (Hugging Face) | `providers/datasets/` | BUILT |
-| Trace tables `agent_runs`, `agent_steps` | `models/tables.py`, `repositories/traces.py` | BUILT |
+| OpenRouter client, scripted fake | `integrations/llm/` | BUILT (OpenRouter never run for real) |
+| Dataset source (Hugging Face) | `integrations/datasets/` | BUILT |
+| Trace tables `agent_runs`, `agent_steps` | `db/tables.py`, `repositories/traces.py` | BUILT |
 | Eval harness, 7 cases | `backend/evals/` | BUILT, offline only |
 
 ## 4. Worked example (illustrative numbers)

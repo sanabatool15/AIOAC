@@ -3,7 +3,7 @@ from ...ports import TrainingResult
 
 
 class LocalBackend:
-    """Runs on this machine. Always costs nothing. Used for the free baseline and for the mock demo."""
+    """Runs on this machine. Always costs nothing. Used for the free baseline and the default demo."""
 
     name = "local"
     instance_type = None

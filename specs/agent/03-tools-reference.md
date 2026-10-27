@@ -10,8 +10,8 @@ Common rules (BUILT):
 
 ## discover_datasets
 - Purpose: find datasets for a user who has no data. Gate action `DISCOVER`, level 0. Offered in: `described`. Spec: `11-dataset-discovery.md` sections 3, 4, 7.
-- Input: `{goal_summary: string, queries: [2 or 3 short English phrases]}`. The model supplies only these; code does the rest (`services/discovery.py`).
-- What the code does: the hand-checked list (`providers/datasets/curated.json`), then UCI, OpenML, Hugging Face in that order (`registry.SEARCH_ORDER`). Hits become one record shape, then pre-filters (gated, not a plain table, not a classification task, under 300 rows), near-copy collapse, ranking, and a plain reason per result. A source that fails is reported in `sources` and never fails the tool; live searches share a 40 s budget.
+- Input: `{goal_summary: string, queries: [2 or 3 short English phrases]}`. The model supplies only these; code does the rest (`services/data/discovery.py`).
+- What the code does: the hand-checked list (`integrations/datasets/curated.json`), then UCI, OpenML, Hugging Face in that order (`registry.SEARCH_ORDER`). Hits become one record shape, then pre-filters (gated, not a plain table, not a classification task, under 300 rows), near-copy collapse, ranking, and a plain reason per result. A source that fails is reported in `sources` and never fails the tool; live searches share a 40 s budget.
 - Output: `{candidates: [up to 3], sources: {name: "ok, N found" | "unavailable: ..."}, near_copies_removed, next | (nothing_fits: true, advice, sample_option?)}`. Each candidate: `{id (hf:/uci:/oml:/sample-...), name, source, reason, rows, license, notes, answer_column_hint?, about?, hand_checked?, sample_data?}`. Outside text (name, about, answer column hint of non-curated results) is wrapped in `<untrusted_dataset_text>`; licenses go through `sanitise_license`.
 - Samples: the bundled sample is added only if a slot is free, or offered separately as `sample_option`; it is always labelled `sample_data` and never counts as a fit.
 - Nothing fits: no result reaches relevance 0.30 (and a listed result must reach 60% of the best). Result has `nothing_fits: true` and advice; the agent must say so and offer an upload.
@@ -30,7 +30,7 @@ Common rules (BUILT):
 ## look_at_dataset
 - Purpose: preview size, columns and whether it is a plain table before downloading. `SEARCH`, level 0.
 - Offered in: `described`.
-- Input: `{dataset_id: string}`. Ids carry their source: `hf:owner/name`, `uci:144`, `oml:40945`; bundled ids are plain (`sample-churn`). Resolved through `providers/datasets/registry.py`.
+- Input: `{dataset_id: string}`. Ids carry their source: `hf:owner/name`, `uci:144`, `oml:40945`; bundled ids are plain (`sample-churn`). Resolved through `integrations/datasets/registry.py`.
 - Output (HF): `{rows, tabular, gated, license, columns:["name (dtype)", up to 25], notes}`. Bundled: `{name, rows, tabular, license}`.
 - DB changes: none.
 - Failure: `{error}` for unknown id, not found, gated, viewer not ready, rate limit, network.

@@ -15,7 +15,7 @@ Sections 1 and 2 describe the code before 2026-10-24. Sections 3 to 9 are now **
 
 ## 1. What exists today (BUILT)
 
-**`agent_steps` table** (`models/tables.py`, written by `repositories/traces.py`): `project_id, run_id (nullable), seq, kind, content (JSON)`. One commit per step. `seq` is per project. Kinds actually written:
+**`agent_steps` table** (`db/tables.py`, written by `repositories/traces.py`): `project_id, run_id (nullable), seq, kind, content (JSON)`. One commit per step. `seq` is per project. Kinds actually written:
 
 | kind | written by | content |
 |---|---|---|

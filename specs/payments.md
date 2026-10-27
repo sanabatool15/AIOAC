@@ -33,7 +33,7 @@ Each ledger entry records a signed amount, its kind (capture, usage, refund), th
 
 ## 5. Interface and test double
 
-Payments sit behind a provider interface. There is a PayPal sandbox implementation and an in-memory mock. All tests of the ledger, caps and refunds run on the mock, so they do not depend on credentials.
+Payments sit behind a provider interface. The PayPal sandbox implementation lives in `integrations/paypal/`; the in-memory `MockPaymentProvider` lives in `doubles/payments.py` and is used only by tests and evals, never by the app. All tests of the ledger, caps and refunds run on the double, so they do not depend on credentials. The app has no mock mode: `PAYMENT_PROVIDER` defaults to `paypal`.
 
 ## 6. Stretch: funding a project
 
@@ -45,4 +45,4 @@ Payment code, webhook verification, the ledger and spend caps are reviewed by a 
 
 ## 8. Status
 
-The PayPal provider is written and tested on mocked HTTP only. The sandbox credentials supplied so far were rejected, so it has never run against the real sandbox. The PayPal plugin is installed; its connection needs a working sandbox token.
+The PayPal provider is tested on mocked HTTP (`tests/contract/`) and has partial real-sandbox checks (`RUN_REAL=1 pytest tests/real`, see status.md). A full buyer approval, capture and refund has not been run. The PayPal plugin is installed; its connection needs a working sandbox token.

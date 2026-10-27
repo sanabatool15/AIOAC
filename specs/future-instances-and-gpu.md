@@ -4,9 +4,9 @@ Status: NOT BUILT. Notes written 2026-10-26 so the idea is not lost. Nothing her
 
 ## 1. Where we are today (checked in code, 2026-10-26)
 
-- One instance type only: `ml.m5.xlarge`. `services/prices.py` has a single entry in `INSTANCES` (placeholder price, speed factor and startup time).
-- The instance comes from the env value `SAGEMAKER_INSTANCE_TYPE`, read by `providers/training/sagemaker.py` and passed to `CreateTrainingJob` as `ResourceConfig.InstanceType`. It does not depend on the dataset.
-- `services/cost.py` `estimate_quote(..., instance=DEFAULT_INSTANCE)` is never called with another instance. The cap math (`services/sagemaker_cost.py`) uses the hourly price of that one instance.
+- One instance type only: `ml.m5.xlarge`. `services/cost/prices.py` has a single entry in `INSTANCES` (placeholder price, speed factor and startup time).
+- The instance comes from the env value `SAGEMAKER_INSTANCE_TYPE`, read by `integrations/aws/sagemaker.py` and passed to `CreateTrainingJob` as `ResourceConfig.InstanceType`. It does not depend on the dataset.
+- `services/cost/cost.py` `estimate_quote(..., instance=DEFAULT_INSTANCE)` is never called with another instance. The cap math (`integrations/aws/sagemaker_cost.py`) uses the hourly price of that one instance.
 - Terraform (`infra/terraform/`) has no instance at all. It creates only the S3 bucket, the training role, the app policy and the budget alert. A training job is a runtime action started by the app through boto3, not infrastructure.
 - The agent has no tool to choose or change an instance. This matches `cost.md` section 3.5: "the agent does not pick instances".
 
@@ -36,7 +36,7 @@ Changing the instance string to a GPU type is not enough. It would run the same 
 
 What a GPU path needs:
 
-1. **A new training script and model family.** scikit-learn does not use a GPU. Options: XGBoost or LightGBM with GPU, or PyTorch for neural networks. A new script next to `sagemaker_script/train.py`.
+1. **A new training script and model family.** scikit-learn does not use a GPU. Options: XGBoost or LightGBM with GPU, or PyTorch for neural networks. A new script next to `integrations/aws/train_script/train.py`.
 2. **A different container image.** A framework image with CUDA instead of the scikit-learn image. `SAGEMAKER_SKLEARN_VERSION` no longer describes the job; a per-family image setting is needed.
 3. **A separate cost model.** Our estimate scales a CPU baseline timing by a speed factor. That relationship does not hold for GPU, so the quote range would be wrong. Needs its own samples and calibration jobs.
 4. **A different free baseline.** The free local test runs on CPU. For a GPU model the "free test" must be redefined, or it stays a CPU model baseline shown as a reference.

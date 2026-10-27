@@ -90,7 +90,7 @@ A web page is written by strangers. The risk is that a page contains text like "
 
 Already in the code (BUILT): dataset names are validated, there are size and row limits, and gated or non-table datasets are refused. The tools never run code from a dataset.
 
-## 7. Hand-checked list for the demo (BUILT: `providers/datasets/curated.json`)
+## 7. Hand-checked list for the demo (BUILT: `integrations/datasets/curated.json`)
 
 Facts read from live APIs on 2026-10-24, and all 12 re-checked on 2026-10-25 with a throwaway script, since removed (rows within 2%, license, answer column present in the real download). Note: the UCI copy of Adult has 48,842 rows; the list uses the Hugging Face copy (32,561). Licenses are what each source states.
 
@@ -133,10 +133,10 @@ The full goal list is in git history (commit 25a5f8c).
 
 Status 2026-10-25: steps 1 to 4 are built, with these choices that the text below does not spell out:
 
-- Ids carry the source (`hf:`, `uci:`, `oml:`; the bundled sample keeps `sample-churn`). `providers/datasets/registry.py` resolves them. `ToolContext.source` may be a registry or a bare source (tests).
+- Ids carry the source (`hf:`, `uci:`, `oml:`; the bundled sample keeps `sample-churn`). `integrations/datasets/registry.py` resolves them. `ToolContext.source` may be a registry or a bare source (tests).
 - UCI search matches names only (one request per word); OpenML has no text search, so the code tries the phrase and each word as a dataset name. This is why the hand-checked list matters. UCI has no license field: the pages state CC BY 4.0, so UCI results carry `cc-by-4.0` (checked per item only for the hand-checked list). OpenML `licence` is passed through (`Public`, which `sanitise_license` accepts as a word).
 - Download addresses are never taken from a response, except OpenML's `parquet_url`, which must be `https://data.openml.org`.
-- Ranking (`services/discovery.py`): relevance 0 to 1 (a search word in the name or domain keywords counts 3, in the description or column names counts 1; the goal sentence counts a quarter), plus quality (rows, answer column known, license stated, classification, hand-checked +1.5, popularity at most 0.3). Relevance dominates (x10). A result must reach relevance 0.30, and 60% of the best result, to be listed.
+- Ranking (`services/data/discovery.py`): relevance 0 to 1 (a search word in the name or domain keywords counts 3, in the description or column names counts 1; the goal sentence counts a quarter), plus quality (rows, answer column known, license stated, classification, hand-checked +1.5, popularity at most 0.3). Relevance dominates (x10). A result must reach relevance 0.30, and 60% of the best result, to be listed.
 - Near-copies: aliases in the curated list catch copies of a hand-checked dataset (Telco: the five-plus copies disappear, `scikit-learn/churn-prediction` is first); other copies sharing a normalised name keep the one with a license and most downloads.
 - Tests: `tests/test_discovery.py`, `test_uci_source.py`, `test_openml_source.py`, `test_registry.py`, recordings in `tests/recordings/`. Four new offline eval cases (08 to 11).
 

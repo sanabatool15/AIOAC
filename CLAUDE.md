@@ -3,6 +3,7 @@
 A user describes a prediction problem in plain words. An AI agent checks the data, runs a free baseline, quotes a cost, asks for approval, takes payment through PayPal (sandbox), trains the model on AWS SageMaker, and refunds any unused amount. Built for the PayPal AI Hackathon (submit by Nov 12, 2026, 12:00 pm PT; our internal target is Nov 11).
 
 Detailed specs (read the one you need, not all of them):
+- @specs/architecture.md : folder tree, dependency direction, how to add an integration
 - @specs/spec1.md : vision, scope, user journey, system overview, decisions
 - @specs/agent.md : agent loop, tools, skills, permission levels, limits
 - @specs/cost.md : cost estimation formula, quotes, caps, budget guard
@@ -19,7 +20,7 @@ Detailed specs (read the one you need, not all of them):
 - ML: scikit-learn, tabular data only (classification first)
 - Agent LLM: via OpenRouter
 - Training: `TrainingBackend` interface. `local` runs the free baseline. `sagemaker` runs the paid job.
-- Payments: PayPal sandbox, REST API (Orders v2 + webhooks), behind a `PaymentProvider` interface with a mock for tests
+- Payments: PayPal sandbox, REST API (Orders v2 + webhooks), behind a `PaymentProvider` interface (`ports.py`). The app only builds the PayPal provider; the in-memory mock is a test double in `backend/doubles/`
 
 ## Hard rules (never break these)
 1. Never start paid training until the SERVER has confirmed the PayPal capture. A frontend success screen is not proof.
@@ -41,12 +42,21 @@ Payment code, webhook verification, the ledger, secrets handling and spend caps.
 - Cost estimate = measured baseline time scaled to full data x hourly price of the chosen instance + storage + platform fee. Prices live in one config file.
 - UI follows the 8 Figma wireframes (describe, data, readiness, quote, pay, train, result, fund-stretch). Funding screen is a stretch goal and its ledger is simulated.
 
+## Repository layout and rules
+Details and tree: @specs/architecture.md. Dependency direction: routes -> services -> repositories / integrations -> db / ports.
+- `repositories/` is the only code that touches the database. Services have no SQL and no sqlalchemy imports.
+- `integrations/` has one folder per outside system (paypal, aws, llm, datasets, jobs, storage, training_local). Interfaces live in `ports.py`; `integrations/factory.py` builds them from config.
+- `backend/doubles/` holds in-memory stand-ins for tests and evals only. `app/` never imports it. The app has no mock mode.
+- Tests (`backend/tests/`): `unit/` (pure logic), `contract/` (outside APIs on mocked HTTP or boto3), `e2e/` (full flows on doubles), `real/` (live services, skipped unless `RUN_REAL=1`). `tests/unit/test_architecture.py` enforces the first three rules.
+
 ## Commands
 Run from `backend/` after `pip install -e '.[dev]'`:
 - Run backend: `uvicorn app.main:app --reload`
 - Run frontend: TBD (not scaffolded yet)
-- Run tests: `pytest`
-- Demo check: `pytest tests/test_payments_and_demo.py` (full flow on the mock payment provider, no network)
+- All offline tests: `pytest` (unit, contract, e2e; real tests skip)
+- Demo check: `pytest tests/e2e/test_payments_and_demo.py` (full flow on the mock payment double, no network)
+- Real services (sandbox PayPal, AWS read-only, LLM, DB, live datasets; needs a real `.env`): `RUN_REAL=1 pytest tests/real -v -s`
+- Agent evals: `python -m evals.run --fake --repeats 1` (offline) or `python -m evals.run --model <id> --repeats 3` (real model)
 
 ## Submission checklist
 Public repo with LICENSE (MIT) visible in About; README with setup and run steps and sandbox test instructions; demo video under 3 minutes on YouTube; clear text on how PayPal and AI are used.

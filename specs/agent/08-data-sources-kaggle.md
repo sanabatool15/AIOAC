@@ -6,12 +6,12 @@ Sections 1 and 2 are **BUILT**. Sections 3 onward are **PROPOSED**. Kaggle facts
 
 ## 1. Current state (BUILT)
 
-- Sources: Hugging Face (`providers/datasets/huggingface.py`), the bundled synthetic churn sample (`samples.CATALOG`), and CSV upload through `POST /projects/{id}/data` (`routes/projects.py`).
+- Sources: Hugging Face (`integrations/datasets/huggingface.py`), the bundled synthetic churn sample (`samples.CATALOG`), and CSV upload through `POST /projects/{id}/data` (`routes/projects.py`).
 - Kaggle: not built. Google Drive: not built. Paste-a-link: not built.
 - The agent can use Hugging Face and the bundled sample. It has **no tool for uploads** (file 03). The upload route creates a candidate; the agent learns of it only from the state block on the next turn, and only while no dataset is chosen.
 - Limits (`config.py`): 50,000 rows, 50 MB per fetch. Gated and non-table datasets are refused. Missing license is allowed and flagged.
 
-## 2. The interface in code (BUILT, `providers/datasets/base.py`)
+## 2. The interface in code (BUILT, `ports.py`)
 
 The Protocol is called `DatasetSource` (not `DatasetProvider`):
 
@@ -64,7 +64,7 @@ Before coding, the human or agent must open the current docs in a browser (or fe
 
 ### 4.2 Fit behind the existing interface
 
-- New `providers/datasets/kaggle.py` with a `KaggleSource` implementing `DatasetSource`:
+- New `integrations/datasets/kaggle.py` with a `KaggleSource` implementing `DatasetSource`:
   - `search` -> `datasets list -s <q> --file-type csv --sort-by votes` (or the library equivalent). Map to `DatasetHit` (id `owner/slug`).
   - `info` -> `datasets files` for the file list and sizes, plus metadata for license and description. `tabular` is true only if a CSV file exists. Choose the largest CSV under the byte limit; put the choice in `notes`.
   - `fetch_csv` -> download that one file (`-f`) to a temporary folder, unzip, read with pandas, apply the same `max_rows` and `max_bytes` checks, return `FetchedCsv`.
