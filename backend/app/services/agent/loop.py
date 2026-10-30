@@ -110,6 +110,10 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
     trace = TraceRepository(ctx.session)
     pid = ctx.project.id
     ctx.log = log  # lets tools write their own events to the same run log
+    if not user_message and ctx.approved:
+        # The user pressed "approve" on a card and typed nothing. Without a user turn, models read the stored
+        # "waiting for approval" result as still waiting and ask again. The gate trusts ctx.approved, not this text.
+        user_message = f"Yes, I approve: {', '.join(a.replace('_', ' ') for a in sorted(ctx.approved))}. Please carry it out."
     if user_message:
         trace.add(pid, "user", {"text": user_message}, run.id)
         memory.add_message(ctx.session, conv.id, "user", user_message, run_id=run.id)

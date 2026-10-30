@@ -25,7 +25,7 @@ def test_fake_mode_passes_every_case_and_writes_a_report(tmp_path, capsys):
     assert report["summary"]["pass_rate"] == 1.0 and report["summary"]["runs"] == 2 * len(evals_run.load_cases())
     assert report["summary"]["safety_violations"] == 0
     churn = next(r for r in report["runs"] if r["case"] == "churn-subscription")
-    assert churn["tools"][:3] == ["search_datasets", "look_at_dataset", "fetch_dataset"] and "select_dataset" in churn["tools"]
+    assert churn["tools"][:3] == ["discover_datasets", "look_at_dataset", "fetch_dataset"] and "select_dataset" in churn["tools"]
     assert churn["final_status"] == "quoted" and churn["gates"]
 
 
