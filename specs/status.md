@@ -13,7 +13,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Permission gate | Done |
 | Cost estimator and quotes | Done, with placeholder prices |
 | Payment orchestration (hold, capture, void), ledger, webhooks | Done, tested on the mock double (money model changed, section 10) |
-| PayPal sandbox provider | Written against the current PayPal OpenAPI specs (re-checked 2026-10-27) and tested on mocked HTTP. Checked against the real sandbox on 2026-10-25 (before the hold model): token request and create order (then intent CAPTURE) worked, and capturing before the buyer approves was refused (422). Not yet checked against the real sandbox: the AUTHORIZE order, a buyer approving, authorize (hold), partial capture, a second capture on the same hold, void, webhook signature. A two-step live check exists in `tests/real/test_paypal_sandbox.py`. Needs human review |
+| PayPal sandbox provider | Written against the current PayPal OpenAPI specs (re-checked 2026-10-27) and tested on mocked HTTP. Checked against the real sandbox on 2026-10-25 (before the hold model): token request and create order (then intent CAPTURE) worked, and capturing before the buyer approves was refused (422). Not yet checked against the real sandbox: the AUTHORIZE order, a buyer approving, authorize (hold), partial capture, a second capture on the same hold, void, webhook signature. A two-step live check exists in `tests/integration/test_paypal_sandbox.py`. Needs human review |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Memory, run log and turn lock added 2026-10-24 (below). Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24. `run_pilot` tool added with the new money model |
 | Free pilot, forecast, locked-test verification | Built 2026-10-27 (`services/data/pilot.py`, `forecast.py`, `verification.py`), tested offline on the synthetic churn data. Forecast accuracy on real datasets is unmeasured |
 | OpenRouter model client | Rewritten against the current OpenRouter docs: argument parsing, null content, several calls per reply, retry once, usage and cost. Tested on mocked HTTP only; never run against the real service (no API key yet) |
@@ -30,7 +30,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Login | Not started. Crowdfunding was removed from the product (2026-10-26) |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 345 passed, 10 real-service tests skipped (unit 159, contract 108, e2e 78; `tests/real` only runs with `RUN_REAL=1`). No network needed. Run `pytest` in `backend/`.
+Tests: 345 passed, 10 real-service tests skipped (unit 159, contract 108, e2e 78; `tests/integration` only runs with `RUN_REAL=1`). No network needed. Run `pytest` in `backend/`.
 
 Agent memory, logging and turn lock (2026-10-24): `conversations` and `messages` tables (delete any old local `aioac.db`), `services/agent/memory.py`, `services/agent/runlog.py`, `evals/show.py`, `evals/replay.py`. See `specs/agent/06` and `10`. Never run against a real model yet.
 
@@ -51,7 +51,7 @@ backend/app/
   routes/          HTTP endpoints
   skills/          markdown playbooks the agent loads on demand
 backend/doubles/   in-memory stand-ins for tests and evals only (app never imports them)
-backend/tests/     unit/ contract/ e2e/ real/ (+ helpers/)
+backend/tests/     unit/ contract/ e2e/ integration/ (+ helpers/)
 backend/evals/     real-model evaluation harness
 ```
 
@@ -203,4 +203,4 @@ State: tested on the mock provider and mocked HTTP only. The PayPal sandbox has 
 
 ## 11. Restructure note (2026-10-27)
 
-Behaviour unchanged; folders renamed so the layout explains itself. `providers/`, `app/jobs/` and `models/` are gone: outside systems are under `integrations/` (one folder each), interfaces are in `ports.py`, tables are in `db/`, all SQL is in `repositories/` (services have none; `tests/unit/test_architecture.py` enforces this and that `app/` never imports `doubles/`). The mock payment provider and the scripted fake model and offline dataset source moved to `backend/doubles/` and are used only by tests and evals. The app has no mock mode: `PAYMENT_PROVIDER` defaults to `paypal`. Tests are split into `unit/`, `contract/`, `e2e/` and `real/`; `tests/conftest.py` isolates tests from the developer's `.env`. Real-service checks: `RUN_REAL=1 pytest tests/real -v -s`.
+Behaviour unchanged; folders renamed so the layout explains itself. `providers/`, `app/jobs/` and `models/` are gone: outside systems are under `integrations/` (one folder each), interfaces are in `ports.py`, tables are in `db/`, all SQL is in `repositories/` (services have none; `tests/unit/test_architecture.py` enforces this and that `app/` never imports `doubles/`). The mock payment provider and the scripted fake model and offline dataset source moved to `backend/doubles/` and are used only by tests and evals. The app has no mock mode: `PAYMENT_PROVIDER` defaults to `paypal`. Tests are split into `unit/`, `contract/`, `e2e/` and `integration/`; `tests/conftest.py` isolates tests from the developer's `.env`. Real-service checks: `RUN_REAL=1 pytest tests/integration -v -s`.

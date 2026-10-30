@@ -23,7 +23,7 @@ app/
   routes/                       HTTP only: parse, call a service, return
   skills/                       markdown playbooks for the agent (not code)
 doubles/                        in-memory stand-ins (mock payments, scripted model, offline dataset source)
-tests/  unit/ contract/ e2e/ real/ helpers/    see testing.md
+tests/  unit/ contract/ e2e/ integration/ helpers/    see testing.md
 evals/                          real-model evaluation harness (see agent/07)
 ```
 Outside `backend/`: `infra/terraform/` (AWS bucket, roles, budget alert), `specs/`, `frontend/` (Next.js app on a mock API; backend wiring is planned in `frontend-integration.md`).
@@ -42,7 +42,7 @@ Outside `backend/`: `infra/terraform/` (AWS bucket, roles, budget alert), `specs
 1. If it is a new kind of thing, add a Protocol to `ports.py`. Otherwise reuse the existing one.
 2. Create `integrations/<system>/` with the implementation. Keep all of that vendor's code there (clients, cost math, scripts).
 3. Add a `get_...` branch in `integrations/factory.py` and a setting in `config.py` plus a placeholder in `.env.example`.
-4. Add a contract test in `tests/contract/` on mocked HTTP or boto3. Add a small `tests/real/` check if live access is cheap and safe.
+4. Add a contract test in `tests/contract/` on mocked HTTP or boto3. Add a small `tests/integration/` check if live access is cheap and safe.
 5. If tests need a stand-in, add it to `doubles/`, not to `app/`.
 
 ## Add a repository

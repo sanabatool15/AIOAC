@@ -11,6 +11,7 @@ Detailed specs (read the one you need, not all of them):
 - @specs/training.md : training backends, Terraform, SageMaker
 - @specs/payments.md : PayPal flow, ledger, webhooks, refunds, funding stretch
 - @specs/db.md : database schema
+- @specs/integration-testing.md : START HERE for testing. Live-service tests (AWS, PayPal sandbox, Azure LLM), how to run them, cost and safety rules, findings log
 - @specs/testing.md : test strategy and demo check
 - @specs/status.md : what is built, stubbed or not started, decisions, known gaps (read this first)
 
@@ -47,7 +48,7 @@ Details and tree: @specs/architecture.md. Dependency direction: routes -> servic
 - `repositories/` is the only code that touches the database. Services have no SQL and no sqlalchemy imports.
 - `integrations/` has one folder per outside system (paypal, aws, llm, datasets, jobs, storage, training_local). Interfaces live in `ports.py`; `integrations/factory.py` builds them from config.
 - `backend/doubles/` holds in-memory stand-ins for tests and evals only. `app/` never imports it. The app has no mock mode.
-- Tests (`backend/tests/`): `unit/` (pure logic), `contract/` (outside APIs on mocked HTTP or boto3), `e2e/` (full flows on doubles), `real/` (live services, skipped unless `RUN_REAL=1`). `tests/unit/test_architecture.py` enforces the first three rules.
+- Tests (`backend/tests/`): `unit/` (pure logic), `contract/` (outside APIs on mocked HTTP or boto3), `e2e/` (full flows on doubles), `integration/` (live services, skipped unless `RUN_REAL=1`; paid tests also need `RUN_PAID=1`; read `specs/integration-testing.md` first). `tests/unit/test_architecture.py` enforces the first three rules.
 
 ## Commands
 Run from `backend/` after `pip install -e '.[dev]'`:
@@ -55,7 +56,8 @@ Run from `backend/` after `pip install -e '.[dev]'`:
 - Run frontend: `cd frontend && npm install && npm run dev` (http://localhost:3000, mock data by default; see `frontend/.env.example`)
 - All offline tests: `pytest` (unit, contract, e2e; real tests skip)
 - Demo check: `pytest tests/e2e/test_payments_and_demo.py` (full flow on the mock payment double, no network)
-- Real services (sandbox PayPal, AWS read-only, LLM, DB, live datasets; needs a real `.env`): `RUN_REAL=1 pytest tests/real -v -s`
+- Real services (sandbox PayPal, AWS read-only, LLM, DB, live datasets; needs a real `.env`): `RUN_REAL=1 pytest tests/integration -v -s`
+- One real capped SageMaker job (about 1 cent): `RUN_REAL=1 RUN_PAID=1 pytest tests/integration/test_sagemaker_training.py -v -s`
 - Agent evals: `python -m evals.run --fake --repeats 1` (offline) or `python -m evals.run --model <id> --repeats 3` (real model)
 
 ## Submission checklist
