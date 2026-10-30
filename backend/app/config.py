@@ -1,8 +1,15 @@
+from pathlib import Path
+
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_env_file = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_env_file)
+load_dotenv()
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_env_file, extra="ignore")
 
     database_url: str = "sqlite:///./aioac.db"
     database_pooled: bool | None = None  # None = auto (true for Supabase pooler on port 6543). See README.
@@ -38,7 +45,7 @@ class Settings(BaseSettings):
     sagemaker_sklearn_version: str = "1.4-2"        # AWS scikit-learn container version (image tag is <version>-cpu-py3)
     sagemaker_image_uri: str = ""                   # optional full override of the container image URI
     sagemaker_poll_seconds: float = 15.0
-    sagemaker_max_pending_seconds: int = 900        # waiting for capacity is not billed, but do not wait forever
+    sagemaker_max_pending_seconds: int = 1800       # waiting for capacity is not billed, but do not wait forever
 
     # Budget policy (specs/cost.md). All money in cents.
     aws_budget_cents: int = 16000

@@ -1,8 +1,14 @@
 """Gate for the real-service tests. They run only for `RUN_REAL=1 pytest tests/real -v -s` (see tests/conftest.py,
 which then keeps the developer's real .env instead of isolating it)."""
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
 import pytest
+
+_env_file = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(_env_file)
+load_dotenv()
 
 
 @pytest.fixture(scope="session")

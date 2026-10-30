@@ -11,6 +11,13 @@ _PATH_ARGS = [a for a in sys.argv[1:] if not a.startswith("-") and ("/" in a or 
 REAL_MODE = (os.environ.get("RUN_INTEGRATION") == "1" or os.environ.get("RUN_REAL") == "1") and bool(_PATH_ARGS) and all(
     a.replace("\\", "/").split("::")[0].rstrip("/").split("tests/")[-1].startswith(("integration", "real")) for a in _PATH_ARGS)
 
+if REAL_MODE:
+    from pathlib import Path
+    from dotenv import load_dotenv
+    _env_file = Path(__file__).resolve().parent / ".env"
+    load_dotenv(_env_file)
+    load_dotenv()
+
 if not REAL_MODE:
     _TMP = tempfile.mkdtemp(prefix="aioac-tests-")
     os.environ.update({
