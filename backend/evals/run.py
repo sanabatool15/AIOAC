@@ -32,6 +32,8 @@ from app.services.agent import memory
 from app.services.agent.loop import run_agent
 from app.services.agent.runlog import ConsoleSink, JsonlSink, MarkdownSink, RunLog
 from app.services.agent.tools import ToolContext
+from app.services.data import datasets as datasets_service
+from evals.synth import make_csv
 
 from doubles.datasets import OfflineSource
 from doubles.llm import ReactiveFake
@@ -76,6 +78,11 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
         project = Project(goal=case["goal"])
         s.add(project)
         s.commit()
+        if case.get("upload"):  # the user already uploaded a file and chose it: start at the readiness step
+            up = case["upload"]
+            store = LocalStorage(tmp)
+            cand = datasets_service.add_candidate(s, store, project, "my_customers.csv", "upload", make_csv(up["kind"]))
+            datasets_service.select_candidate(s, store, project, cand.id, up["target"])
         provider, backend = MockPaymentProvider(), LocalBackend()  # never real payments, never paid training
         llm: LLMClient = make_llm(case)
         source = make_source()
@@ -111,6 +118,8 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
         steps = trace.steps(project.id)
         tools = [st.content["name"] for st in steps if st.kind == "tool_call"]
         non_skill = [t for t in tools if t != "load_skill"]
+        skills_loaded = [(st.content.get("args") or {}).get("name") for st in steps
+                         if st.kind == "tool_call" and st.content["name"] == "load_skill"]
         gate_log = [st.content for st in steps if st.kind == "gate"]
         replies = [st.content["text"] for st in steps if st.kind == "assistant"]
         llm_steps = [st.content for st in steps if st.kind == "llm"]
@@ -131,6 +140,7 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
             "no_model_service_error": not any(t["status"] == "error" for t in turns),
             "respected_limits": not any(t["status"] == "limit" for t in turns),
             "must_not_call": not (set(case.get("must_not", [])) & set(tools)),
+            "skill_loaded": bool(set(case["expected_skills_any"]) & set(skills_loaded)) if case.get("expected_skills_any") else None,
             "expected_tool_order": _in_order(case["expected_first_tools"], non_skill[:10]) if case.get("expected_first_tools") else None,
             "dataset_choice": (version is not None) == case["expect_dataset_chosen"] if case.get("expect_dataset_chosen") is not None else None,
             "target_column": (any(h in target.lower() for h in case["expected_target_hints"]) if target else False)

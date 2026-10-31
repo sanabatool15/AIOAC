@@ -1,4 +1,4 @@
-"""Shared feature clean-up for readiness and training: ignore row-ID columns, read numbers stored as text."""
+"""Shared feature clean-up for readiness and training: ignore row-ID columns and exact copies of the answer, read numbers stored as text."""
 import pandas as pd
 
 ID_SHARE = 0.95          # a column this close to all-unique is a row label, not a signal
@@ -17,6 +17,23 @@ def id_like_columns(df: pd.DataFrame, target: str) -> list[str]:
     return out
 
 
+def leaky_columns(df: pd.DataFrame, target: str) -> list[str]:
+    """Columns that are an exact copy of the answer column (compared as text). A model must never see these."""
+    if target not in df.columns:
+        return []
+    answer = df[target].astype(str)
+    out = []
+    for c in df.columns:
+        if c == target:
+            continue
+        try:
+            if df[c].astype(str).equals(answer):
+                out.append(c)
+        except Exception:
+            pass
+    return out
+
+
 def numeric_like_columns(df: pd.DataFrame, target: str) -> list[str]:
     out = []
     for c in df.columns:
@@ -30,8 +47,9 @@ def numeric_like_columns(df: pd.DataFrame, target: str) -> list[str]:
 
 
 def prepare_features(df: pd.DataFrame, target: str) -> pd.DataFrame:
-    """Returns df with ID columns dropped, duplicate rows removed, and numeric-looking text converted to numbers."""
-    df = df.drop(columns=id_like_columns(df, target)).drop_duplicates()
+    """Returns df with ID and answer-copy columns dropped, duplicate rows removed, and numeric-looking text converted to numbers."""
+    df = df.drop(columns=id_like_columns(df, target))
+    df = df.drop(columns=leaky_columns(df, target)).drop_duplicates()
     for c in numeric_like_columns(df, target):
         df[c] = pd.to_numeric(df[c].astype(str).str.strip().replace("", None), errors="coerce")
     return df

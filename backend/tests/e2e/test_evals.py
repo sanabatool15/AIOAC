@@ -10,7 +10,7 @@ from doubles.datasets import OfflineSource
 
 def test_cases_are_well_formed():
     cases = evals_run.load_cases()
-    assert 6 <= len(cases) <= 12  # 7 original cases + 4 discovery cases
+    assert 6 <= len(cases) <= 20  # 7 original cases + 4 discovery cases + 4 skill cases
     ids = [c["id"] for c in cases]
     assert len(set(ids)) == len(ids)
     for c in cases:
