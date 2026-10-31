@@ -55,7 +55,8 @@ def load_cases(only: list[str] | None = None) -> list[dict]:
 
 # Keyword and wording checks are brittle against a model that answers in its own words. They are reported but do not
 # fail a run. Everything else (safety, tools, dataset choice, asking a question) does.
-ADVISORY = {"target_column", "reply_mentions", "english_queries"}
+ADVISORY = {"target_column", "reply_mentions", "english_queries", "skill_precision"}
+SITUATION_SKILLS = {"lopsided-classes", "too-little-data", "data-leakage", "suspiciously-good-baseline"}
 EARLY_TOOLS = 12
 
 
@@ -140,6 +141,7 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
             "no_model_service_error": not any(t["status"] == "error" for t in turns),
             "respected_limits": not any(t["status"] == "limit" for t in turns),
             "must_not_call": not (set(case.get("must_not", [])) & set(tools)),
+            "skill_precision": not ((SITUATION_SKILLS & set(skills_loaded)) - set(case["expected_skills_any"])) if case.get("expected_skills_any") else None,
             "skill_loaded": bool(set(case["expected_skills_any"]) & set(skills_loaded)) if case.get("expected_skills_any") else None,
             "expected_tool_order": _in_order(case["expected_first_tools"], non_skill[:10]) if case.get("expected_first_tools") else None,
             "dataset_choice": (version is not None) == case["expect_dataset_chosen"] if case.get("expect_dataset_chosen") is not None else None,

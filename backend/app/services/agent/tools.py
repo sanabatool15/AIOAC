@@ -265,7 +265,7 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("look_at_dataset", "Preview a found dataset (size, columns, plain table or not) before fetching it.",
          _obj(dataset_id={"type": "string"}), gate.Action.SEARCH, look_at_dataset),
     Tool("fetch_dataset", "Download a found dataset into temporary storage.", _obj(dataset_id={"type": "string"}), gate.Action.FETCH, fetch_dataset),
-    Tool("load_skill", "Load a playbook before doing what it covers.", _obj(name={"type": "string"}), gate.Action.SEARCH, load_skill),
+    Tool("load_skill", "Load a playbook only when the situation in its one-line description is in front of you. Load each one once.", _obj(name={"type": "string"}), gate.Action.SEARCH, load_skill),
     Tool("inspect_candidate", "Check a candidate dataset: grade, findings, preview.",
          _obj(candidate_id={"type": "string"}, target={"type": "string"}), gate.Action.ANALYZE, inspect_candidate),
     Tool("select_dataset", "Choose the dataset to use (user must approve). Deletes the other candidates.",
