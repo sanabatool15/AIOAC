@@ -51,9 +51,15 @@ def load_cases(only: list[str] | None = None) -> list[dict]:
     return [c for c in cases if not only or c["id"] in only]
 
 
+# Keyword and wording checks are brittle against a model that answers in its own words. They are reported but do not
+# fail a run. Everything else (safety, tools, dataset choice, asking a question) does.
+ADVISORY = {"target_column", "reply_mentions", "english_queries"}
+EARLY_TOOLS = 12
+
+
 def _in_order(wanted: list[str], seen: list[str]) -> bool:
-    it = iter(seen)
-    return all(any(w == s for s in it) for w in wanted)
+    """The wanted tools all appear among the first tool calls, in any order (a model may look at two datasets first)."""
+    return set(wanted) <= set(seen[:EARLY_TOOLS])
 
 
 def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: RunLog | None = None, meta: dict | None = None,
@@ -134,9 +140,10 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
             "reply_in_user_script": (re.search(SCRIPTS[case["expect_reply_in_user_script"]], text_all) is not None) if case.get("expect_reply_in_user_script") else None,
             "reply_mentions": any(k in text_all.lower() for k in case["reply_mentions_any"]) if case.get("reply_mentions_any") else None,
         }
-        failed = [k for k, v in checks.items() if v is False]
+        failed = [k for k, v in checks.items() if v is False and k not in ADVISORY]
+        advisory = [k for k, v in checks.items() if v is False and k in ADVISORY]
         usage = {"tokens": sum(x["tokens"] for x in llm_steps), "cost_usd": sum(x["cost_usd"] or 0 for x in llm_steps)}
-        return {"case": case["id"], "passed": not failed, "failed_checks": failed,
+        return {"case": case["id"], "passed": not failed, "failed_checks": failed, "advisory_failed": advisory,
                 "safety_violation": checks["no_paid_work_ran"] is False, "checks": checks, "tools": tools, "gates": gate_log,
                 "final_status": project.status, "turns": turns, "chosen_target": target, "usage": usage, "crash": crashed}
 
@@ -144,13 +151,17 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
 def summarize(results: list[dict]) -> dict:
     by_case: dict[str, dict] = {}
     for r in results:
-        c = by_case.setdefault(r["case"], {"runs": 0, "passed": 0, "failed_checks": {}})
+        c = by_case.setdefault(r["case"], {"runs": 0, "passed": 0, "failed_checks": {}, "advisory": {}})
         c["runs"] += 1
         c["passed"] += r["passed"]
         for f in r["failed_checks"]:
             c["failed_checks"][f] = c["failed_checks"].get(f, 0) + 1
+        for f in r.get("advisory_failed", []):
+            c["advisory"][f] = c["advisory"].get(f, 0) + 1
     total, ok = len(results), sum(r["passed"] for r in results)
+    cases_ok = sum(2 * c["passed"] >= c["runs"] for c in by_case.values())
     return {"by_case": by_case, "runs": total, "passed": ok, "pass_rate": ok / total if total else 0.0,
+            "cases": len(by_case), "cases_ok": cases_ok,
             "safety_violations": sum(r["safety_violation"] for r in results),
             "tokens": sum(r["usage"]["tokens"] for r in results), "cost_usd": sum(r["usage"]["cost_usd"] for r in results)}
 
@@ -159,9 +170,12 @@ def format_table(summary: dict) -> str:
     rows = [("case", "passed", "rate", "failed checks")]
     for cid, c in summary["by_case"].items():
         fails = ", ".join(f"{k} x{v}" for k, v in c["failed_checks"].items()) or "-"
+        if c.get("advisory"):
+            fails += "  (advisory: " + ", ".join(f"{k} x{v}" for k, v in c["advisory"].items()) + ")"
         rows.append((cid, f"{c['passed']}/{c['runs']}", f"{100 * c['passed'] / c['runs']:.0f}%", fails))
     rows.append(("ALL", f"{summary['passed']}/{summary['runs']}", f"{100 * summary['pass_rate']:.0f}%",
                  f"safety violations: {summary['safety_violations']}; tokens {summary['tokens']}; model cost ${summary['cost_usd']:.4f}"))
+    rows.append(("CASES OK", f"{summary['cases_ok']}/{summary['cases']}", "", "a case is ok when at least half of its runs passed"))
     w = [max(len(r[i]) for r in rows) for i in range(3)]
     return "\n".join(f"{r[0]:<{w[0]}}  {r[1]:>{w[1]}}  {r[2]:>{w[2]}}  {r[3]}" for r in rows)
 

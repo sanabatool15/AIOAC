@@ -46,6 +46,15 @@ def get_conversation(session: Session, project_id: str, source: str = "app", met
     return conv
 
 
+def user_texts(session: Session, project) -> list[str]:
+    """The project goal plus everything the user has typed in the project's newest conversation."""
+    texts = [project.goal or ""]
+    conv = conversations.newest_active(session, project.id)
+    if conv is not None:
+        texts += [m.content for m in conversations.all_messages(session, conv.id) if m.role == "user" and m.content]
+    return texts
+
+
 def add_message(session: Session, conv_id: str, role: str, content: str = "", *, run_id: str | None = None,
                 tool_calls: list | None = None, tool_call_id: str | None = None, tool_name: str | None = None,
                 kind: str = "chat", stub: str | None = None) -> Message:

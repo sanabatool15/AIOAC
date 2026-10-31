@@ -17,7 +17,7 @@ from ..data.samples import CATALOG
 from ..data import analysis, datasets, discovery, pilot
 from ..cost import cost, quotes
 from .. import gate, payments, training
-from . import skills
+from . import clarity, memory, skills
 from ..data.insights import analyze
 from .context import mark, sanitise_license
 
@@ -82,7 +82,17 @@ def _bad_id(did: str) -> dict:
     return {"error": f"unknown dataset id '{did[:80]}'. {ID_HINT}"}
 
 
+def _needs_clarity(ctx) -> dict | None:
+    """Vague goal: ask before searching (see clarity.py)."""
+    if clarity.is_clear(memory.user_texts(ctx.session, ctx.project)):
+        return None
+    ctx.emit("need_clarity", "INFO")
+    return {"need_clarity": True, "advice": clarity.QUESTION_HINT}
+
+
 def search_datasets(ctx, a):
+    if (vague := _needs_clarity(ctx)):
+        return vague
     out = [{"id": c["id"], "name": c["name"], "source": "bundled sample", "sample_data": True,
             "note": "synthetic sample data made by us, not real customers", "license": sanitise_license(c["license"], trusted=True)}
            for c in CATALOG if _sample_matches(c, a["query"])]
@@ -100,6 +110,8 @@ def search_datasets(ctx, a):
 
 def discover_datasets(ctx, a):
     """Find datasets for the goal. The model gives only a short summary and 2 or 3 search phrases; code does the rest."""
+    if (vague := _needs_clarity(ctx)):
+        return vague
     queries = a.get("queries")
     if not isinstance(queries, list):
         return {"error": "queries must be a list of 2 or 3 short English search phrases"}

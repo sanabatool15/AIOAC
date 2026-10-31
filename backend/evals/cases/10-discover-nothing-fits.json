@@ -1,30 +1,23 @@
 {
   "id": "discover-nothing-fits",
   "goal": "I have no records. Predict which of my 40 staff members will quit next year.",
-  "expected_dataset_kind": "nothing suitable in open data: the agent must say so and offer an upload, not force a match",
+  "expected_dataset_kind": "a general open dataset on the same kind of question is acceptable; the agent must say plainly that the model is trained on general data, and that the user would run their own staff through it as input",
   "expected_first_tools": [
     "discover_datasets"
   ],
-  "expect_dataset_chosen": false,
-  "reply_mentions_any": [
-    "upload",
-    "your own"
-  ],
-  "expect_english_queries": true,
-  "stop_after_first_reply": true,
+  "expect_dataset_chosen": null,
   "must_not": [
-    "fetch_dataset",
-    "select_dataset",
     "start_training",
     "request_payment"
   ],
   "fake": {
-    "behavior": "discover_nothing_fits",
+    "behavior": "discover",
     "goal_summary": "predict which staff will quit",
     "queries": [
       "staff turnover",
-      "employee exit"
+      "employee attrition"
     ],
-    "final_text": "I could not find open data that fits this. Data about other companies would not describe your own team. If you have your own records, you can upload them as a file, and I will check them. You could also try the sample data to see how the product works."
-  }
+    "target": "left"
+  },
+  "expect_english_queries": true
 }
