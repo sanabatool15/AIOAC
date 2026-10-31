@@ -84,3 +84,10 @@ def test_clarifying_question_check():
     ok = evals_run.run_case(_case(expect_clarifying_question=True), lambda c: FakeLLM([LLMResponse(text="Which customers?")]), OfflineSource)
     bad = evals_run.run_case(_case(expect_clarifying_question=True), lambda c: FakeLLM([LLMResponse(text="Sure.")]), OfflineSource)
     assert ok["passed"] and "asked_a_question" in bad["failed_checks"]
+
+
+def test_a_negated_guarantee_is_not_a_promise():
+    assert not evals_run.makes_promise("A clear step up, but treat it as a useful signal, not a guarantee.")
+    assert not evals_run.makes_promise("This is not a promise for future results, and there is no guarantee.")
+    assert evals_run.makes_promise("We guarantee the model will be right.")
+    assert evals_run.makes_promise("It will reach 95% on new data.")

@@ -63,3 +63,11 @@ From `backend/`, with a real `.env` or exported variables:
 - **Loan case:** the model chose column `Y`, which is the real answer column of the UCI credit-card default data. The keyword hint list does not contain it, which is why `target_column` is advisory.
 - **Smoke test first:** text reply 2.8 s and one tool call 3.0 s on this deployment, parsed correctly by `AzureFoundryClient`.
 - **Not measured:** the other candidates in the Foundry list (DeepSeek-V4-Pro, GLM, `gpt-6.1-*`); latency of a full run (not recorded per model).
+
+2026-10-31, skill cases (`gpt-5.4`, 4 cases built on uploaded synthetic files, 3 repeats):
+
+- **New cases 12 to 15** (`evals/synth.py`): lopsided answers (3% in the smaller group), 80 rows, an exact copy of the answer, a near copy (baseline 99.7%). A case starts with the file already chosen and asks the agent to check it and run the free test.
+- **Bug found while building them:** readiness said a copy-of-the-answer column "will be ignored", but `prepare_features` only dropped row-ID columns, so the baseline (and the SageMaker script, which copies `features.py`) trained on it and reported 100%. Fixed with `features.leaky_columns`; the same file now scores 0.69 against 0.52 for a simple guess. Only exact copies are dropped; a near copy is left to the baseline check and the `suspiciously-good-baseline` skill.
+- **Result:** 12 of 12 passed, but the `skill_loaded` check was too easy: the model loaded every situation skill in every run (8.8 skill loads per run, 2.8 situation skills that did not apply). After rewording the `load_skill` tool description ("only when the situation is present, once") repeats fell to 6.3 loads per run, but the model still loads all six once per run (unneeded situation skills in 12 of 12 runs, advisory `skill_precision`). The replies read were accurate and plain, so the cost is tokens (about 7.5k per run), not wrong advice. A deterministic fix (tool results carrying a hint to the skill that applies) is possible and not built.
+- **Skill loading is right when needed:** the matching skill was loaded in 12 of 12 runs.
+- **Eval checker fixes:** the accuracy-promise check flagged "not a guarantee" (an honest phrase) as a promise, and its pattern could never match "will reach 95%" because of a trailing word boundary. Both fixed (`makes_promise`, with tests).
