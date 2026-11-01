@@ -1,6 +1,6 @@
 ---
 name: data-leakage
-description: Spot columns that give away the answer, and explain why they are ignored
+description: Spots columns that give away the answer and explains why they are ignored. Use only when a finding says a column copies the answer, or a column name looks like an outcome (cancel_date, churn_reason, final_*, closed_*).
 ---
 # Columns that give away the answer (leakage)
 

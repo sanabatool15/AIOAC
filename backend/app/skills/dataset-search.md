@@ -1,6 +1,6 @@
 ---
 name: dataset-search
-description: How to find, compare and choose a dataset for the user's goal
+description: Compares and chooses between datasets returned by search_datasets. Use when the user names a specific dataset or wants candidates compared. For a user with no data, use discover-datasets instead.
 ---
 # Finding a dataset
 

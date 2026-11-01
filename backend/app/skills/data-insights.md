@@ -1,6 +1,6 @@
 ---
 name: data-insights
-description: How to read readiness findings and explain them plainly
+description: Explains readiness findings (the grade and the OK and NOTE lines) in plain words. Use right after run_readiness or inspect_candidate, when the findings have to be told to the user.
 ---
 # Explaining the data check
 

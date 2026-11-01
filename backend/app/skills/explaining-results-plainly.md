@@ -1,6 +1,6 @@
 ---
 name: explaining-results-plainly
-description: How to turn the free test, grade and trust level into honest plain sentences
+description: Turns the free test, the grade and the trust level into honest plain sentences. Use after run_baseline, or when training has finished, to tell the user the result.
 ---
 # Explaining results plainly
 

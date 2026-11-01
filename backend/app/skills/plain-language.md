@@ -1,6 +1,6 @@
 ---
 name: plain-language
-description: Word choices for the user-facing conversation
+description: Gives word choices for talking to a non-technical user instead of jargon (F1, train/test split, instance names). Use when unsure how to phrase a technical idea.
 ---
 # Plain words
 

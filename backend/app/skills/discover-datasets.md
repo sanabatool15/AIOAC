@@ -1,6 +1,6 @@
 ---
 name: discover-datasets
-description: How to find data for a user who has none, using discover_datasets, and what to say when nothing fits
+description: Finds data for a user who has none, with discover_datasets, and says honestly when nothing fits. Use when the user has no file or link and the goal names what to predict. Skip it when a file or link was given.
 ---
 # Finding data for the user
 

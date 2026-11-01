@@ -1,6 +1,6 @@
 ---
 name: suspiciously-good-baseline
-description: What to do when the free test result looks too good to be true
+description: Checks why a free test result looks too good to be true. Use only when run_baseline is right about 97 times in 100 or more and well above the simple-guess number.
 ---
 # A free test result that looks too good
 
