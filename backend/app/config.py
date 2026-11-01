@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     sagemaker_bucket: str = ""
     sagemaker_role_arn: str = ""
     sagemaker_instance_type: str = "ml.m5.xlarge"   # must exist in services/prices.py
-    sagemaker_sklearn_version: str = "1.4-2"        # AWS scikit-learn container version (image tag is <version>-cpu-py3)
+    sagemaker_sklearn_version: str = "1.9-0"        # AWS scikit-learn container version (image tag is <version>-cpu-py3). Keep it equal to the scikit-learn installed for the app: a model pickled by 1.4.2 cannot predict on 1.9.1
     sagemaker_image_uri: str = ""                   # optional full override of the container image URI
     sagemaker_poll_seconds: float = 15.0
     sagemaker_max_pending_seconds: int = 1800       # waiting for capacity is not billed, but do not wait forever

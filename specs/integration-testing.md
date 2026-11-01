@@ -43,7 +43,7 @@ From `backend/`, with a real `.env` or exported variables:
 - **Real price:** `ml.m5.xlarge` training is $0.23/hour; the placeholder in `services/cost/prices.py` is 25 cents (slightly conservative).
 - **Real job:** cap 60 cents, 69 billable seconds, accuracy 0.82 against 0.69 for a simple guess, app cost 52 cents (1 compute, 1 storage, 50 platform fee), real AWS compute about 0.44 cents.
 - **Known gap, role:** it has `AmazonS3FullAccess` and `AmazonSageMakerFullAccess`. Needs an inline policy for the project bucket and log group `/aws/sagemaker/TrainingJobs*`.
-- **Known gap, versions:** the job trains on scikit-learn 1.4.2; the app machine has 1.9.1. A pickled model may warn or fail to load. Pin one version.
+- **Known gap, versions (fixed 2026-11-01, see below):** the job trained on scikit-learn 1.4.2; the app machine has 1.9.1. A pickled model may warn or fail to load. Pin one version.
 - **Cost estimate:** 4,800 rows: projected 2.3 s, measured 2.1 s (300 trees). 20,000 rows: projected 3.0 s, measured 5.8 s. The baseline times 100 trees while the SageMaker script uses 300, so the projection is low for larger data. The platform fee dominates the quote either way.
 - **Agent evals, real model (`gpt-5.4-mini` on Azure), 2 repeats, 11 cases:** 6 of 22 passed, 0 safety violations. Causes: (a) cases still expect `search_datasets` first while the agent now uses `discover_datasets`; (b) after the user approves `select_dataset`, the model asks for approval again instead of calling the tool, so the project stays at `described`; (c) a vague goal triggers a search instead of a question; (d) a live `discover_datasets` call timed out at 60 s once (14 s on another run); (e) an Urdu goal did not get an Urdu-script reply.
 
@@ -78,3 +78,10 @@ From `backend/`, with a real `.env` or exported variables:
 - **What changed:** each of the 11 descriptions now states what the skill does and a "Use when" or "Use only when" trigger naming the finding or tool that signals it, using the thresholds already in the skill bodies (smaller group under 20%, about 1,000 rows, about 97 right in 100). The system prompt grew to about 3.6k characters (test budget now 4000).
 - **Limits of this result:** 12 runs, four situations, one model. Not yet checked on `gpt-5.4-mini` or with the discovery cases.
 - **Azure spend note:** the Foundry cost view showed $2.28 of a $5 monthly budget on 2026-10-31; a 12-run skill pass costs a few cents, a full 33-run pass about 800k tokens.
+
+2026-11-01, scikit-learn version mismatch (real failure, now fixed):
+
+- **Proven failure:** the model from the first real job (trained on 1.4.2) loaded on the app's 1.9.1 with a warning, then `predict` raised `AttributeError: 'SimpleImputer' object has no attribute '_fill_dtype'`. A "try the model" step on a SageMaker model would have crashed.
+- **Why not pin the app to 1.4.x:** the app runs Python 3.13, and scikit-learn 1.4.x has no build for it (the oldest available is 1.5.2).
+- **Fix:** the SageMaker image tag `1.9-0-cpu-py3` exists in `us-east-1` (checked in the AWS registry), so training now uses scikit-learn 1.9.0. The default `sagemaker_sklearn_version` in `config.py` is `1.9-0` and `pyproject.toml` pins `scikit-learn>=1.9,<1.10`. An exported `SAGEMAKER_SKLEARN_VERSION` overrides the default and must be set to `1.9-0` too.
+- **Verified:** a second capped job on the 1.9-0 image passed all five checks, including the new `test_trained_model_loads_and_predicts_in_this_environment` (a patch difference, 1.9.0 on 1.9.1, only warns; the test fails on a different minor version). Two more jobs of about 0.4 cents each.

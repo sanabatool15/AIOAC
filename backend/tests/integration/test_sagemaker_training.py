@@ -53,6 +53,30 @@ def test_model_beats_a_simple_guess(trained):
     assert result.accuracy > result.simple_guess_accuracy
 
 
+def test_trained_model_loads_and_predicts_in_this_environment(trained):
+    """A model pickled by another scikit-learn version can fail here (1.4.2 on 1.9.1 raised AttributeError in predict)."""
+    import io
+    import warnings
+
+    import joblib
+    import pandas as pd
+
+    from app.services.data.samples import churn_csv
+
+    from sklearn.exceptions import InconsistentVersionWarning
+
+    result, _, _ = trained
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        model = joblib.load(io.BytesIO(result.model_bytes))
+    minor = lambda v: ".".join(v.split(".")[:2])
+    for w in caught:  # a patch difference (1.9.0 on 1.9.1) is fine; another minor version is not
+        if issubclass(w.category, InconsistentVersionWarning):
+            assert minor(w.message.original_sklearn_version) == minor(w.message.current_sklearn_version), str(w.message)
+    rows = pd.read_csv(io.BytesIO(churn_csv(50))).drop(columns=["left"])
+    assert len(model.predict(rows)) == 50
+
+
 def test_reported_cost_matches_aws_billable_seconds(real_settings, trained):
     from app.integrations.aws.sagemaker_cost import actual_cost_cents, max_runtime_seconds
 
