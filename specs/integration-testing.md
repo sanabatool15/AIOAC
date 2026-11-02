@@ -85,3 +85,9 @@ From `backend/`, with a real `.env` or exported variables:
 - **Why not pin the app to 1.4.x:** the app runs Python 3.13, and scikit-learn 1.4.x has no build for it (the oldest available is 1.5.2).
 - **Fix:** the SageMaker image tag `1.9-0-cpu-py3` exists in `us-east-1` (checked in the AWS registry), so training now uses scikit-learn 1.9.0. The default `sagemaker_sklearn_version` in `config.py` is `1.9-0` and `pyproject.toml` pins `scikit-learn>=1.9,<1.10`. An exported `SAGEMAKER_SKLEARN_VERSION` overrides the default and must be set to `1.9-0` too.
 - **Verified:** a second capped job on the 1.9-0 image passed all five checks, including the new `test_trained_model_loads_and_predicts_in_this_environment` (a patch difference, 1.9.0 on 1.9.1, only warns; the test fails on a different minor version). Two more jobs of about 0.4 cents each.
+
+2026-11-02, PayPal sandbox hold lifecycle (first real run of the "Forecast, then verify" money model):
+
+- **Passed on the real sandbox** (`test_hold_lifecycle_two_captures_and_void`, order created by the test, approved by a person as the sandbox buyer): authorize the order into a 50 cent hold (`held`, amount 50), a repeated authorize returns the same authorization, a 20 cent compute capture, a 5 cent fee capture on the SAME hold, a repeated capture with the same request id returns the first capture, void of the remaining 25 cents, a repeated void is harmless, and a capture after the void is refused.
+- **Not yet checked:** the sandbox dashboard totals (25 cents charged, 25 released) were not looked at by this run; the webhook signature verification (needs a public URL that PayPal can reach); more than two captures on one authorization; how long a hold lasts before PayPal expires it; the refund API.
+- **Cost:** none (sandbox money).
