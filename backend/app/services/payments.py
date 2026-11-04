@@ -72,6 +72,9 @@ def confirm_hold(session: Session, provider: PaymentProvider, payment: Payment) 
         return True
     if payment.state != "none":
         return False  # voided, expired or declined: a new quote and a new hold are needed
+    project = projects_repo.get(session, payment.project_id)
+    if project.status != "awaiting_payment":
+        raise PaymentError(f"this payment can no longer be used (the project is '{project.status}')")  # no hold is placed
     auth = provider.authorize_order(payment.provider_order_id)
     if auth.status == "declined":
         payments_repo.save(session, payment, state="declined")
@@ -80,10 +83,13 @@ def confirm_hold(session: Session, provider: PaymentProvider, payment: Payment) 
         return False
     if auth.amount_cents != payment.amount_cents:
         raise PaymentError(f"held {auth.amount_cents} but expected {payment.amount_cents}")
+    session.refresh(project)
+    if project.status != "awaiting_payment":  # the project ended while PayPal was answering: release what it just held
+        provider.void(auth.authorization_id, f"void-{payment.id}")
+        payments_repo.save(session, payment, provider_authorization_id=auth.authorization_id, state="voided", released_cents=payment.amount_cents)
+        raise PaymentError(f"this payment can no longer be used (the project is '{project.status}')")
     payments_repo.save(session, payment, provider_authorization_id=auth.authorization_id, state="held", verified=True)
-    project = projects_repo.get(session, payment.project_id)
-    if project.status == "awaiting_payment":
-        lifecycle.transition(session, project, "paid")
+    lifecycle.transition(session, project, "paid")
     return True
 
 

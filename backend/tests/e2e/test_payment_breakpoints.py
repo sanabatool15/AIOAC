@@ -122,3 +122,35 @@ def test_p4_cancel_with_a_void_outage_keeps_the_project_cancellable(session, sto
     prov.down = False
     payments.cancel(session, prov, chosen)  # the same request can simply be repeated
     assert chosen.status == "voided" and pay.state == "voided" and charged(session, chosen) == 0
+
+
+# ---- P5: a late authorize must not create a hold nobody will void -----------------------------------------------
+def test_p5_late_authorize_after_the_project_left_awaiting_payment_creates_no_hold(session, storage, chosen, provider):
+    q, pay = ready_to_pay(session, storage, chosen, provider)
+    chosen.status = "stopped"  # e.g. the project ended while the buyer was still on the PayPal page
+    session.commit()
+    with pytest.raises(PaymentError):
+        payments.confirm_hold(session, provider, pay)
+    assert provider.holds == {} and pay.state == "none" and not pay.verified
+
+
+def test_p5_authorize_after_cancel_does_not_hold(session, storage, chosen, provider):
+    q, pay = ready_to_pay(session, storage, chosen, provider)
+    payments.cancel(session, provider, chosen)
+    assert payments.confirm_hold(session, provider, pay) is False
+    assert provider.holds == {} and pay.state == "voided"
+
+
+def test_p5_project_changing_during_authorize_voids_the_new_authorization(session, storage, chosen):
+    class Racy(MockPaymentProvider):
+        def authorize_order(self, order_id):
+            auth = super().authorize_order(order_id)
+            chosen.status = "stopped"  # a cancel/failure lands while PayPal is answering
+            session.commit()
+            return auth
+
+    prov = Racy()
+    q, pay = ready_to_pay(session, storage, chosen, prov)
+    with pytest.raises(PaymentError):
+        payments.confirm_hold(session, prov, pay)
+    assert pay.state == "voided" and not pay.verified and len(prov.void_calls) == 1
