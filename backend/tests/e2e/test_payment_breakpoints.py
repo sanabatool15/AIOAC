@@ -203,3 +203,20 @@ def test_p7_expiry_stays_held_if_the_provider_void_fails(session, storage, chose
     later = datetime.now(timezone.utc) + timedelta(hours=100)
     assert payments.expire_stale_holds(session, now=later, provider=prov) == []
     assert pay.state == "held"  # not marked expired while the hold may still exist at PayPal
+
+
+# ---- P8a: two /train requests must create exactly one run -------------------------------------------------------
+def test_p8_second_train_request_with_a_stale_status_creates_no_second_run(session, storage, chosen, provider):
+    from sqlalchemy.orm import Session as OrmSession
+    from app.db.tables import Project, TrainingRun
+    from app.services import gate
+    from sqlalchemy import select
+    held(session, storage, chosen, provider)
+    other = OrmSession(bind=session.get_bind(), expire_on_commit=False)  # a second request, same database
+    stale = other.get(Project, chosen.id)
+    assert stale.status == "paid"
+    training.start_training(session, chosen, _backend())  # request 1 wins
+    with pytest.raises(gate.GateDenied):
+        training.start_training(other, stale, _backend())  # request 2 still believes the project is `paid`
+    assert len(list(session.scalars(select(TrainingRun).where(TrainingRun.project_id == chosen.id)))) == 1
+    other.close()
