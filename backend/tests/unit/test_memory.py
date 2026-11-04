@@ -301,7 +301,8 @@ def test_second_turn_for_the_same_project_is_refused_while_one_runs(session, sto
 
 def test_chat_route_answers_409_while_a_turn_runs(session, project, monkeypatch):
     app.dependency_overrides[get_session] = lambda: session
-    monkeypatch.setattr("app.routes.projects.get_llm", lambda: FakeLLM([LLMResponse(text="hello")]))
+    from app.deps import get_llm_client
+    app.dependency_overrides[get_llm_client] = lambda: FakeLLM([LLMResponse(text="hello")])
     loop._active.add(project.id)
     try:
         r = TestClient(app).post(f"/projects/{project.id}/chat", json={"message": "hi"})
