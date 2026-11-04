@@ -106,3 +106,20 @@ Checked against `backend/app/routes/` (projects, payments, quotes, forecast, web
 - Wording fixed on merge (rules 7 and 8): "you pay $0 if missed" became "you pay only the compute used, no success fee"; "guarantee" became "quote"; precision and recall labels became plain words ("right when flagged", "leavers caught"). Still to do: the data and types still use precision and recall (to become one accuracy number, section 4 item 1), and a few mock receipts for the missed case still show "$0" charged (`lib/mock-api.ts`). Estimates are not yet labelled "estimate" on every number (item 16).
 - Removed on merge: the four `/dev/*` preview pages, their preview components and 3 screenshot tests (screens 18, 19, 32; screen 31 lost its preview test).
 - Real mode: `NEXT_PUBLIC_USE_MOCK_API=false` makes every mock call fail with a clear message until the steps in section 5 are done.
+
+## 8. Step 3 done: demo path wired (2026-11-04)
+
+With `NEXT_PUBLIC_USE_MOCK_API=false` the demo path calls the real backend. With the default (`true`) every screen is unchanged mock data.
+
+Wired (real mode):
+- `/` (describe): `POST /projects`. `/c/{id}` is one page that picks its screen from `GET /projects/{id}` `status` (`lib/status.ts`, table in api.md B8). A reload at any step shows the right screen.
+- Data: CSV upload (`POST /projects/{id}/data`) then choose the answer column (read from the CSV header) and `.../select`. Readiness and free test: `POST .../readiness`, `.../baseline`.
+- Target (typed as "X out of 100 right", sent as 0 to 1): `POST /chats/{id}/pilot`. Not eligible shows `reason`, `issues`, and a one-click `suggested_target` retry. Eligible: `POST /agreements/{id}/quote`, shown with every figure marked estimate and the cap as a fact (no max-price field).
+- Pay: `quote/approve` then `POST /payments/orders` then the browser goes to `approve_url`. `/pay/return` calls `POST /payments/{id}/authorize` (polls 5 times if `held:false`), then `POST /projects/{id}/train`, then `/c/{id}`. `/pay/cancel` says nothing was held. `payment_id` is kept in sessionStorage and recovered from `GET /projects/{id}/payment` (or the project list) if lost.
+- Train: polls `GET .../training` (`not_started` is normal). Stop calls `.../training/stop` with the honest wording.
+- Result and receipt: `result.verification.passed` picks "Target reached" or "Target not reached"; receipt from `GET /projects/{id}/payment`. Stopped, voided and failed states, with "our failure: you pay $0". A missed run offers a new free pilot (Improve).
+- No login: real mode opens a demo session automatically.
+
+Code: `lib/api.ts` (fetch client, `ApiError`), `lib/api-real.ts` (one function per endpoint), `lib/adapters.ts` (all unit conversions), `lib/status.ts`, `components/real/`. Tests: `npm run test:unit`.
+
+Not wired (still mock): chat history and agent replies (F1), dataset discovery, try-one-record, CSV predictions, model download, sharing, usage, keys, plans, login (see breakpoints F rows). Paid steps were not run against real PayPal.
