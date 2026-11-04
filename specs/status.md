@@ -1,6 +1,6 @@
 # Implementation Status
 
-What has been built, what is stubbed, what has not been started, and what we learned along the way. Updated 2026-10-26 (see section 10 for the money model change). This file describes reality; the other specs describe intent. Where they differ, this file says so.
+What has been built, what is stubbed, what has not been started, and what we learned along the way. Updated 2026-11-04 (see section 10 for the money model change; the known breakpoints and fix order are in `specs/breakpoints.md`). This file describes reality; the other specs describe intent. Where they differ, this file says so.
 
 ## 1. Summary
 
@@ -13,7 +13,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Permission gate | Done |
 | Cost estimator and quotes | Done, with placeholder prices |
 | Payment orchestration (hold, capture, void), ledger, webhooks | Done, tested on the mock double (money model changed, section 10) |
-| PayPal sandbox provider | Written against the current PayPal OpenAPI specs (re-checked 2026-10-27) and tested on mocked HTTP. Checked against the real sandbox on 2026-10-25 (before the hold model): token request and create order (then intent CAPTURE) worked, and capturing before the buyer approves was refused (422). Not yet checked against the real sandbox: the AUTHORIZE order, a buyer approving, authorize (hold), partial capture, a second capture on the same hold, void, webhook signature. A two-step live check exists in `tests/real/test_paypal_sandbox.py`. Needs human review |
+| PayPal sandbox provider | Written against the current PayPal OpenAPI specs (re-checked 2026-10-27) and tested on mocked HTTP. Checked against the real sandbox on 2026-10-25 (before the hold model): token request and create order (then intent CAPTURE) worked, and capturing before the buyer approves was refused (422). Not yet checked against the real sandbox: the AUTHORIZE order, a buyer approving, authorize (hold), partial capture, a second capture on the same hold, void, webhook signature. A two-step live check exists in `tests/integration/test_paypal_sandbox.py`. Needs human review |
 | Agent loop, tools, skills, context engineering | Done, tested with scripted model replies only. Memory, run log and turn lock added 2026-10-24 (below). Limits (tokens, cost, tool timeout, repeats), run ids in `agent_runs`, schema checks and a false-claim guard added 2026-10-24. `run_pilot` tool added with the new money model |
 | Free pilot, forecast, locked-test verification | Built 2026-10-27 (`services/data/pilot.py`, `forecast.py`, `verification.py`), tested offline on the synthetic churn data. Forecast accuracy on real datasets is unmeasured |
 | OpenRouter model client | Rewritten against the current OpenRouter docs: argument parsing, null content, several calls per reply, retry once, usage and cost. Tested on mocked HTTP only; never run against the real service (no API key yet) |
@@ -26,11 +26,11 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Database | SQLite default. Postgres/Supabase configurable, never connected to a real database |
 | Training backends | Local done (reports progress, honours stop). SageMaker backend, training script and cap math written and tested on mocked boto3 only; never run against AWS |
 | Terraform, AWS storage | Written in `infra/terraform/` (bucket, roles, app policy, budget alert). Not validated (terraform not installed) and never applied. No S3 storage provider for the app yet; the SageMaker backend uploads its own job files |
-| Web app | Built on a typed mock API (`frontend/`, 35 screens; builds, typechecks and lints clean). Not connected to the backend: every call goes through `frontend/lib/mock-api.ts`. Mismatches with the backend are listed in `specs/frontend-integration.md` |
+| Web app | Built on a typed mock API (`frontend/`, 35 numbered screens on 16 route pages; builds, typechecks and lints clean). Not connected to the backend: every call goes through `frontend/lib/mock-api.ts`. Mismatches with the backend are listed in `specs/frontend-integration.md` |
 | Login | Not started. Crowdfunding was removed from the product (2026-10-26) |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests: 345 passed, 10 real-service tests skipped (unit 159, contract 108, e2e 78; `tests/real` only runs with `RUN_REAL=1`). No network needed. Run `pytest` in `backend/`.
+Tests (2026-11-04): 355 collected, 345 passed, 10 skipped (unit 159, contract 108, e2e 79, integration 9; one more test skips by itself; `tests/integration` only runs with `RUN_REAL=1`). No network needed. Run `pytest` in `backend/`.
 
 Agent memory, logging and turn lock (2026-10-24): `conversations` and `messages` tables (delete any old local `aioac.db`), `services/agent/memory.py`, `services/agent/runlog.py`, `evals/show.py`, `evals/replay.py`. See `specs/agent/06` and `10`. Never run against a real model yet.
 
@@ -51,7 +51,7 @@ backend/app/
   routes/          HTTP endpoints
   skills/          markdown playbooks the agent loads on demand
 backend/doubles/   in-memory stand-ins for tests and evals only (app never imports them)
-backend/tests/     unit/ contract/ e2e/ real/ (+ helpers/)
+backend/tests/     unit/ contract/ e2e/ integration/ (+ helpers/)
 backend/evals/     real-model evaluation harness
 ```
 
@@ -113,22 +113,7 @@ Readiness grade from a documented scoring (rows, duplicates, missing values, lop
 - Reply guard: replies that claim payment, training or a settlement the state does not support are replaced with a correction (keyword-based, imperfect).
 
 ### 3.9 HTTP endpoints
-- `GET /health`
-- `POST /projects`, `GET /projects/{id}`
-- `POST /projects/{id}/chat` (runs the agent; accepts approvals)
-- `POST /projects/{id}/data` (upload CSV text)
-- `POST /projects/{id}/quote/approve`
-- `POST /projects/{id}/train`
-- `POST /projects/{id}/settle/retry`
-- `POST /projects/{id}/cancel` (before the run: voids the whole hold)
-- `POST /chats/{id}/pilot`, `GET /jobs/{id}/forecast`, `POST /agreements/{id}/quote` (aliases of the project id)
-- `POST /projects/{id}/train` (background; returns run id)
-- `GET /projects/{id}/training`, `POST /projects/{id}/training/stop`
-- `GET /projects/{id}/trace`
-- `POST /payments/orders`, `POST /payments/{id}/authorize` (the server confirms the hold), `GET /payments/{id}` (receipt)
-- `POST /webhooks/paypal`
-
-There is no login. Anyone who can reach the API can call everything. That is a deliberate deferral.
+The full contract (request and response bodies, status codes, and the planned additions) is in `specs/api.md`. There is no login: anyone who can reach the API can call everything. That is a deliberate deferral. The API has no CORS and no routes for select dataset, readiness, baseline or message history yet (`specs/breakpoints.md`).
 
 ## 4. Decisions made so far
 
@@ -161,6 +146,8 @@ Current result on the real data: about 78% right against 73.5% for a simple gues
 
 ## 6. Known gaps and risks
 
+The numbered breakpoints (UI wiring, payment edge cases flagged for human review, agent, demo) and the order of work are in `specs/breakpoints.md`. The list below is the older general list.
+
 1. **Quotes are not realistic yet.** With placeholder prices and a small dataset, the quote is about 53 cents with a 52 to 53 cent range, because fixed fees dominate. The wireframe's "about 2 hours, $5" cannot appear until we choose a demo job that really takes 10 to 15 minutes, and measure real SageMaker timings and prices.
 2. **Estimator accuracy is unknown.** There is no real cloud measurement to compare against, so the speed factor and startup time are guesses.
 3. **The OpenRouter client has never been run for real.** It is tested on mocked HTTP, including malformed outputs. Real models may behave in ways we have not seen. Run `python -m evals.run --model <id> --repeats 3` with a key.
@@ -174,14 +161,14 @@ Current result on the real data: about 78% right against 73.5% for a simple gues
 11. **Unused tables** exist for funding (removed feature), users and agent runs.
 12. **Hugging Face rate limits** apply, and we send no token unless one is configured.
 
-## 6a. Spec gaps found by audit (2026-10-24)
+## 6a. Spec gaps found by audit (2026-10-24, refreshed 2026-11-04)
 
-- `stopped` is a lifecycle state but nothing can set it yet (see `training.md` section 7).
+- `stopped` is set: a user stop ends the run `stopped` and the project `stopped` (`services/training.py`); a cancel passes through `stopped` to `voided`.
 - `agent.md` lists tools that do not exist: web search, a sandboxed analysis-code runner, a Terraform plan tool, a clean tool, a PayPal skill. Data analysis uses fixed functions, not model-written scripts.
-- Agent limits for tokens per project, per-tool timeout and LLM cost ceiling are not implemented. Only the 12-step limit is.
-- The cost backstop timer in `cost.md` and `training.md` is not implemented.
-- No web app spec exists yet: screens, endpoints per screen, approval card payload, PayPal return and cancel pages.
-- No SageMaker backend contract yet: script inputs and outputs, S3 layout, cost from billable time.
+- Agent limits (tokens per turn and per project, tool timeout, model cost ceiling, repeat guard) are implemented in `services/agent/loop.py` and `config.py`.
+- The SageMaker cost backstop timer exists in `integrations/aws/sagemaker.py` (AWS's own maximum runtime is the real limit); still never run against AWS.
+- The SageMaker backend contract is written (`training.md` section 2b).
+- The HTTP contract is `specs/api.md`. Still missing as a spec: screen-by-screen web app behaviour beyond the status-to-screen table there.
 
 ## 7. Next steps
 
@@ -203,4 +190,4 @@ State: tested on the mock provider and mocked HTTP only. The PayPal sandbox has 
 
 ## 11. Restructure note (2026-10-27)
 
-Behaviour unchanged; folders renamed so the layout explains itself. `providers/`, `app/jobs/` and `models/` are gone: outside systems are under `integrations/` (one folder each), interfaces are in `ports.py`, tables are in `db/`, all SQL is in `repositories/` (services have none; `tests/unit/test_architecture.py` enforces this and that `app/` never imports `doubles/`). The mock payment provider and the scripted fake model and offline dataset source moved to `backend/doubles/` and are used only by tests and evals. The app has no mock mode: `PAYMENT_PROVIDER` defaults to `paypal`. Tests are split into `unit/`, `contract/`, `e2e/` and `real/`; `tests/conftest.py` isolates tests from the developer's `.env`. Real-service checks: `RUN_REAL=1 pytest tests/real -v -s`.
+Behaviour unchanged; folders renamed so the layout explains itself. `providers/`, `app/jobs/` and `models/` are gone: outside systems are under `integrations/` (one folder each), interfaces are in `ports.py`, tables are in `db/`, all SQL is in `repositories/` (services have none; `tests/unit/test_architecture.py` enforces this and that `app/` never imports `doubles/`). The mock payment provider and the scripted fake model and offline dataset source moved to `backend/doubles/` and are used only by tests and evals. The app has no mock mode: `PAYMENT_PROVIDER` defaults to `paypal`. Tests are split into `unit/`, `contract/`, `e2e/` and `integration/` (renamed from `real/`); `tests/conftest.py` isolates tests from the developer's `.env`. Real-service checks: `RUN_REAL=1 pytest tests/integration -v -s`.

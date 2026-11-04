@@ -1,7 +1,7 @@
 """Proves: DATABASE_URL in .env points at a reachable database and the tables can be created there.
 
 Read-only in effect: one SELECT 1, plus create_all run inside a transaction that is rolled back (nothing persists).
-Run: RUN_REAL=1 pytest tests/real/test_database.py -v -s
+Run: RUN_REAL=1 pytest tests/integration/test_database.py -v -s
 """
 from sqlalchemy import text
 

@@ -1,0 +1,152 @@
+# HTTP API Contract
+
+Status: written 2026-11-04 from the route code in `backend/app/routes/` and the services they call. Section A is BUILT and was read from code. Section B is PLANNED: a decided design that is not yet in the code.
+
+Conventions (built):
+- One id: the project id. `/chats/{id}`, `/jobs/{id}` and `/agreements/{id}` are aliases of it (see `payments.md` section 6).
+- Money is whole cents. Rates (accuracy, target, confidence, fraction) are 0 to 1. JSON keys are snake_case.
+- Errors are FastAPI's `{"detail": "<plain message>"}`. A body that fails validation gives 422 with `detail` as a list.
+- No login. No CORS (B1). No URL prefix: `http://localhost:8000`.
+- Quote and forecast numbers are estimates (`is_estimate: true`).
+
+## A. BUILT endpoints
+
+### A1. Health
+`GET /health` -> 200 `{"ok": true}`
+
+### A2. Projects (`routes/projects.py`)
+
+`POST /projects` body `{goal: string}` -> 200 `{id, status}` (status `described`).
+
+`GET /projects/{id}` -> 200 `{id, goal, status, readiness_grade, trust_level, baseline, quote}`.
+- `baseline` is `{accuracy, simple_guess_accuracy}` (0 to 1) or null.
+- `quote` is the latest quote or null: `{id, estimate_cents, low_cents, high_cents, cap_cents, success_fee_max_cents, approved}`.
+- 404 `project not found`.
+- Thin today: no dataset, forecast, payment or run (see B5).
+
+`POST /projects/{id}/chat` body `{message?: string, approve?: string[]}` -> 200 `{status, text, card}`.
+- `status`: `reply` | `awaiting_approval` | `limit` | `error`. `card` is null except for `awaiting_approval`.
+- `card` (L1 approval): `{what, level, tool, args}`, for example tool `select_dataset` with `{candidate_id, target}`. The user approves by sending the request again with `approve: ["select_dataset"]` (the gate action name).
+- `limit`: a step, token, cost, repeat or timeout limit was hit; `text` explains it in plain words.
+- `error`: the model service failed, including a missing LLM key. The HTTP status is still 200.
+- 404 project not found. 409 `The assistant is still working on your last message...` while a turn for this project runs.
+- No `blocks` and no `approve_url` in the reply. The payment link comes from `POST /payments/orders`.
+
+`POST /projects/{id}/data` body `{name: string, csv_text: string}` -> 200 `{candidate_id, rows}`. 400 with a plain message if the file is rejected. It only stores a candidate. Choosing it is done today only by the agent's `select_dataset` tool (needs the user's approval). 404 project not found.
+
+`POST /projects/{id}/quote/approve` no body -> 200 `{approved: true, cap_cents}`.
+- 400 `no quote yet`. 400 `this quote has expired; ask for a new one`. 400 with a status pair like `awaiting_payment -> awaiting_payment` on a second call (not idempotent, B6).
+
+`POST /projects/{id}/train` no body -> 200 `{run_id, status}` (status `running`). Returns at once; the job runs in the background.
+- 403 with the gate's reason: no quote, no server-confirmed hold for the current quote, project not `paid` (this is also what a second call gets: `project is 'training', not 'paid'`), or the global budget guard refused. Planned 409 (B6).
+- 503 `could not start the training job; nothing was charged and your hold is being released`. The hold is voided.
+
+`GET /projects/{id}/training` -> 200 `{run_id, status, stage, fraction, elapsed_seconds, spend_so_far_cents, spend_is_estimate, cap_cents, eta, stop_requested, result}`.
+- `status`: `running` | `done` | `stopped` | `failed`. `fraction` is 0 to 1. `cap_cents` is the compute cap. `eta` is `{low_seconds, high_seconds, is_estimate}` while running, else null.
+- `result`: null while running. `done`: `{accuracy, simple_guess_accuracy, runtime_seconds, verification: {value, target, passed}}`. `failed`: `{error}`. `stopped`: `{stopped_by_user: true}`.
+- 404 `no training has started for this project` (planned 200 `not_started`, B6).
+
+`POST /projects/{id}/training/stop` -> 200 `{run_id, stop_requested: true}`. 409 `there is no training running for this project`. The user pays the compute used so far, no success fee.
+
+`POST /projects/{id}/settle/retry` -> 200 `{payment_state, status}`. 409 with the payment error text (no finished run, no confirmed hold). 502 `The payment service could not be reached yet...`. Safe to repeat.
+
+`POST /projects/{id}/cancel` -> 200 `{payment_state, status}`. Only while the project is `awaiting_payment` or `paid`. 409 `it is too late to cancel...` or `there is no hold to cancel`. 502 if PayPal is unreachable. Releases the whole hold; project ends `voided`.
+
+`GET /projects/{id}/trace` -> 200 list of `{seq, kind, content}` (agent steps, gate decisions, forecast, `settle_failed`). For debugging, not for screens.
+
+### A3. Free pilot and forecast (`routes/forecast.py`)
+
+`POST /chats/{id}/pilot` body `{target: number}`, `0 < target < 1` (422 otherwise) -> 200 `{forecast_id, metric, target, is_estimate, predicted_metric, band_low, band_high, confidence, eligible, reason, pilot, min_confidence, suggested_target, issues}`.
+- Free. Needs status `baseline_done` or `quoted`, else 409 `run the free baseline first`.
+- If the project is `done` and the last run missed its target, it first reopens to `baseline_done` (the Improve round). If the target was met: 409 `the finished run reached its target, so there is nothing to improve`.
+- 400 with a plain message when the pilot cannot run (no dataset, too few rows). 404 `not found`.
+- "Not eligible" is a 200 with `eligible: false`, a `reason`, `issues[]` and a `suggested_target`.
+
+`GET /jobs/{id}/forecast` -> 200 the same view for the latest forecast. 404 `no pilot has been run yet`.
+
+### A4. Quote (`routes/quotes.py`)
+
+`POST /agreements/{id}/quote` no body -> 200 `{quote_id, is_estimate, estimate_cents, low_cents, high_cents, cap_cents, compute_estimate_cents, compute_cap_cents, success_fee_estimate_cents, success_fee_max_cents, forecast_confidence, target, terms}`.
+- `estimate`, `low`, `high` and `cap` include the success fee. `cap_cents` is the PayPal hold.
+- 409 with a plain message: no pilot yet, forecast not eligible (its reason), no baseline, quote above the per-job maximum, bad status. 404 `not found`.
+- Not restricted by status beyond the above. Statuses `baseline_done`, `quoted` and `awaiting_payment` move to `quoted`. A new quote after a hold exists orphans that hold (`breakpoints.md` P2).
+
+### A5. Payments (`routes/payments.py`)
+
+`POST /payments/orders` body `{project_id}` -> 200 `{payment_id, hold_cents, compute_max_cents, success_fee_max_cents, approve_url, state}`. State `none` means nothing is held yet.
+- Returns the existing payment for the current quote if there is one (a reload resumes it), even if it is `declined` or `expired`.
+- 403 gate reason (no quote, quote not approved, quote expired). Planned 409 (B6). 404 unknown project. 502 `The payment service could not be reached. Nothing was charged...`.
+
+`POST /payments/{payment_id}/authorize` no body -> 200 `{held: bool, state}`. The server asks PayPal to place the hold and checks the amount. Only a server-confirmed hold sets `held` and moves the project to `paid`. `held: false` means not held yet or declined. 404. 409 on an amount mismatch. 502 if PayPal is unreachable.
+
+`GET /payments/{payment_id}` -> 200 `{payment_id, state, hold_cents, compute_captured_cents, fee_captured_cents, released_cents, total_charged_cents}`. 404. No `approve_url` and no project id (B7).
+
+`POST /webhooks/paypal` raw PayPal body and headers -> 200 `{result: "processed" | "duplicate" | "ignored"}`. 400 `invalid signature`. 409 `amount mismatch`. A webhook never creates a hold or marks a project paid.
+
+Payment `state`: `none`, `held`, `compute_captured`, `fee_captured`, `fee_skipped`, `released`, `voided`, `expired`, `declined`.
+
+### A6. No route exists for
+List of projects, message history, select dataset, readiness, baseline, payment by project, predict (one record or CSV), model download, share link, auth. No CORS.
+
+## B. PLANNED (not built)
+
+Order of work: `breakpoints.md`.
+
+### B1. CORS
+`CORSMiddleware` in `main.py`. New setting `CORS_ORIGINS` (comma-separated, default `http://localhost:3000`), credentials allowed, placeholder in `.env.example`.
+
+### B2. Select the dataset
+`POST /projects/{id}/data/{candidate_id}/select` body `{target?: string}` -> 200 `{rows, target, status: "data_chosen"}`.
+- Same service as the agent's `select_dataset` tool: `datasets.select_candidate(session, storage, project, candidate_id, target)`. It copies the candidate to permanent storage, deletes the other candidates and moves the project to `data_chosen`. The user's click is the approval.
+- How the target is chosen today: the service requires `target`, and the tool requires it as an argument. The model usually takes it from the `suggested_target` that `fetch_dataset` returned (bundled samples carry one). The candidate row does not store it.
+- Planned: use `target` if sent. If omitted, use a suggested target stored on the candidate when it was fetched (to be added); if there is none, 400 `which column should we predict?` with the column names. Unknown column: 400 `column 'x' not found`. Unknown candidate: 400 `unknown dataset`. Wrong status: 409.
+
+### B3. Readiness and baseline
+`POST /projects/{id}/readiness` -> 200 `{grade, findings: [{kind: "OK"|"NOTE", text}], status}`. Wraps `analysis.readiness` (the agent's `run_readiness`). `data_chosen -> readiness_done`.
+`POST /projects/{id}/baseline` -> 200 `{accuracy, simple_guess_accuracy, trust_level, status}`. Wraps `analysis.baseline` (the agent's `run_baseline`). `readiness_done -> baseline_done`.
+Both are free (gate level 0). Wrong status: 409 with a plain message, for example `choose a dataset first`, `run the readiness check first`.
+
+### B4. List projects
+`GET /projects` -> 200 `[{id, goal, status, created_at}]`, newest first.
+
+### B5. Fuller `GET /projects/{id}`
+Today's fields plus: `dataset` `{rows, columns, target, source, license}`; `readiness` `{grade, findings}`; `forecast` (the A3 view); `payment` `{payment_id, state, approve_url, hold_cents}`; `run` `{run_id, status}`. Each is null if it does not exist yet.
+
+### B6. Messages, blocks, status codes
+- `GET /projects/{id}/messages` -> `[{id, role: "user"|"assistant", text, kind, card?, created_at}]`, from the `conversations` and `messages` tables. Tool results and skills are not returned.
+- `POST /projects/{id}/chat` reply gains `blocks`: typed items the screen can render, built by code from stored state (for example the approval card, the payment link), not by the model.
+- `/train` and `/payments/orders`: wrong-status refusals return 409, not 403.
+- `GET /projects/{id}/training` returns 200 `{status: "not_started"}` instead of 404.
+- `quote/approve` is idempotent: approving an already approved, unexpired quote returns 200 with the same body.
+
+### B7. Payment lookup
+`GET /projects/{id}/payment` returns the `GET /payments/{id}` body plus `approve_url` and `project_id`, or 404. `GET /payments/{id}` also gains `approve_url`.
+
+### B8. Status to screen
+
+Screen numbers are those in `specs/frontend-integration.md`.
+
+| Project status | Screen | Notes |
+|---|---|---|
+| `described` | Describe / data | Chat, discover or upload, then select (B2) |
+| `data_chosen` | Readiness | Call readiness (B3) |
+| `readiness_done` | Free test | Call baseline (B3) |
+| `baseline_done` | Target and forecast (5); Not eligible (28) if `forecast.eligible` is false | Pilot, then quote |
+| `quoted` | Quote (5) | Approve calls `quote/approve`, then `/payments/orders` |
+| `awaiting_payment` | Pay (6) | `payment.state` `none`: send the browser to `approve_url`; on return call authorize |
+| `paid` | Pay return | Hold confirmed; the frontend calls `/train` |
+| `training` | Train (10) | Poll `/training`; Stop |
+| `done` | Verified (12) if `result.verification.passed`, else Missed (13); then Result and receipt (14); Improve (29) after a miss | Receipt from the payment |
+| `failed` | Our failure | Transient while the hold is voided; poll until `voided` |
+| `stopped` | Stopped receipt | Compute used so far, no fee. A user stop stays `stopped`; a cancel moves on to `voided` |
+| `voided` | Our failure or cancel, "you pay $0" | New screen (frontend-integration item 17) |
+
+### B9. Units and frontend conversions
+Backend: cents, 0 to 1, snake_case, one project id. The mock frontend uses dollars, percent, camelCase and separate chat, job and agreement ids. One adapter layer (`frontend/lib/api.ts`) converts:
+- cents to dollars, in a display helper only;
+- 0 to 1 to percent (times 100) and back for the target;
+- snake_case to camelCase;
+- one id everywhere (agreement id = project id);
+- precision and recall to one accuracy number; drop the three target tiers and the max price field;
+- hold parts "Experiment 1/2" and "Safety buffer" to "Compute (up to)", "Success fee (up to, only if verified)" and "Released";
+- screen choice from `status` (B8), not from the chat name.

@@ -2,7 +2,7 @@
 
 Describe a prediction problem in plain words. An AI agent checks the data, runs a free baseline test, runs a free pilot and forecasts the result, quotes an estimated cost, places a PayPal (sandbox) hold, trains the model, checks it once on locked test data, then charges the actual compute (plus a small success fee only if the check passes) and voids the rest of the hold. If our own code or infrastructure fails, the hold is voided and you pay nothing.
 
-Status: backend and agent core built and tested offline; PayPal sandbox is partly checked live; AWS training and the web app are not run or built. See `specs/status.md`. The web app is not built yet.
+Status: backend and agent core built and tested offline; PayPal sandbox is partly checked live; AWS training has not been run. See `specs/status.md`. The web app is built (35 numbered screens) on a mock API and is not yet connected to the backend; see `specs/api.md` and `specs/breakpoints.md`.
 
 ## Run the backend
 
@@ -27,15 +27,15 @@ npm run dev                  # http://localhost:3000
 
 Mock mode (default, `NEXT_PUBLIC_USE_MOCK_API=true`): all screens run on built-in sample data, no backend needed. Add `?mock=error|empty|slow` to a URL to see those states. Checks: `npm run typecheck`, `npm run lint`, `npm run build`; browser tests with `npx playwright install chromium && npm test`.
 
-Against the backend: start it as above (it listens on `http://localhost:8000`; `NEXT_PUBLIC_API_BASE_URL` points there) and set `NEXT_PUBLIC_USE_MOCK_API=false`. The screens are not wired to the real endpoints yet, so real mode currently shows an error. The plan and the list of mismatches are in `specs/frontend-integration.md`.
+Against the backend: start it as above (it listens on `http://localhost:8000`; `NEXT_PUBLIC_API_BASE_URL` points there) and set `NEXT_PUBLIC_USE_MOCK_API=false`. The screens are not wired to the real endpoints yet, so real mode currently shows an error. The API contract is `specs/api.md`; the plan and the list of mismatches are in `specs/frontend-integration.md`.
 
 ## Test
 
 ```
 cd backend
-pytest                                        # unit, contract and e2e tests; offline, no keys; real tests skip
+pytest                                        # unit, contract and e2e tests; offline, no keys; integration tests skip
 pytest tests/e2e/test_payments_and_demo.py    # demo check: full flow on the mock payment double
-RUN_REAL=1 pytest tests/real -v -s            # real checks, uses your .env
+RUN_REAL=1 pytest tests/integration -v -s            # integration checks (live services), uses your .env
 python -m evals.run --fake --repeats 1        # agent evals offline (use --model <id> for a real model)
 ```
 
@@ -43,7 +43,7 @@ Offline tests ignore your `.env` and use a temporary database. The real checks a
 
 ### PayPal sandbox: hold, capture, void
 
-The full money check needs a sandbox buyer to approve in a browser, so it has two steps (sandbox money only, 25 cents captured): `RUN_REAL=1 pytest tests/real/test_paypal_sandbox.py -k create -v -s` prints an approval link and an order id; approve it as the sandbox BUYER account; then `PAYPAL_APPROVED_ORDER_ID=<order id> RUN_REAL=1 pytest tests/real/test_paypal_sandbox.py -k lifecycle -v -s`. If you used an older version, delete the local `aioac.db` (the schema changed; there are no migrations).
+The full money check needs a sandbox buyer to approve in a browser, so it has two steps (sandbox money only, 25 cents captured): `RUN_REAL=1 pytest tests/integration/test_paypal_sandbox.py -k create -v -s` prints an approval link and an order id; approve it as the sandbox BUYER account; then `PAYPAL_APPROVED_ORDER_ID=<order id> RUN_REAL=1 pytest tests/integration/test_paypal_sandbox.py -k lifecycle -v -s`. If you used an older version, delete the local `aioac.db` (the schema changed; there are no migrations).
 
 ## Background training
 

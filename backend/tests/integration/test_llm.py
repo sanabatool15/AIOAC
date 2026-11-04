@@ -1,7 +1,7 @@
 """Proves: the configured LLM_PROVIDER (openrouter or azure) accepts our key and answers a tiny prompt.
 
 Costs a fraction of a cent (one short completion, no tools).
-Run: RUN_REAL=1 pytest tests/real/test_llm.py -v -s
+Run: RUN_REAL=1 pytest tests/integration/test_llm.py -v -s
 """
 from tests.integration.conftest import need
 

@@ -27,7 +27,7 @@ inngest = ["inngest>=0.5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["real: talks to real services (AWS, PayPal sandbox, LLM, database, live datasets); skipped unless RUN_REAL=1 pytest tests/real"]
+markers = ["real: talks to real services (AWS, PayPal sandbox, LLM, database, live datasets); skipped unless RUN_REAL=1 pytest tests/integration"]
 
 [tool.setuptools.packages.find]
 include = ["app*", "doubles*"]

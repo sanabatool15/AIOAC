@@ -4,9 +4,9 @@ import tempfile
 
 # Isolate from the developer's real .env, database and keys. This must run before `app` is imported,
 # because app.config reads the environment once at import time and app.db builds its engine from it.
-# The one exception: `RUN_REAL=1 pytest tests/real ...` (every path argument under tests/real) keeps the real
+# The one exception: `RUN_REAL=1 pytest tests/integration ...` (every path argument under tests/integration) keeps the real
 # environment and .env, because those tests exist to talk to the real services. Any other run, even with
-# RUN_REAL=1 set, stays isolated and the real tests skip themselves.
+# RUN_REAL=1 set, stays isolated and the integration tests skip themselves.
 _PATH_ARGS = [a for a in sys.argv[1:] if not a.startswith("-") and ("/" in a or "\\" in a or a.endswith(".py"))]
 REAL_MODE = (os.environ.get("RUN_INTEGRATION") == "1" or os.environ.get("RUN_REAL") == "1") and bool(_PATH_ARGS) and all(
     a.replace("\\", "/").split("::")[0].rstrip("/").split("tests/")[-1].startswith(("integration", "real")) for a in _PATH_ARGS)
@@ -109,7 +109,7 @@ def verdict(monkeypatch):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Everything under tests/real carries the `real` marker (select with `-m real`)."""
+    """Everything under tests/integration carries the `real` marker (select with `-m real`)."""
     for item in items:
         if any(k in str(item.fspath).replace("\\", "/") for k in ("/tests/integration/", "/tests/real/")):
             item.add_marker(pytest.mark.real)

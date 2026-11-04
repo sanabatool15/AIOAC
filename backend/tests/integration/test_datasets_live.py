@@ -1,7 +1,7 @@
 """Proves: the live Hugging Face search still works and returns hits, and the hand-checked curated list loads.
 Read-only public HTTP calls (HF_TOKEN optional).
 
-Run: RUN_REAL=1 pytest tests/real/test_datasets_live.py -v -s
+Run: RUN_REAL=1 pytest tests/integration/test_datasets_live.py -v -s
 """
 
 

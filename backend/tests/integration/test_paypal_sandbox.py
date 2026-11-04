@@ -2,11 +2,11 @@
 Sandbox only (PayPalProvider refuses any other host). Amounts are tiny: a 50 cent hold, 20 cents of compute, a 5 cent fee.
 
 Step 1 (needs only the sandbox keys in .env; moves no money):
-    RUN_REAL=1 pytest tests/real/test_paypal_sandbox.py -k create -v -s
+    RUN_REAL=1 pytest tests/integration/test_paypal_sandbox.py -k create -v -s
   It prints an approval link. Open it, sign in as the sandbox BUYER account and approve. Note the order id it prints.
 
 Step 2 (after the buyer approved; captures 25 cents of sandbox money and voids the other 25):
-    PAYPAL_APPROVED_ORDER_ID=<order id> RUN_REAL=1 pytest tests/real/test_paypal_sandbox.py -k lifecycle -v -s
+    PAYPAL_APPROVED_ORDER_ID=<order id> RUN_REAL=1 pytest tests/integration/test_paypal_sandbox.py -k lifecycle -v -s
   Check the sandbox dashboard afterwards: 25 cents charged (20 compute + 5 fee), 25 cents released.
 """
 import os

@@ -1,7 +1,7 @@
 """Proves: AWS credentials work and the SageMaker setup from Terraform exists. Read-only calls, no jobs, no cost:
 STS get-caller-identity, S3 head_bucket on SAGEMAKER_BUCKET, SageMaker list_training_jobs (MaxResults=1).
 
-Run: RUN_REAL=1 pytest tests/real/test_aws.py -v -s
+Run: RUN_REAL=1 pytest tests/integration/test_aws.py -v -s
 """
 import pytest
 
