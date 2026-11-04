@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
         runner = get_job_runner()
         with SessionLocal() as session:
             done = training.recover_stale_runs(session, get_payment_provider(), runner.is_active, runner.stale_after_seconds)
-            payments_service.expire_stale_holds(session)
+            payments_service.expire_stale_holds(session, provider=get_payment_provider())
         if done:
             log.warning("recovered %d interrupted training run(s): %s", len(done), done)
     except Exception:  # never block API start because recovery failed

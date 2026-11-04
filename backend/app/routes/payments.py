@@ -24,6 +24,8 @@ def create_order(body: OrderIn, s: Session = Depends(get_session)):
         pay, url = payments.create_order(s, get_payment_provider(), settings.payment_provider, project)
     except gate.GateDenied as e:
         raise HTTPException(403, str(e))
+    except payments.PaymentError as e:
+        raise HTTPException(409, str(e))
     except ProviderError:
         raise HTTPException(502, "The payment service could not be reached. Nothing was charged. Please try again.")
     return {"payment_id": pay.id, "hold_cents": pay.amount_cents, "compute_max_cents": pay.compute_amount_cents,

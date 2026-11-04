@@ -164,3 +164,42 @@ def test_p6_wrong_amount_hold_is_voided_before_raising(session, storage, chosen,
         payments.confirm_hold(session, provider, pay)
     assert len(provider.void_calls) == 1 and provider.void_calls[0] in provider.voided
     assert pay.state == "voided" and not pay.verified and chosen.status == "awaiting_payment"
+
+
+# ---- P7: a dead payment is never handed out again; expiry releases the hold at the provider ---------------------
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+
+@pytest.mark.parametrize("dead", ["expired", "declined", "voided"])
+def test_p7_create_order_refuses_a_dead_payment_and_a_new_quote_gets_a_new_hold(session, storage, chosen, provider, dead):
+    from app.services.cost import quotes
+    q, pay = ready_to_pay(session, storage, chosen, provider)
+    payments_repo.save(session, pay, state=dead)
+    with pytest.raises(PaymentError, match="new quote"):
+        payments.create_order(session, provider, "mock", chosen)  # was: the dead payment and its link, forever
+    q2 = quotes.create_quote(session, chosen)
+    quotes.approve_quote(session, chosen, q2)
+    pay2, url = payments.create_order(session, provider, "mock", chosen)
+    assert pay2.id != pay.id and pay2.state == "none" and url
+
+
+def test_p7_expiry_voids_the_authorization_at_the_provider(session, storage, chosen, provider):
+    q, pay = held(session, storage, chosen, provider)
+    auth = pay.provider_authorization_id
+    later = datetime.now(timezone.utc) + timedelta(hours=100)
+    assert payments.expire_stale_holds(session, now=later, provider=provider) == [pay.id]
+    assert pay.state == "expired" and auth in provider.voided and pay.released_cents == pay.amount_cents
+
+
+def test_p7_expiry_stays_held_if_the_provider_void_fails(session, storage, chosen):
+    from app.ports import ProviderError
+
+    class Down(MockPaymentProvider):
+        def void(self, authorization_id, request_id):
+            raise ProviderError("down")
+
+    prov = Down()
+    q, pay = held(session, storage, chosen, prov)
+    later = datetime.now(timezone.utc) + timedelta(hours=100)
+    assert payments.expire_stale_holds(session, now=later, provider=prov) == []
+    assert pay.state == "held"  # not marked expired while the hold may still exist at PayPal

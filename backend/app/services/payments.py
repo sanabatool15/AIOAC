@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from ..config import settings
 from ..db import Session
 from ..db.tables import Payment, Project, TrainingRun
-from ..ports import PaymentProvider
+from ..ports import PaymentProvider, ProviderError
 from ..repositories import payments as payments_repo
 from ..repositories import projects as projects_repo
 from ..repositories.ledger import LedgerRepository
@@ -53,6 +53,10 @@ def current_payment(session: Session, project_id: str) -> Payment | None:
 def create_order(session: Session, provider: PaymentProvider, provider_name: str, project: Project) -> tuple[Payment, str | None]:
     quote = gate.authorize(session, project, gate.Action.REQUEST_PAYMENT)
     existing = payments_repo.for_quote(session, quote.id)
+    if existing and existing.state in {"expired", "declined", "voided"}:
+        # A dead payment is not handed out again. Its idempotency keys belong to its id, so it must not be reused:
+        # a new quote gives a new payment and new keys.
+        raise PaymentError("this payment can no longer be used; ask for a new quote to start a new hold")
     if existing:
         return existing, existing.approve_url
     order = provider.create_hold(quote.cap_cents, project.id)
@@ -188,12 +192,19 @@ def cancel(session: Session, provider: PaymentProvider, project: Project) -> Pay
     return pay
 
 
-def expire_stale_holds(session: Session, now: datetime | None = None) -> list[str]:
-    """Holds that were never used end as `expired` after hold_ttl_hours. PayPal lets a hold lapse by itself."""
+def expire_stale_holds(session: Session, now: datetime | None = None, provider: PaymentProvider | None = None) -> list[str]:
+    """Holds that were never used end as `expired` after hold_ttl_hours. A hold that exists at the provider is
+    voided first; if that fails it stays `held` and is tried again at the next start (never expired while live)."""
     now = now or datetime.now(timezone.utc)
     out = []
     for pay in payments_repo.open_before(session, now - timedelta(hours=settings.hold_ttl_hours)):
         if projects_repo.get(session, pay.project_id).status in {"awaiting_payment", "paid"}:
+            if provider is not None and pay.state == "held" and pay.provider_authorization_id:
+                try:
+                    provider.void(pay.provider_authorization_id, f"void-{pay.id}")
+                except ProviderError:
+                    continue
+                payments_repo.save(session, pay, released_cents=pay.amount_cents)
             payments_repo.save(session, pay, state="expired")
             out.append(pay.id)
     return out
