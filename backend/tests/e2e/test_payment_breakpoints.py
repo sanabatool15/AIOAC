@@ -154,3 +154,13 @@ def test_p5_project_changing_during_authorize_voids_the_new_authorization(sessio
     with pytest.raises(PaymentError):
         payments.confirm_hold(session, prov, pay)
     assert pay.state == "voided" and not pay.verified and len(prov.void_calls) == 1
+
+
+# ---- P6: a hold of the wrong amount must not stay at PayPal ---------------------------------------------------
+def test_p6_wrong_amount_hold_is_voided_before_raising(session, storage, chosen, provider):
+    q, pay = ready_to_pay(session, storage, chosen, provider)
+    provider.orders[pay.provider_order_id] = 1  # PayPal holds a different amount than we asked for
+    with pytest.raises(PaymentError):
+        payments.confirm_hold(session, provider, pay)
+    assert len(provider.void_calls) == 1 and provider.void_calls[0] in provider.voided
+    assert pay.state == "voided" and not pay.verified and chosen.status == "awaiting_payment"

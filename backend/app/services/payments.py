@@ -82,6 +82,8 @@ def confirm_hold(session: Session, provider: PaymentProvider, payment: Payment) 
     if auth.status != "held":
         return False
     if auth.amount_cents != payment.amount_cents:
+        provider.void(auth.authorization_id, f"void-{payment.id}")  # do not leave a hold of the wrong size at PayPal
+        payments_repo.save(session, payment, provider_authorization_id=auth.authorization_id, state="voided", released_cents=auth.amount_cents)
         raise PaymentError(f"held {auth.amount_cents} but expected {payment.amount_cents}")
     session.refresh(project)
     if project.status != "awaiting_payment":  # the project ended while PayPal was answering: release what it just held
