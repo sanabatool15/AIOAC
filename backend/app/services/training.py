@@ -71,7 +71,7 @@ def _settle(session: Session, provider: PaymentProvider, project: Project, run: 
     try:
         payments.settle(session, provider, project, run)
         return True
-    except ProviderError as exc:
+    except (ProviderError, payments.PaymentError) as exc:  # an unconfirmed capture/void is a PaymentError, not a ProviderError
         rollback(session)
         TraceRepository(session).add(project.id, "settle_failed", {"run_id": run.id, "error": type(exc).__name__})
         return False
@@ -219,4 +219,6 @@ def retry_settle(session: Session, provider: PaymentProvider, project: Project) 
     pay = payments.settle(session, provider, project, run)
     if project.status == "failed" and pay.state == "voided":
         lifecycle.transition(session, project, "voided")
+    elif project.status == "training" and run.status == "done" and pay.state == "released":
+        lifecycle.transition(session, project, "done")  # settlement finished; the worker never got to the last step
     return pay.state

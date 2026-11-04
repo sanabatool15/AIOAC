@@ -2,9 +2,12 @@
 import pytest
 
 from app.repositories import payments as payments_repo
-from app.services import payments
+from app.ports import Capture
+from app.repositories.traces import TraceRepository
+from app.services import payments, training
+from app.services.payments import PaymentError
 from doubles.payments import MockPaymentProvider
-from tests.helpers.builders import held, ready_to_pay
+from tests.helpers.builders import charged, held, ready_to_pay
 
 
 # ---- P1: a saved hold whose move to `paid` never happened -------------------------------------------------------
@@ -41,3 +44,59 @@ def test_p2_new_quote_supersedes_an_unheld_order(session, storage, chosen, provi
     q2 = quotes.create_quote(session, chosen)
     assert q2.id != q.id and pay.state == "voided" and chosen.status == "quoted"
     assert provider.void_calls == [] and provider.holds == {}  # nothing was ever held at the provider
+
+
+# ---- P3: a PaymentError during settle must not crash or strand the project --------------------------------------
+class UnconfirmedCaptureProvider(MockPaymentProvider):
+    """The provider answers a capture but does not confirm it (settle raises PaymentError, not ProviderError)."""
+    unconfirmed = True
+
+    def capture(self, authorization_id, amount_cents, request_id):
+        cap = super().capture(authorization_id, amount_cents, request_id)
+        return Capture(cap.capture_id, cap.amount_cents, False) if self.unconfirmed else cap
+
+
+def _backend(cost=0, fail=False):
+    from tests.e2e.test_payments_and_demo import ScriptedBackend
+    return ScriptedBackend(cost=cost, fail=fail)
+
+
+def test_p3_unconfirmed_capture_is_traced_not_crashed_and_retry_finishes(session, storage, chosen, verdict):
+    prov = UnconfirmedCaptureProvider()
+    q, pay = held(session, storage, chosen, prov)
+    run = training.run_training(session, chosen, _backend(cost=40), storage, prov)  # must not raise
+    assert run.status == "done" and chosen.status == "done" and pay.state == "held"
+    assert TraceRepository(session).steps(chosen.id, ("settle_failed",))
+    assert charged(session, chosen) == 0  # nothing recorded as charged without provider confirmation
+    prov.unconfirmed = False
+    assert training.retry_settle(session, prov, chosen) == "released"
+    assert charged(session, chosen) == 42
+
+
+def test_p3_retry_settle_moves_a_project_left_in_training_to_done(session, storage, chosen, provider, verdict):
+    q, pay = held(session, storage, chosen, provider)
+    run = training.run_training(session, chosen, _backend(cost=40), storage, provider)
+    chosen.status = "training"  # the worker died after settling but before the last status change
+    session.commit()
+    assert training.retry_settle(session, provider, chosen) == "released"
+    assert chosen.status == "done"
+    assert [c[1] for c in provider.capture_calls] == [40, 2]  # no second capture
+
+
+def test_p3_failed_run_with_unconfirmed_state_ends_voided_after_retry(session, storage, chosen):
+    prov = FlakyVoid()
+    q, pay = held(session, storage, chosen, prov)
+    training.run_training(session, chosen, _backend(fail=True), storage, prov)
+    assert chosen.status == "failed" and pay.state == "held"
+    prov.down = False
+    training.retry_settle(session, prov, chosen)
+    assert chosen.status == "voided" and pay.state == "voided"
+
+
+class FlakyVoid(MockPaymentProvider):
+    down = True
+
+    def void(self, authorization_id, request_id):
+        if self.down:
+            raise PaymentError("provider did not confirm the void")
+        return super().void(authorization_id, request_id)
