@@ -10,7 +10,7 @@ Status: 2026-11-04. Found by audits and re-checked against the code. Paths are u
 | U2 | No routes to select a dataset, run readiness or run the baseline. Only the agent can, through chat | `routes/projects.py` | Add the three routes as thin wrappers over `datasets.select_candidate`, `analysis.readiness`, `analysis.baseline` (api.md B2, B3) | done |
 | U3 | `GET /projects/{id}` is thin: no dataset, forecast, payment, run or readiness findings; no list of projects | `routes/projects.py:48-56` | Fuller read and `GET /projects` (api.md B4, B5) | done |
 | U4 | No message history route, though messages are stored | `routes/projects.py`; tables `conversations`, `messages` | `GET /projects/{id}/messages` (api.md B6) | done |
-| U5 | Chat reply is `{status, text, card}`: no `blocks`, no `approve_url` | `routes/projects.py:59-66` | Add `blocks` built from stored state (api.md B6) | open |
+| U5 | Chat reply is `{status, text, card}`: no `blocks`, no `approve_url` | `routes/projects.py:59-66` | Add `blocks` built from stored state (api.md B6) | done (re-audit 2026-11-04: `/chat` and `/messages` return `blocks`; `tests/e2e/test_chat_blocks.py` passes; `approve_url` comes from the payment lookup) |
 | U6 | No payment lookup by project, so a reload cannot find `payment_id`; receipt lacks `approve_url` | `routes/payments.py:272-281` | `GET /projects/{id}/payment`; add `approve_url` (api.md B7) | done |
 | U7 | Wrong-status errors use 403 on `/train` and `/payments/orders`; `/training` is 404 before a run; `quote/approve` fails on a repeat | `routes/projects.py:103,117,87`, `routes/payments.py:249` | 409, `not_started`, idempotent approve (api.md B6) | done (409 for not-ready cases via `gate.NotReady`; 403 stays for the budget guard; pilot message accurate per status) |
 | U8 | Frontend has no HTTP client, no status-to-screen mapper and no quote-approve step. All calls go to `frontend/lib/mock-api.ts` | `frontend/lib/` | `lib/api.ts` plus adapters and a status mapper (api.md B8, B9) | done for the demo path (2026-11-04): `lib/api.ts`, `api-real.ts`, `adapters.ts`, `status.ts`, quote-approve step in the Pay button |
@@ -21,12 +21,12 @@ Status: 2026-11-04. Found by audits and re-checked against the code. Paths are u
 | Id | Problem | Where | Fix | Status |
 |---|---|---|---|---|
 | F1 | Real mode has no chat: the describe step is goal text plus a CSV upload. Dataset discovery and the agent's explanations are not shown | `frontend/components/real/` | Render `GET /projects/{id}/messages`, `POST /chat` and approval cards once the chat route is stable (api.md A0, U5) | open |
-| F2 | Paid steps (hold, authorize, train, settle) were never clicked through against real PayPal sandbox. Screens were checked only with intercepted responses | `components/real/pay-return.tsx`, `steps-run.tsx` | One manual run after D1 | open |
+| F2 | Paid steps (hold, authorize, train, settle) were never clicked through against real PayPal sandbox. Screens were checked only with intercepted responses | `components/real/pay-return.tsx`, `steps-run.tsx` | One manual run after D1 | open (re-audit: no run against the real sandbox; `POST /payments/orders` without credentials answers a clean 502, no stack trace) |
 | F3 | After a missed target the Improve round reuses the free pilot form. No dedicated screen 29, and no explanation of the new hold | `steps-run.tsx` `ResultStep` | Optional polish | open |
 | F4 | Try-one-record, CSV predictions, model download, sharing, usage, keys, plans, login are still mock-only (no backend routes) | mock screens | Hide or build, see section 3 of `frontend-integration.md` | open |
-| F5 | The demo path is only reachable at `/` and `/c/{id}`; the old mock routes (`/c/{id}/pay`, projects, billing, keys) still render mock screens that fail in real mode | `app/(app)/` | Redirect or hide in real mode | open |
+| F5 | The demo path is only reachable at `/` and `/c/{id}`; the old mock routes (`/c/{id}/pay`, projects, billing, keys) still render mock screens that fail in real mode | `app/(app)/` | Redirect or hide in real mode | partly (re-audit: old mock routes show a "real backend only" notice via `mock-notice.tsx` instead of failing; they are not redirected) |
 | F6 | `Stop` on the local backend takes effect only between stages (D2); the screen says "Stopping..." until the run ends | `TrainingStep` | Backend side | open |
-| F7 | Frontend unit tests (`npm run test:unit`) use `tsx`; no component tests and no Playwright test for real mode | `frontend/unit/` | Add a real-mode Playwright run when a fake PayPal exists | open |
+| F7 | Frontend unit tests (`npm run test:unit`) use `tsx`; no component tests and no Playwright test for real mode | `frontend/unit/` | Add a real-mode Playwright run when a fake PayPal exists | partly (re-audit: `npm run test:unit` has 22 passing tests; still no real-mode Playwright run) |
 
 ## 2. Payments (HUMAN REVIEW REQUIRED for every item, CLAUDE.md)
 
@@ -57,7 +57,7 @@ Small changes only, each with a test on the mock provider, each explained to the
 
 | Id | Problem | Where | Fix | Status |
 |---|---|---|---|---|
-| D1 | PayPal sandbox hold, capture, second capture and void have never run for real | `integrations/paypal/provider.py`, `tests/integration/test_paypal_sandbox.py` | Run the two-step live check; record PayPal's limits | open |
+| D1 | PayPal sandbox hold, capture, second capture and void have never run for real | `integrations/paypal/provider.py`, `tests/integration/test_paypal_sandbox.py` | Run the two-step live check; record PayPal's limits | open (re-audit: still never run for real) |
 | D2 | The local backend costs 0, so the receipt shows nothing captured and the demo money step looks empty | `integrations/training_local/` | A believable demo job (see Order of work, step 5) | open |
 | D3 | Prices are placeholders; quotes are about 53 cents | `services/cost/prices.py` | Measure one real job and replace them | open |
 | D4 | The real LLM has never been run; the agent evals have no real pass rates | `backend/evals/` | One real run after the owner is told (see below) | open |
