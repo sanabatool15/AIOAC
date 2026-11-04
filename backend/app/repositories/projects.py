@@ -8,6 +8,12 @@ def get(session: Session, project_id: str) -> Project | None:
     return session.get(Project, project_id)
 
 
+def reload(session: Session, project: Project) -> Project:
+    """Re-read the project from the database (another request may have changed it)."""
+    session.refresh(project)
+    return project
+
+
 def create(session: Session, goal: str) -> Project:
     p = Project(goal=goal)
     session.add(p)
