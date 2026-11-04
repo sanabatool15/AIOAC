@@ -100,3 +100,25 @@ class FlakyVoid(MockPaymentProvider):
         if self.down:
             raise PaymentError("provider did not confirm the void")
         return super().void(authorization_id, request_id)
+
+
+# ---- P4: cancel must void before it changes the project status -----------------------------------------------
+def test_p4_cancel_with_a_void_outage_keeps_the_project_cancellable(session, storage, chosen):
+    from app.ports import ProviderError
+
+    class Down(MockPaymentProvider):
+        down = True
+
+        def void(self, authorization_id, request_id):
+            if self.down:
+                raise ProviderError("down")
+            return super().void(authorization_id, request_id)
+
+    prov = Down()
+    q, pay = held(session, storage, chosen, prov)
+    with pytest.raises(ProviderError):
+        payments.cancel(session, prov, chosen)
+    assert chosen.status == "paid" and pay.state == "held"  # not stranded in `stopped` with a live hold
+    prov.down = False
+    payments.cancel(session, prov, chosen)  # the same request can simply be repeated
+    assert chosen.status == "voided" and pay.state == "voided" and charged(session, chosen) == 0

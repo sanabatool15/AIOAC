@@ -174,8 +174,8 @@ def cancel(session: Session, provider: PaymentProvider, project: Project) -> Pay
     pay = current_payment(session, project.id)
     if pay is None:
         raise PaymentError("there is no hold to cancel")
+    void_all(session, provider, project, pay)  # first: if the provider fails here, the project is still cancellable
     lifecycle.transition(session, project, "stopped")
-    void_all(session, provider, project, pay)
     lifecycle.transition(session, project, "voided")
     return pay
 
