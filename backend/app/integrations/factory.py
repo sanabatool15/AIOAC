@@ -33,6 +33,21 @@ def get_training_backend() -> TrainingBackend:
     return LocalBackend()
 
 
+_PLACEHOLDER_MARKERS = ("your-", "your_", "placeholder", "changeme", "change-me", "set-a-", "xxx")
+
+
+def _real_value(v: str) -> bool:
+    v = (v or "").strip().lower()
+    return bool(v) and not any(m in v for m in _PLACEHOLDER_MARKERS)
+
+
+def llm_configured() -> bool:
+    """True when a real model key is set. Empty values and the .env.example placeholders count as not configured. Never returns the key."""
+    if settings.llm_provider == "azure":
+        return _real_value(settings.azure_openai_api_key) and _real_value(settings.azure_openai_base_url) and bool(settings.azure_openai_model.strip())
+    return _real_value(settings.openrouter_api_key)
+
+
 def get_llm(model: str | None = None) -> LLMClient:
     if settings.llm_provider == "azure":
         from .llm.azure import AzureFoundryClient

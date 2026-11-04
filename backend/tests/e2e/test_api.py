@@ -7,7 +7,7 @@ from app.main import app
 def test_api_basics(session):
     app.dependency_overrides[get_session] = lambda: session
     c = TestClient(app)
-    assert c.get("/health").json() == {"ok": True}
+    assert c.get("/health").json()["ok"] is True
     pid = c.post("/projects", json={"goal": "predict churn"}).json()["id"]
     assert c.get(f"/projects/{pid}").json()["status"] == "described"
     # paying or training before a quote exists is refused

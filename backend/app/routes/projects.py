@@ -5,9 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..db import Session, get_session
 from ..integrations.factory import get_job_runner
-from ..deps import get_ctx_factory
+from ..deps import get_ctx_factory, get_llm_client
 from ..db.tables import Project
-from ..integrations.factory import get_llm
 from ..ports import ProviderError
 from ..integrations.factory import get_storage
 from ..repositories import analysis as analysis_repo
@@ -101,10 +100,10 @@ def messages(pid: str, s: Session = Depends(get_session)):
 
 
 @router.post("/{pid}/chat")
-def chat(pid: str, body: ChatIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
+def chat(pid: str, body: ChatIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory), llm=Depends(get_llm_client)):
     p = _project(s, pid)
     try:
-        r = run_agent(make(p, body.approve), get_llm(), body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
+        r = run_agent(make(p, body.approve), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
     except TurnInProgress as e:
         raise HTTPException(409, str(e))
     return {"status": r.status, "text": r.text, "card": r.card}

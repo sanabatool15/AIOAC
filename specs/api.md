@@ -12,7 +12,7 @@ Conventions (built):
 ## A. BUILT endpoints
 
 ### A1. Health
-`GET /health` -> 200 `{"ok": true}`
+`GET /health` -> 200 `{"ok": true, "llm": {"configured": bool}}`. `llm.configured` is false when the model key is empty or a placeholder such as `your-openrouter-key`; the key itself is never returned.
 
 ### A2. Projects (`routes/projects.py`)
 
@@ -24,7 +24,7 @@ Conventions (built):
 - 404 `project not found`.
 - Fuller since 2026-11-04 (see A0).
 
-`POST /projects/{id}/chat` body `{message?: string, approve?: string[]}` -> 200 `{status, text, card}`.
+`POST /projects/{id}/chat` body `{message?: string, approve?: string[]}` -> 200 `{status, text, card}`. 503 with a plain `detail` when no real model key is configured (empty or placeholder); 409 if a turn is already running.
 - `status`: `reply` | `awaiting_approval` | `limit` | `error`. `card` is null except for `awaiting_approval`.
 - `card` (L1 approval): `{what, level, tool, args}`, for example tool `select_dataset` with `{candidate_id, target}`. The user approves by sending the request again with `approve: ["select_dataset"]` (the gate action name).
 - `limit`: a step, token, cost, repeat or timeout limit was hit; `text` explains it in plain words.

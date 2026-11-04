@@ -37,7 +37,7 @@ Small changes only, each with a test on the mock provider, each explained to the
 |---|---|---|---|---|
 | A1 | The `start_training` tool blocks until the job ends and holds the project's turn lock the whole time | `services/agent/tools.py:243-245` | Call `training.start_training` plus the job runner and return the run id | done |
 | A2 | No tools or next step for `awaiting_payment` with an expired quote, a declined hold, or the terminal states (`done`, `failed`, `stopped`, `voided`). Only `load_skill` is offered | `services/agent/context.py:70-95` | Add status-specific guidance and, where needed, a read-only tool | open |
-| A3 | A missing LLM key returns HTTP 200 with `status: "error"` | `integrations/llm/openrouter.py:120-122`, `services/agent/loop.py:153-158` | Return a clear 503 on a missing key, or show the error state in the UI | open |
+| A3 | A missing LLM key returns HTTP 200 with `status: "error"` | `integrations/llm/openrouter.py:120-122`, `services/agent/loop.py:153-158` | Return a clear 503 on a missing key, or show the error state in the UI | fixed: `/chat` 503, `/health` `llm.configured` |
 | A4 | `check_args` only checks required keys and non-empty strings. Wrong types for numbers and arrays pass | `services/agent/guards.py:37-48` | Check types from the tool's JSON schema | open |
 | A5 | If the user approves a card and the model then replies with text only, the approval is spent without running the tool | `services/agent/loop.py:173-186` | After an approval, run the approved call from the stored card, not from the model | open |
 
