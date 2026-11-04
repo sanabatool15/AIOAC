@@ -47,6 +47,14 @@ def select_candidate(session: Session, storage: Storage, project: Project, candi
     return version
 
 
+def candidate_columns(session: Session, storage: Storage, project: Project, candidate_id: str) -> list[str]:
+    """Column names of a candidate, so the user can be asked which one to predict."""
+    cand = repo.get_candidate(session, candidate_id)
+    if cand is None or cand.project_id != project.id:
+        raise DatasetError("unknown dataset")
+    return [str(c) for c in pd.read_csv(io.BytesIO(storage.get(cand.storage_key)), nrows=0).columns]
+
+
 def clean(session: Session, storage: Storage, version: DatasetVersion) -> DatasetVersion:
     """New version with duplicates dropped. The original is never edited."""
     df = pd.read_csv(io.BytesIO(storage.get(version.storage_key)))

@@ -1,3 +1,6 @@
+import json
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..db import Session, get_session
@@ -7,9 +10,17 @@ from ..db.tables import Project
 from ..integrations.factory import get_llm
 from ..ports import ProviderError
 from ..integrations.factory import get_storage
+from ..repositories import analysis as analysis_repo
+from ..repositories import conversations as conversations_repo
+from ..repositories import datasets as datasets_repo
+from ..repositories import forecasts as forecasts_repo
+from ..repositories import payments as payments_repo
 from ..repositories import projects as projects_repo
+from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
-from ..services.data import datasets
+from ..services.data import analysis, datasets
+from .forecast import forecast_view
+from .payments import receipt
 from ..services import gate, lifecycle, payments, training
 from ..services.cost import quotes
 from ..services.agent.loop import TurnInProgress, run_agent
@@ -45,15 +56,48 @@ def create(body: ProjectIn, s: Session = Depends(get_session)):
     return {"id": p.id, "status": p.status}
 
 
+@router.get("")
+def list_projects(s: Session = Depends(get_session)):
+    return [{"id": p.id, "goal": p.goal, "status": p.status, "created_at": p.created_at} for p in projects_repo.list_all(s)]
+
+
 @router.get("/{pid}")
 def read(pid: str, s: Session = Depends(get_session)):
     p = _project(s, pid)
     q = gate.latest_quote(s, pid)
+    version = datasets_repo.get_version(s, p.chosen_dataset_version_id) if p.chosen_dataset_version_id else None
+    report = analysis_repo.latest_insight_report(s, version.id) if version else None
+    forecast = forecasts_repo.latest_for_project(s, pid)
+    pay = payments_repo.for_quote(s, q.id) if q else None
+    run = runs_repo.latest_for_project(s, pid)
     return {"id": p.id, "goal": p.goal, "status": p.status, "readiness_grade": p.readiness_grade,
             "trust_level": p.trust_level, "baseline": p.baseline_result,
             "quote": q and {"id": q.id, "estimate_cents": q.estimate_cents, "low_cents": q.low_cents,
                             "high_cents": q.high_cents, "cap_cents": q.cap_cents, "success_fee_max_cents": q.fee_cents,
-                            "approved": q.approved_at is not None}}
+                            "approved": q.approved_at is not None},
+            "dataset": version and {"rows": version.rows, "columns": version.columns, "target": version.target_column,
+                                    "source": version.source, "license": version.license},
+            "readiness": report and {"grade": report.grade, "findings": report.findings},
+            "forecast": forecast and forecast_view(forecast),
+            "payment": pay and {"payment_id": pay.id, "state": pay.state, "approve_url": pay.approve_url, "hold_cents": pay.amount_cents},
+            "run": run and {"run_id": run.id, "status": run.status}}
+
+
+@router.get("/{pid}/messages")
+def messages(pid: str, s: Session = Depends(get_session)):
+    """Chat history for the screen: what the user said, what the assistant said, and approval cards. Tool results and skills are left out."""
+    _project(s, pid)
+    out = []
+    for m in conversations_repo.project_messages(s, pid):
+        if m.kind == "card":
+            try:
+                card = json.loads(m.content)
+            except ValueError:
+                continue
+            out.append({"id": m.id, "role": "assistant", "text": card.get("what", ""), "kind": "card", "card": card, "created_at": m.created_at})
+        elif m.role in ("user", "assistant") and m.kind in ("chat", "note") and m.content:
+            out.append({"id": m.id, "role": m.role, "text": m.content, "kind": m.kind, "created_at": m.created_at})
+    return out
 
 
 @router.post("/{pid}/chat")
@@ -76,12 +120,71 @@ def upload(pid: str, body: UploadIn, s: Session = Depends(get_session)):
     return {"candidate_id": c.id, "rows": c.rows}
 
 
+class SelectIn(BaseModel):
+    target: str | None = None
+
+
+@router.post("/{pid}/data/{candidate_id}/select")
+def select_data(pid: str, candidate_id: str, body: SelectIn | None = None, s: Session = Depends(get_session)):
+    """The user's click is the approval. Same service as the agent's select_dataset tool."""
+    p = _project(s, pid)
+    if p.status != "described":
+        raise HTTPException(409, "a dataset was already chosen for this project")
+    storage = get_storage()
+    target = body.target if body else None
+    try:
+        if not target:
+            cols = datasets.candidate_columns(s, storage, p, candidate_id)
+            raise HTTPException(400, "which column should we predict? Columns: " + ", ".join(cols))
+        v = datasets.select_candidate(s, storage, p, candidate_id, target)
+    except datasets.DatasetError as e:
+        raise HTTPException(400, str(e))
+    return {"rows": v.rows, "target": v.target_column, "status": p.status}
+
+
+@router.post("/{pid}/readiness")
+def readiness(pid: str, s: Session = Depends(get_session)):
+    p = _project(s, pid)
+    if p.status == "described":
+        raise HTTPException(409, "choose a dataset first")
+    if p.status != "data_chosen":
+        raise HTTPException(409, "the readiness check was already done for this project")
+    r = analysis.readiness(s, get_storage(), p)
+    return {"grade": r.grade, "findings": r.findings, "status": p.status}
+
+
+@router.post("/{pid}/baseline")
+def baseline(pid: str, s: Session = Depends(get_session)):
+    p = _project(s, pid)
+    if p.status in ("described", "data_chosen"):
+        raise HTTPException(409, "choose a dataset first" if p.status == "described" else "run the readiness check first")
+    if p.status != "readiness_done":
+        raise HTTPException(409, "the free test was already done for this project")
+    r = analysis.baseline(s, get_storage(), p)
+    return {"accuracy": r.accuracy, "simple_guess_accuracy": r.simple_guess_accuracy, "trust_level": p.trust_level, "status": p.status}
+
+
+@router.get("/{pid}/payment")
+def project_payment(pid: str, s: Session = Depends(get_session)):
+    _project(s, pid)
+    q = gate.latest_quote(s, pid)
+    pay = payments_repo.for_quote(s, q.id) if q else None
+    if pay is None:
+        raise HTTPException(404, "no payment has been started for this project")
+    return {**receipt(pay), "project_id": pid}
+
+
 @router.post("/{pid}/quote/approve")
 def approve_quote(pid: str, s: Session = Depends(get_session)):
     p = _project(s, pid)
     q = gate.latest_quote(s, pid)
     if q is None:
         raise HTTPException(400, "no quote yet")
+    if q.approved_at is not None:  # a repeat returns the same result
+        exp = q.expires_at if q.expires_at.tzinfo else q.expires_at.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
+            raise HTTPException(400, "this quote has expired; ask for a new one")
+        return {"approved": True, "cap_cents": q.cap_cents}
     try:
         quotes.approve_quote(s, p, q)
     except (quotes.QuoteError, lifecycle.BadTransition) as e:
@@ -115,7 +218,7 @@ def training_progress(pid: str, s: Session = Depends(get_session)):
     _project(s, pid)
     run = training.active_run(s, pid)
     if run is None:
-        raise HTTPException(404, "no training has started for this project")
+        return {"status": "not_started"}
     return training.progress(s, run)
 
 

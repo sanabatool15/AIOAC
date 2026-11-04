@@ -45,13 +45,17 @@ def authorize(payment_id: str, s: Session = Depends(get_session)):
     return {"held": ok, "state": pay.state}
 
 
-@router.get("/{payment_id}")
-def read(payment_id: str, s: Session = Depends(get_session)):
+def receipt(pay) -> dict:
     """Receipt data: what was held, the compute captured, the fee captured, and what was released."""
-    pay = payments_repo.get(s, payment_id)
-    if pay is None:
-        raise HTTPException(404)
-    return {"payment_id": pay.id, "state": pay.state, "hold_cents": pay.amount_cents,
+    return {"payment_id": pay.id, "state": pay.state, "hold_cents": pay.amount_cents, "approve_url": pay.approve_url,
             "compute_captured_cents": pay.compute_captured_cents, "fee_captured_cents": pay.fee_captured_cents,
             "released_cents": pay.released_cents,
             "total_charged_cents": pay.compute_captured_cents + pay.fee_captured_cents}
+
+
+@router.get("/{payment_id}")
+def read(payment_id: str, s: Session = Depends(get_session)):
+    pay = payments_repo.get(s, payment_id)
+    if pay is None:
+        raise HTTPException(404)
+    return receipt(pay)

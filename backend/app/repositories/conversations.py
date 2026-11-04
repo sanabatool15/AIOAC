@@ -46,3 +46,10 @@ def messages_after_summary(session: Session, conv: Conversation, upto_seq: int) 
 
 def all_messages(session: Session, conv_id: str) -> list[Message]:
     return list(session.scalars(select(Message).where(Message.conversation_id == conv_id).order_by(Message.seq)))
+
+
+def project_messages(session: Session, project_id: str) -> list[Message]:
+    """Every message of every conversation of a project, oldest first (the UI filters what it shows)."""
+    return list(session.scalars(select(Message).join(Conversation, Message.conversation_id == Conversation.id)
+                                .where(Conversation.project_id == project_id)
+                                .order_by(Conversation.created_at, Conversation.id, Message.seq)))
