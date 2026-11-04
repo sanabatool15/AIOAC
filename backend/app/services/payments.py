@@ -60,11 +60,11 @@ def create_order(session: Session, provider: PaymentProvider, provider_name: str
     if existing:
         return existing, existing.approve_url
     order = provider.create_hold(quote.cap_cents, project.id)
-    pay = payments_repo.add(session, project_id=project.id, quote_id=quote.id, provider=provider_name,
+    pay = payments_repo.add_for_quote(session, project_id=project.id, quote_id=quote.id, provider=provider_name,
                             provider_order_id=order.order_id, amount_cents=quote.cap_cents,
                             compute_amount_cents=quote.compute_cap_cents, fee_amount_cents=quote.fee_cents,
                             approve_url=order.approve_url, state="none")
-    return pay, order.approve_url
+    return pay, pay.approve_url
 
 
 def confirm_hold(session: Session, provider: PaymentProvider, payment: Payment) -> bool:

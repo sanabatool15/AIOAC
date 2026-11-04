@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from ..db import Session
 from ..db.tables import Payment
@@ -41,6 +42,19 @@ def add(session: Session, **fields) -> Payment:
     session.add(pay)
     session.commit()
     return pay
+
+
+def add_for_quote(session: Session, **fields) -> Payment:
+    """Like add, but quote_id is unique: if a concurrent request already created the payment for this quote, return
+    that one instead of failing. (The losing request's PayPal order was never approved, so nothing is held for it.)"""
+    try:
+        return add(session, **fields)
+    except IntegrityError:
+        session.rollback()
+        existing = for_quote(session, fields["quote_id"])
+        if existing is None:
+            raise
+        return existing
 
 
 def save(session: Session, payment: Payment, **values) -> None:

@@ -220,3 +220,34 @@ def test_p8_second_train_request_with_a_stale_status_creates_no_second_run(sessi
         training.start_training(other, stale, _backend())  # request 2 still believes the project is `paid`
     assert len(list(session.scalars(select(TrainingRun).where(TrainingRun.project_id == chosen.id)))) == 1
     other.close()
+
+
+# ---- P8b: two /payments/orders requests for one quote return one payment, not a 500 -------------------------------
+def test_p8_concurrent_create_order_returns_the_winners_payment(session, storage, chosen):
+    from sqlalchemy.orm import Session as OrmSession
+
+    class Racy(MockPaymentProvider):
+        raced = False
+
+        def create_hold(self, amount_cents, project_id):
+            order = super().create_hold(amount_cents, project_id)
+            if not self.raced:  # another request finishes first, while this one waits for PayPal
+                self.raced = True
+                from app.services import gate
+                other = OrmSession(bind=session.get_bind(), expire_on_commit=False)
+                quote = gate.latest_quote(other, project_id)
+                winner_order = super().create_hold(amount_cents, project_id)
+                payments_repo.add(other, project_id=project_id, quote_id=quote.id, provider="mock",
+                                  provider_order_id=winner_order.order_id, amount_cents=quote.cap_cents,
+                                  compute_amount_cents=quote.compute_cap_cents, fee_amount_cents=quote.fee_cents,
+                                  approve_url=winner_order.approve_url, state="none")
+                other.close()
+            return order
+
+    prov = Racy()
+    q, pay = ready_to_pay(session, storage, chosen, MockPaymentProvider())  # quote approved; order made by a plain double
+    session.delete(pay)
+    session.commit()
+    got, url = payments.create_order(session, prov, "mock", chosen)
+    assert got.quote_id == q.id and got.state == "none" and url == got.approve_url
+    assert payments_repo.for_quote(session, q.id).id == got.id
