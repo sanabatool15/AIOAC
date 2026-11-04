@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     paypal_client_secret: str = ""
     paypal_webhook_id: str = ""
     paypal_base_url: str = "https://api-m.sandbox.paypal.com"  # sandbox only (CLAUDE.md rule 2)
+    cors_origins: str = "http://localhost:3000"  # comma-separated list of browser origins allowed to call the API
     paypal_return_url: str = "http://localhost:3000/pay/return"
     paypal_cancel_url: str = "http://localhost:3000/pay/cancel"
 
