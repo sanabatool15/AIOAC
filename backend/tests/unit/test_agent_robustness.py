@@ -191,3 +191,32 @@ def test_slow_free_tool_times_out_with_plain_message(session, storage, provider,
     r = go(session, storage, provider, project, [call("search_datasets", query="x"), LLMResponse(text="unreached")])
     assert r.status == "limit" and r.reason == "timeout" and "took too long" in r.text
     assert any(s.kind == "limit" for s in TraceRepository(session).steps(project.id))
+
+
+def test_check_args_names_the_field_for_every_type():
+    from app.services.agent.guards import check_args
+    schema = {"type": "object", "required": ["n", "xs"], "properties": {
+        "n": {"type": "number"}, "k": {"type": "integer"}, "flag": {"type": "boolean"},
+        "xs": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 3}}}
+    ok = {"n": 0.5, "xs": ["a", "b"]}
+    assert check_args(schema, ok) is None
+    assert "'n' must be a number" in check_args(schema, {**ok, "n": "0.8"})
+    assert "'n' must be a number" in check_args(schema, {**ok, "n": True})  # a bool is not a number
+    assert "'k' must be a whole number" in check_args(schema, {**ok, "k": 1.5})
+    assert "'flag' must be true or false" in check_args(schema, {**ok, "flag": "yes"})
+    assert "'xs' must be a list" in check_args(schema, {**ok, "xs": "a,b"})
+    assert "'xs' must have 2 to 3 items" in check_args(schema, {**ok, "xs": ["a"]})
+    assert "'xs' item 2 must be a non-empty text value" in check_args(schema, {**ok, "xs": ["a", 5]})
+
+
+def test_a_text_target_for_the_pilot_is_refused_with_a_field_message(session, storage, provider, project):
+    from tests.helpers.builders import call, ctx
+    from app.ports import LLMResponse
+    from doubles.llm import FakeLLM
+    from app.services.agent.loop import run_agent
+    from app.repositories.traces import TraceRepository
+    project.status = "baseline_done"
+    session.commit()
+    run_agent(ctx(session, storage, provider, project), FakeLLM([call("run_pilot", target="eighty percent"), LLMResponse(text="ok")]), "go")
+    res = [s.content["result"] for s in TraceRepository(session).steps(project.id, ("tool_result",))]
+    assert "'target' must be a number" in res[0]["error"]

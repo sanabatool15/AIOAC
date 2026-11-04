@@ -34,8 +34,18 @@ def correct_reply(text: str, status: str, problems: list[str]) -> str:
             f"We are at the '{status.replace('_', ' ')}' step.")
 
 
+_TYPES = {
+    "string": (lambda v: isinstance(v, str), "a non-empty text value"),
+    "number": (lambda v: isinstance(v, (int, float)) and not isinstance(v, bool), "a number"),
+    "integer": (lambda v: isinstance(v, int) and not isinstance(v, bool), "a whole number"),
+    "boolean": (lambda v: isinstance(v, bool), "true or false"),
+    "array": (lambda v: isinstance(v, list), "a list"),
+    "object": (lambda v: isinstance(v, dict), "an object"),
+}
+
+
 def check_args(parameters: dict, args) -> str | None:
-    """Return a problem description if the model's arguments do not fit the tool, else None."""
+    """Return a field-level problem description (sent to the model) if the arguments do not fit the tool's schema, else None."""
     if not isinstance(args, dict):
         return "the arguments must be an object"
     props = parameters.get("properties", {})
@@ -43,6 +53,18 @@ def check_args(parameters: dict, args) -> str | None:
     if missing:
         return "missing: " + ", ".join(missing)
     for k, spec in props.items():
-        if k in args and spec.get("type") == "string" and (not isinstance(args[k], str) or not args[k].strip()):
+        if k not in args:
+            continue
+        v, kind = args[k], spec.get("type")
+        if kind in _TYPES and not _TYPES[kind][0](v):
+            return f"'{k}' must be {_TYPES[kind][1]}"
+        if kind == "string" and not v.strip():
             return f"'{k}' must be a non-empty text value"
+        if kind == "array":
+            lo, hi = spec.get("minItems"), spec.get("maxItems")
+            if (lo is not None and len(v) < lo) or (hi is not None and len(v) > hi):
+                return f"'{k}' must have {lo if lo is not None else 0} to {hi if hi is not None else 'any number of'} items"
+            item = (spec.get("items") or {}).get("type")
+            if item in _TYPES and (bad := next((j for j, x in enumerate(v) if not _TYPES[item][0](x)), None)) is not None:
+                return f"'{k}' item {bad + 1} must be {_TYPES[item][1]}"
     return None
