@@ -1,12 +1,12 @@
 # HTTP API Contract
 
-Status: written 2026-11-04 from the route code in `backend/app/routes/` and the services they call. Section A is BUILT and was read from code. Section B is PLANNED: a decided design that is not yet in the code.
+Status: written 2026-11-04 from the route code in `backend/app/routes/` and the services they call. Section A is BUILT and was read from code. Section B is PLANNED: a decided design that is not yet in the code. Updated 2026-11-04: B1 to B5, the messages route, `GET /projects/{id}/payment`, `approve_url`, `not_started` and idempotent approve are now built (section A0 below).
 
 Conventions (built):
 - One id: the project id. `/chats/{id}`, `/jobs/{id}` and `/agreements/{id}` are aliases of it (see `payments.md` section 6).
 - Money is whole cents. Rates (accuracy, target, confidence, fraction) are 0 to 1. JSON keys are snake_case.
 - Errors are FastAPI's `{"detail": "<plain message>"}`. A body that fails validation gives 422 with `detail` as a list.
-- No login. No CORS (B1). No URL prefix: `http://localhost:8000`.
+- No login. CORS allows `CORS_ORIGINS` (default `http://localhost:3000`). No URL prefix: `http://localhost:8000`.
 - Quote and forecast numbers are estimates (`is_estimate: true`).
 
 ## A. BUILT endpoints
@@ -22,7 +22,7 @@ Conventions (built):
 - `baseline` is `{accuracy, simple_guess_accuracy}` (0 to 1) or null.
 - `quote` is the latest quote or null: `{id, estimate_cents, low_cents, high_cents, cap_cents, success_fee_max_cents, approved}`.
 - 404 `project not found`.
-- Thin today: no dataset, forecast, payment or run (see B5).
+- Fuller since 2026-11-04 (see A0).
 
 `POST /projects/{id}/chat` body `{message?: string, approve?: string[]}` -> 200 `{status, text, card}`.
 - `status`: `reply` | `awaiting_approval` | `limit` | `error`. `card` is null except for `awaiting_approval`.
@@ -86,9 +86,26 @@ Conventions (built):
 Payment `state`: `none`, `held`, `compute_captured`, `fee_captured`, `fee_skipped`, `released`, `voided`, `expired`, `declined`.
 
 ### A6. No route exists for
-List of projects, message history, select dataset, readiness, baseline, payment by project, predict (one record or CSV), model download, share link, auth. No CORS.
+Predict (one record or CSV), model download, share link, auth. No CORS.
+
+## A0. Added 2026-11-04 (step 1, non-payment items; BUILT)
+
+- CORS: `CORSMiddleware`, setting `CORS_ORIGINS` (comma list, default `http://localhost:3000`), credentials allowed.
+- `POST /projects/{id}/data/{candidate_id}/select` body `{target?: string}` -> 200 `{rows, target, status: "data_chosen"}`. Wraps `datasets.select_candidate`. 409 `a dataset was already chosen for this project` unless status is `described`. 400 `unknown dataset`, `column 'x' not found`, or `which column should we predict? Columns: a, b, ...` when `target` is missing. Not built: a suggested target stored on the candidate; today `target` is required in practice.
+- `POST /projects/{id}/readiness` -> 200 `{grade, findings: [{kind, text}], status}` (wraps `analysis.readiness`). 409 `choose a dataset first` (status `described`) or `the readiness check was already done for this project`.
+- `POST /projects/{id}/baseline` -> 200 `{accuracy, simple_guess_accuracy, trust_level, status}` (wraps `analysis.baseline`). 409 `choose a dataset first`, `run the readiness check first`, or `the free test was already done for this project`.
+- `GET /projects` -> `[{id, goal, status, created_at}]`, newest first.
+- `GET /projects/{id}` now also returns `dataset {rows, columns, target, source, license}`, `readiness {grade, findings}`, `forecast` (the A3 view), `payment {payment_id, state, approve_url, hold_cents}` and `run {run_id, status}`; each is null until it exists.
+- `GET /projects/{id}/messages` -> `[{id, role, text, kind, card?, created_at}]`. Chat text of the user and assistant (kind `chat` or `note`) and approval cards (`kind: "card"`, role `assistant`, `text` = the card's `what`, `card` = the full card). Tool results, skills and empty tool-call turns are not returned.
+- `GET /projects/{id}/payment` -> the receipt body plus `project_id`; 404 `no payment has been started for this project`. `GET /payments/{id}` now includes `approve_url`.
+- `GET /projects/{id}/training` before any run -> 200 `{status: "not_started"}`.
+- `POST /projects/{id}/quote/approve` is idempotent: an approved, unexpired quote returns 200 `{approved: true, cap_cents}` again. An expired one still gives 400.
+
+Still in B: `blocks` on chat replies (U5) and the 409 status codes on `/train` and `/payments/orders` (step 2).
 
 ## B. PLANNED (not built)
+
+B1 to B5 and B7, and the `not_started` and idempotent-approve parts of B6, are built (see A0). The text below is kept as the design record.
 
 Order of work: `breakpoints.md`.
 

@@ -1,18 +1,18 @@
 # Known Breakpoints and Fix Plan
 
-Status: 2026-11-04. Found by audits and re-checked against the code. Paths are under `backend/app/` unless noted; line numbers are approximate and will move. Every row is `open`. The API target is in `specs/api.md` section B.
+Status: 2026-11-04. Found by audits and re-checked against the code. Paths are under `backend/app/` unless noted; line numbers are approximate and will move. Rows are `open` unless marked. The API target is in `specs/api.md` section B.
 
 ## 1. UI cannot drive the backend
 
 | Id | Problem | Where | Fix | Status |
 |---|---|---|---|---|
-| U1 | No CORS: the browser blocks calls from `localhost:3000` | `main.py` (no middleware) | Add `CORSMiddleware`, setting `CORS_ORIGINS` (api.md B1) | open |
-| U2 | No routes to select a dataset, run readiness or run the baseline. Only the agent can, through chat | `routes/projects.py` | Add the three routes as thin wrappers over `datasets.select_candidate`, `analysis.readiness`, `analysis.baseline` (api.md B2, B3) | open |
-| U3 | `GET /projects/{id}` is thin: no dataset, forecast, payment, run or readiness findings; no list of projects | `routes/projects.py:48-56` | Fuller read and `GET /projects` (api.md B4, B5) | open |
-| U4 | No message history route, though messages are stored | `routes/projects.py`; tables `conversations`, `messages` | `GET /projects/{id}/messages` (api.md B6) | open |
+| U1 | No CORS: the browser blocks calls from `localhost:3000` | `main.py` (no middleware) | Add `CORSMiddleware`, setting `CORS_ORIGINS` (api.md B1) | done |
+| U2 | No routes to select a dataset, run readiness or run the baseline. Only the agent can, through chat | `routes/projects.py` | Add the three routes as thin wrappers over `datasets.select_candidate`, `analysis.readiness`, `analysis.baseline` (api.md B2, B3) | done |
+| U3 | `GET /projects/{id}` is thin: no dataset, forecast, payment, run or readiness findings; no list of projects | `routes/projects.py:48-56` | Fuller read and `GET /projects` (api.md B4, B5) | done |
+| U4 | No message history route, though messages are stored | `routes/projects.py`; tables `conversations`, `messages` | `GET /projects/{id}/messages` (api.md B6) | done |
 | U5 | Chat reply is `{status, text, card}`: no `blocks`, no `approve_url` | `routes/projects.py:59-66` | Add `blocks` built from stored state (api.md B6) | open |
-| U6 | No payment lookup by project, so a reload cannot find `payment_id`; receipt lacks `approve_url` | `routes/payments.py:272-281` | `GET /projects/{id}/payment`; add `approve_url` (api.md B7) | open |
-| U7 | Wrong-status errors use 403 on `/train` and `/payments/orders`; `/training` is 404 before a run; `quote/approve` fails on a repeat | `routes/projects.py:103,117,87`, `routes/payments.py:249` | 409, `not_started`, idempotent approve (api.md B6) | open |
+| U6 | No payment lookup by project, so a reload cannot find `payment_id`; receipt lacks `approve_url` | `routes/payments.py:272-281` | `GET /projects/{id}/payment`; add `approve_url` (api.md B7) | done |
+| U7 | Wrong-status errors use 403 on `/train` and `/payments/orders`; `/training` is 404 before a run; `quote/approve` fails on a repeat | `routes/projects.py:103,117,87`, `routes/payments.py:249` | 409, `not_started`, idempotent approve (api.md B6) | partly done (not_started and idempotent approve built; 409 codes are step 2) |
 | U8 | Frontend has no HTTP client, no status-to-screen mapper and no quote-approve step. All calls go to `frontend/lib/mock-api.ts` | `frontend/lib/` | `lib/api.ts` plus adapters and a status mapper (api.md B8, B9) | open |
 | U9 | Units, ids and metrics differ: dollars vs cents, percent vs 0-1, precision/recall vs accuracy, chat/job/agreement ids vs one project id, camelCase vs snake_case | `frontend/lib/types.ts`, `mock-api.ts` | One adapter layer (api.md B9); see `frontend-integration.md` section 4 | open |
 
