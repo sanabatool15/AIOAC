@@ -66,6 +66,9 @@ def create_order(session: Session, provider: PaymentProvider, provider_name: str
 def confirm_hold(session: Session, provider: PaymentProvider, payment: Payment) -> bool:
     """After the buyer approved in PayPal: place the hold and verify it server-side. False if not held (yet)."""
     if payment.state == "held" or payment.state in CAPTURED_OR_LATER:
+        project = projects_repo.get(session, payment.project_id)
+        if payment.state == "held" and project.status == "awaiting_payment":
+            lifecycle.transition(session, project, "paid")  # finish a transition that was saved but never made
         return True
     if payment.state != "none":
         return False  # voided, expired or declined: a new quote and a new hold are needed

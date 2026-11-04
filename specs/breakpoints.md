@@ -22,7 +22,7 @@ Small changes only, each with a test on the mock provider, each explained to the
 
 | Id | Problem | Where | Fix | Status |
 |---|---|---|---|---|
-| P1 | `confirm_hold` returns early when the payment is already `held` or later. If the hold was saved but the move to `paid` failed or was skipped, the project stays `awaiting_payment` for good | `services/payments.py:66-84` | On the early return, also move an `awaiting_payment` project to `paid` (same check as line 82) | open |
+| P1 | `confirm_hold` returns early when the payment is already `held` or later. If the hold was saved but the move to `paid` failed or was skipped, the project stays `awaiting_payment` for good | `services/payments.py:66-84` | On the early return, also move an `awaiting_payment` project to `paid` (same check as line 82) | done |
 | P2 | A new quote after a hold exists is allowed at any status. The latest quote changes, the old hold is no longer found by `current_payment`, and it is never voided | `services/cost/quotes.py:47` and `19-49` | Refuse a new quote while a non-terminal hold exists, or void that hold first | open |
 | P3 | `_settle` catches only `ProviderError`. A `PaymentError` (for example "provider did not confirm") leaves the project in `training`. `retry_settle` never moves the project to `done` | `services/training.py:68-77`, `119-149`, `213-222` | Catch `PaymentError` too and trace `settle_failed`; after a successful retry move the project to its final status | open |
 | P4 | `cancel` moves the project to `stopped` before `void_all`. If the void fails the project is stuck in `stopped` with a live hold | `services/payments.py:167-177` | Void first, then transition; or keep status until the void succeeded | open |
