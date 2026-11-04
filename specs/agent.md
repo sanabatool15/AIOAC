@@ -22,6 +22,9 @@ Settings in `config.py`. Every turn is stored as an `agent_runs` row (steps, tok
 - Maximum model tokens per turn (80,000) and per project (600,000), from the `usage` the model service reports.
 - Per-tool timeout (60 seconds) for free tools. Paid tools are never cut off by it. A tool that hangs ends the turn; the abandoned thread cannot be killed.
 - A project-level model cost ceiling (USD 1.00), separate from the training budget. Enforced only when the service reports `usage.cost`; without it, only the token limits apply.
+- Wall-clock deadline per turn (`agent_turn_deadline_s`, 120 s, 0 = off), checked before every model call and every tool call; ends the turn with `status: limit`, `reason: timeout`. A single model or tool call already in flight is not interrupted.
+- Approved card, text-only reply: if the user approved a card (`approve=[...]`) and the model answers without making that call, the server runs the call stored on the card (the exact arguments the user saw), once per turn, through the normal gate. Chosen over re-prompting because it needs no extra model call and cannot be talked out of by the model. It never runs a tool whose action the user did not approve. Traced as `approved_call_forced`.
+- Argument checks cover string, number, integer, boolean, array (items, min/max) and object, and send a field-level message back to the model.
 - Repeat guard: the same call with the same arguments more than 3 times in one turn ends the turn.
 
 When a limit is hit, the agent stops and tells the user in plain words (`status: limit` with a `reason`). If the model service fails, the turn ends with `status: error` and a plain message. The OpenRouter client retries once on timeouts, rate limits and 5xx errors.

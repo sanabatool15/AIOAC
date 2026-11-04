@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from ...config import settings
 from ...db.tables import AgentRun
-from ...ports import LLMClient, LLMError
+from ...ports import LLMClient, LLMError, ToolCall
 from ...repositories import agent_runs, transactions
 from ...repositories.traces import TraceRepository
 from .. import gate
@@ -30,7 +30,7 @@ LIMIT_TEXT = {
     "cost": "I have reached the spending limit for my own running costs on this project, so I have stopped. "
             "This is separate from your training price. A person needs to review before I continue.",
     "repeat": "I seemed to be going in circles, so I stopped. Tell me what you would like me to do next.",
-    "timeout": "One of my checks took too long, so I stopped. Please try again in a moment.",
+    "timeout": "This took too long, so I stopped. Please try again in a moment.",
 }
 
 
@@ -109,6 +109,8 @@ def run_agent(ctx: ToolContext, llm: LLMClient, user_message: str | None, log: R
 def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: AgentRun, conv, log: RunLog) -> AgentResult:
     trace = TraceRepository(ctx.session)
     pid = ctx.project.id
+    # the card the user is answering now: if they approved it and the model does not make the call, the server makes it (see below)
+    approved_card = memory.pending_card(ctx.session, conv) if ctx.approved else None
     ctx.log = log  # lets tools write their own events to the same run log
     if user_message:
         trace.add(pid, "user", {"text": user_message}, run.id)
@@ -126,9 +128,16 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
         return AgentResult("limit", text=LIMIT_TEXT[reason], reason=reason)
 
     prior_tokens, prior_micros = _project_usage(ctx.session, pid, run.id)
+    carried_out = False
+    deadline = time.monotonic() + settings.agent_turn_deadline_s if settings.agent_turn_deadline_s > 0 else None
+
+    def out_of_time() -> bool:
+        return deadline is not None and time.monotonic() >= deadline
 
     for step in range(1, settings.agent_max_steps + 1):
         log.step = step
+        if out_of_time():
+            return stop("timeout")
         # limits are checked before every model call, using usage the service reported
         if run.tokens_used >= settings.agent_max_tokens_per_turn:
             return stop("tokens")
@@ -170,6 +179,17 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
                  finish_reason=resp.finish_reason, text=resp.text,
                  tool_calls=[{"id": c.id, "name": c.name, "args": c.args} for c in resp.tool_calls])
 
+        if approved_card and any(c.name == approved_card.get("tool") for c in resp.tool_calls):
+            carried_out = True  # the model made the approved call itself
+        if not resp.tool_calls and approved_card and not carried_out:
+            # The user approved this card but the model answered with text only. Run the call stored on the card (the exact
+            # arguments the user saw). The gate still decides: it needs the matching approval and re-checks stored state.
+            carried_out = True
+            t = TOOLS.get(approved_card.get("tool", ""))
+            if t is not None and t.action.value in ctx.approved and isinstance(approved_card.get("args"), dict):
+                log.emit("approved_call_forced", "WARN", tool=t.name, args=approved_card["args"])
+                trace.add(pid, "approved_call_forced", {"tool": t.name}, run.id)
+                resp.tool_calls = [ToolCall(f"approved-{run.id[:8]}", t.name, approved_card["args"])]
         if not resp.tool_calls:
             text = resp.text or ""
             problems = guards.false_claims(text, ctx.project.status)
@@ -204,6 +224,9 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
             if seen[sig] > REPEAT_LIMIT:
                 close_group("the turn was stopped")
                 return stop("repeat")
+            if out_of_time():
+                close_group("the turn ran out of time")
+                return stop("timeout")
             tool = TOOLS.get(call.name)
             trace.add(pid, "tool_call", {"name": call.name, "args": call.args}, run.id)
             log.emit("tool_call", call_id=call.id, name=call.name, args=call.args)

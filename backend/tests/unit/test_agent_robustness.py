@@ -220,3 +220,17 @@ def test_a_text_target_for_the_pilot_is_refused_with_a_field_message(session, st
     run_agent(ctx(session, storage, provider, project), FakeLLM([call("run_pilot", target="eighty percent"), LLMResponse(text="ok")]), "go")
     res = [s.content["result"] for s in TraceRepository(session).steps(project.id, ("tool_result",))]
     assert "'target' must be a number" in res[0]["error"]
+
+
+def test_turn_deadline_ends_the_turn_with_timeout(session, storage, provider, project, monkeypatch):
+    import time
+    from app.config import settings
+    monkeypatch.setattr(settings, "agent_turn_deadline_s", 0.05)
+
+    class Slow(FakeLLM):
+        def chat(self, messages, tools):
+            time.sleep(0.1)
+            return super().chat(messages, tools)
+
+    r = run_agent(ctx(session, storage, provider, project), Slow([call("search_datasets", query="a"), call("search_datasets", query="b"), LLMResponse(text="late")]), "go")
+    assert r.status == "limit" and r.reason == "timeout"

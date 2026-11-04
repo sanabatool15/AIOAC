@@ -55,3 +55,24 @@ def test_step_limit(session, storage, provider, project):
 def test_unknown_tool_is_reported_not_crashed(session, storage, provider, project):
     r = run_agent(ctx(session, storage, provider, project), FakeLLM([call("rm_rf"), LLMResponse(text="ok")]), "x")
     assert r.status == "reply"
+
+
+def test_approved_tool_runs_server_side_when_the_model_answers_text_only(session, storage, provider, project):
+    """The user approved the card; the model just chats. The stored card's call is carried out by the server (the gate still checks)."""
+    run_agent(ctx(session, storage, provider, project), FakeLLM([call("search_datasets", query="churn"), call("fetch_dataset", dataset_id="sample-churn")]), "predict churn")
+    from app.db.tables import DatasetCandidate
+    cand = session.query(DatasetCandidate).one()
+    r2 = run_agent(ctx(session, storage, provider, project), FakeLLM([call("select_dataset", candidate_id=cand.id, target="left")]), "that one")
+    assert r2.status == "awaiting_approval" and project.status == "described"
+    llm = FakeLLM([LLMResponse(text="Sure, happy to help!"), LLMResponse(text="Your data is chosen.")])
+    r3 = run_agent(ctx(session, storage, provider, project, {"select_dataset"}), llm, None)
+    assert project.status == "data_chosen" and r3.status == "reply" and "chosen" in r3.text
+
+
+def test_approval_never_runs_a_tool_the_user_did_not_approve(session, storage, provider, project):
+    run_agent(ctx(session, storage, provider, project), FakeLLM([call("search_datasets", query="churn"), call("fetch_dataset", dataset_id="sample-churn")]), "x")
+    from app.db.tables import DatasetCandidate
+    cand = session.query(DatasetCandidate).one()
+    run_agent(ctx(session, storage, provider, project), FakeLLM([call("select_dataset", candidate_id=cand.id, target="left")]), "that one")
+    r = run_agent(ctx(session, storage, provider, project, {"request_payment"}), FakeLLM([LLMResponse(text="ok")]), None)
+    assert project.status == "described" and r.status == "reply"
