@@ -73,10 +73,13 @@ NEXT_STEP = {
     "readiness_done": "Run the free baseline test.",
     "baseline_done": "Ask the user for their target if you do not have it, run the free pilot, and explain the forecast. If it is eligible create the quote; if not, say honestly why.",
     "quoted": "Wait for the user to approve the quote on screen. A new target means a new free pilot.",
-    "awaiting_payment": "Request the hold, then wait for the user to approve it in PayPal. Nothing is charged yet.",
+    "awaiting_payment": "Request the hold, then wait for the user to approve it in PayPal. Nothing is charged yet. If the quote has expired, create a new quote instead.",
     "paid": "Start training.",
     "training": "Training is running. Report progress in plain words.",
     "done": "Help the user use the result.",
+    "failed": "The run failed on our side. Say so plainly: the whole PayPal hold is released, so nothing is charged. You have no tools here; do not offer to retry or start anything.",
+    "stopped": "The run was stopped. The user pays only the compute used so far and no success fee, and the rest of the hold is released. Explain this plainly; you have no tools here.",
+    "voided": "The hold was released with no charge. Explain this plainly; you have no tools here. Starting again needs a new project or a new quote from the user.",
 }
 
 TOOLS_BY_STATUS = {
@@ -85,7 +88,7 @@ TOOLS_BY_STATUS = {
     "readiness_done": ["load_skill", "run_baseline"],
     "baseline_done": ["load_skill", "run_pilot", "create_quote"],
     "quoted": ["load_skill", "run_pilot", "create_quote"],
-    "awaiting_payment": ["load_skill", "request_payment"],
+    "awaiting_payment": ["load_skill", "request_payment", "create_quote"],  # create_quote: a way out when the quote expired (the gate and the quote service still decide)
     "paid": ["load_skill", "start_training"],
 }
 DEFAULT_TOOLS = ["load_skill"]
@@ -93,6 +96,12 @@ DEFAULT_TOOLS = ["load_skill"]
 
 def tool_names(status: str) -> list[str]:
     return TOOLS_BY_STATUS.get(status, DEFAULT_TOOLS)
+
+
+def _expired(q) -> bool:
+    from datetime import datetime, timezone
+    exp = q.expires_at if q.expires_at.tzinfo else q.expires_at.replace(tzinfo=timezone.utc)
+    return exp < datetime.now(timezone.utc)
 
 
 def state_block(session: Session, project: Project, approved=(), pending: dict | None = None) -> str:
@@ -114,6 +123,8 @@ def state_block(session: Session, project: Project, approved=(), pending: dict |
     if q:
         lines.append(f"Quote (estimate): {q.estimate_cents}c (compute + success fee of 5% of compute, at most {q.fee_cents}c), range {q.low_cents}-{q.high_cents}c, cap {q.cap_cents}c, "
                      f"{'approved' if q.approved_at else 'not approved yet'}")
+    if q and q.approved_at and project.status in ("quoted", "awaiting_payment") and _expired(q):
+        lines.append("The quote has EXPIRED. The user needs a new one: call create_quote (a new approval is needed afterwards).")
     if pending and not approved:
         lines.append(f"Waiting for the user to approve: {pending.get('tool')}({json.dumps(pending.get('args'), default=str)[:200]}). "
                      "Do not call it again until they answer.")

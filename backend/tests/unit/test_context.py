@@ -76,3 +76,23 @@ def test_state_block_lists_fetched_candidates_so_the_model_can_propose_select_ag
     from app.services.data import datasets
     c = datasets.add_candidate(session, storage, project, "churn", "bundled", churn_csv(300))
     assert c.id in context.state_block(session, project)
+
+
+def test_awaiting_payment_offers_a_new_quote_for_an_expired_one():
+    assert "create_quote" in context.tool_names("awaiting_payment") and "request_payment" in context.tool_names("awaiting_payment")
+    assert "start_training" not in context.tool_names("awaiting_payment")
+
+
+def test_terminal_states_have_no_paid_tools_and_a_plain_next_step():
+    for status in ("done", "failed", "stopped", "voided"):
+        assert context.tool_names(status) == ["load_skill"]
+        assert context.NEXT_STEP[status]
+    assert "no charge" in context.NEXT_STEP["voided"] or "released" in context.NEXT_STEP["voided"]
+
+
+def test_state_block_flags_an_expired_quote(session, project):
+    from tests.helpers.builders import make_quote
+    project.status = "awaiting_payment"
+    make_quote(session, project, expired=True)
+    block = context.state_block(session, project)
+    assert "EXPIRED" in block and "create_quote" in block

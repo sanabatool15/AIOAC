@@ -2,10 +2,8 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import {
   csvColumns,
-  outOf100,
   quoteFromProject,
   targetFromOutOf100,
   toBaseline,
@@ -432,6 +430,3 @@ export function PayStep({ project, onChanged }: StepProps) {
     </Panel>
   );
 }
-
-// ---- progress bar helper reused by training ----
-export { ProgressBar, outOf100 };
