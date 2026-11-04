@@ -86,7 +86,7 @@ Prices in `prices.py` are placeholders (one instance type, 25 cents per hour, 24
 ### 3.5 Training (`services/training.py`, `integrations/training_local/`, `integrations/aws/`)
 After the gate allows it: run the backend on the work rows with the compute cap, store the model, add the cost to the global spend, verify once on the locked test set, then settle (capture, then void the rest). If the backend fails, the project goes to failed and then voided, and the whole hold is released. By default the backend is `local`, which costs nothing, so the default demo voids most of the hold. The `sagemaker` backend is implemented against mocked clients (see `training.md` section 2b) and has never talked to AWS.
 
-Training runs in the background (see `training.md` section 7): `/train` returns a run id, `GET /projects/{id}/training` shows progress, `POST /projects/{id}/training/stop` stops it. Exception: the agent's `start_training` tool still blocks on `training.run_training`.
+Training runs in the background (see `training.md` section 7): `/train` returns a run id, `GET /projects/{id}/training` shows progress, `POST /projects/{id}/training/stop` stops it. The agent's `start_training` tool uses the same queued path.
 
 ### 3.6 Datasets (`services/data/datasets.py`, `integrations/storage/`, `integrations/datasets/`)
 - Candidates are stored temporarily with an expiry time. Selecting one copies it to permanent storage and deletes the others. Expired candidates are purged by a function that nothing calls on a schedule yet. An orphan report lists stored files the database does not know about.

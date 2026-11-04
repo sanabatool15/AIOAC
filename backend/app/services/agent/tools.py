@@ -11,6 +11,7 @@ from ...repositories import datasets as datasets_repo
 from ...db.tables import Project
 from ...config import settings
 from ...ports import DatasetSource, SourceError
+from ...integrations.jobs.inline import InlineJobRunner
 from ...integrations.datasets.registry import SourceRegistry, as_registry
 from ...ports import PaymentProvider, Storage, TrainingBackend
 from ..data.samples import CATALOG
@@ -33,6 +34,7 @@ class ToolContext:
     source: DatasetSource | SourceRegistry   # a registry of sources, or a bare Hugging Face-style source (tests)
     approved: set[str] = field(default_factory=set)  # L1 actions the user approved this turn
     log: object | None = None                        # the run log, set by the agent loop; tools may emit events to it
+    runner: object | None = None                     # JobRunner for paid training; None builds a synchronous one (tests, evals)
 
     def emit(self, type: str, level: str = "INFO", **fields) -> None:
         if self.log is not None:
@@ -241,8 +243,15 @@ def request_payment(ctx, a):
 
 
 def start_training(ctx, a):
-    run = training.run_training(ctx.session, ctx.project, ctx.backend, ctx.storage, ctx.provider)
-    return {"status": run.status, "cost_cents": run.cost_cents, "result": run.result}
+    """Same path as POST /train: the gate, then the run is queued and this returns at once (the turn lock is not held)."""
+    runner = ctx.runner or InlineJobRunner(
+        lambda rid: training.execute_run(ctx.session, rid, ctx.backend, ctx.storage, ctx.provider), threaded=False)
+    try:
+        run = training.start_and_enqueue(ctx.session, ctx.project, ctx.backend, ctx.provider, runner)
+    except training.EnqueueFailed:
+        return {"error": "the training job could not be queued; nothing was charged and the hold is being released"}
+    return {"run_id": run.id, "status": run.status,
+            "next": "training runs in the background; tell the user it has started and that progress and the final cost appear on the training screen"}
 
 
 TOOLS: dict[str, Tool] = {t.name: t for t in [

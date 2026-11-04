@@ -296,3 +296,37 @@ def test_u7_pilot_message_is_accurate_for_later_statuses(session, chosen, status
         assert r.status_code == 409 and words in r.json()["detail"] and "baseline first" not in r.json()["detail"]
     finally:
         app.dependency_overrides.clear()
+
+
+# ---- A1: the agent's start_training tool must enqueue like POST /train, not block --------------------------------
+class RecordingRunner:
+    def __init__(self):
+        self.enqueued = []
+
+    def enqueue(self, run_id):
+        self.enqueued.append(run_id)
+
+    def is_active(self, run_id):
+        return run_id in self.enqueued
+
+
+def test_a1_agent_start_training_enqueues_and_returns_at_once(session, storage, chosen, provider, verdict):
+    from app.ports import LLMResponse
+    from app.services.agent.loop import run_agent
+    from app.repositories.traces import TraceRepository
+    from app.repositories import training_runs as runs_repo
+    from doubles.llm import FakeLLM
+    from tests.helpers.builders import call, ctx
+
+    held(session, storage, chosen, provider)
+    backend = _backend(cost=40)
+    runner = RecordingRunner()
+    c = ctx(session, storage, provider, chosen)
+    c.backend, c.runner = backend, runner
+    r = run_agent(c, FakeLLM([call("start_training"), LLMResponse(text="Training has started.")]), "go")
+    assert r.status == "reply"
+    run = runs_repo.latest_for_project(session, chosen.id)
+    assert runner.enqueued == [run.id] and run.status == "running" and chosen.status == "training"
+    res = [s.content["result"] for s in TraceRepository(session).steps(chosen.id, ("tool_result",))]
+    assert res[0]["run_id"] == run.id and res[0]["status"] == "running"
+    assert provider.capture_calls == [] and charged(session, chosen) == 0  # nothing ran or settled inside the turn

@@ -36,6 +36,10 @@ class NoActiveRun(Exception):
     pass
 
 
+class EnqueueFailed(Exception):
+    pass
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -50,6 +54,18 @@ def start_training(session: Session, project: Project, backend: TrainingBackend)
     if not projects_repo.claim_status(session, project, "paid", "training"):  # atomic: only one request can win
         raise gate.NotReady("training has already been started for this project")
     return runs_repo.create(session, project.id, backend.name, backend.instance_type, "waiting to start", _now())
+
+
+def start_and_enqueue(session: Session, project: Project, backend: TrainingBackend, provider: PaymentProvider, runner) -> TrainingRun:
+    """What POST /train and the agent's start_training tool both do: gate, move to `training`, create the run, hand
+    it to the job runner and return at once. If the runner cannot take it, nothing ran: the whole hold is voided."""
+    run = start_training(session, project, backend)
+    try:
+        runner.enqueue(run.id)
+    except Exception as exc:
+        fail_run(session, provider, run, "could not queue the job")
+        raise EnqueueFailed() from exc
+    return run
 
 
 def active_run(session: Session, project_id: str) -> TrainingRun | None:

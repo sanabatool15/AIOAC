@@ -202,15 +202,12 @@ def train(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_fact
     p = _project(s, pid)
     ctx = make(p)
     try:
-        run = training.start_training(s, p, ctx.backend)
+        run = training.start_and_enqueue(s, p, ctx.backend, ctx.provider, runner)
     except gate.NotReady as e:
         raise HTTPException(409, str(e))
     except gate.GateDenied as e:  # a real refusal, such as the global budget guard
         raise HTTPException(403, str(e))
-    try:
-        runner.enqueue(run.id)
-    except Exception:
-        training.fail_run(s, ctx.provider, run, "could not queue the job")  # nothing ran: the hold is voided
+    except training.EnqueueFailed:  # nothing ran: the hold was voided
         raise HTTPException(503, "could not start the training job; nothing was charged and your hold is being released")
     return {"run_id": run.id, "status": run.status}
 
