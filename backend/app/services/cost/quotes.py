@@ -7,6 +7,7 @@ from ...db.tables import Project, Quote
 from ...repositories import analysis as analysis_repo
 from ...repositories import datasets as datasets_repo
 from ...repositories import forecasts as forecasts_repo
+from ...repositories import payments as payments_repo
 from ...repositories import quotes as quotes_repo
 from .. import lifecycle
 from .cost import estimate_quote
@@ -19,6 +20,12 @@ class QuoteError(Exception):
 def create_quote(session: Session, project: Project) -> Quote:
     """One fixed price for the full run: estimated compute + a small success fee, with a hard cap.
     Refused unless the latest free pilot produced an eligible forecast (specs/payments.md)."""
+    if project.status not in {"baseline_done", "quoted", "awaiting_payment"}:
+        raise QuoteError(f"a new quote cannot be made now (the project is '{project.status}')")
+    previous = quotes_repo.latest_for_project(session, project.id)
+    old = payments_repo.for_quote(session, previous.id) if previous else None
+    if old is not None and old.state not in {"none", "voided", "expired", "declined"}:
+        raise QuoteError("a payment hold already exists for the current quote; cancel it before asking for a new quote")
     forecast = forecasts_repo.latest_for_project(session, project.id)
     if forecast is None:
         raise QuoteError("run the free pilot first: the quote needs its forecast")
@@ -44,8 +51,9 @@ def create_quote(session: Session, project: Project) -> Quote:
                    "forecast_confidence": forecast.confidence, "target": forecast.target},
         prices_version=est.prices_version,
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=settings.quote_ttl_minutes))
-    if project.status in {"baseline_done", "quoted", "awaiting_payment"}:
-        lifecycle.transition(session, project, "quoted")
+    if old is not None and old.state == "none":  # an order the buyer never approved: nothing is held at the provider
+        payments_repo.save(session, old, state="voided")
+    lifecycle.transition(session, project, "quoted")
     return q
 
 
