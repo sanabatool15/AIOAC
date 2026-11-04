@@ -251,3 +251,48 @@ def test_p8_concurrent_create_order_returns_the_winners_payment(session, storage
     got, url = payments.create_order(session, prov, "mock", chosen)
     assert got.quote_id == q.id and got.state == "none" and url == got.approve_url
     assert payments_repo.for_quote(session, q.id).id == got.id
+
+
+# ---- U7: wrong-status / not-ready is 409; 403 is only for real denials (the budget guard) -----------------------
+def _client(session):
+    from fastapi.testclient import TestClient
+    from app.db import get_session
+    from app.main import app
+    app.dependency_overrides[get_session] = lambda: session
+    return TestClient(app)
+
+
+def test_u7_not_ready_cases_are_409(session, chosen):
+    from app.main import app
+    c = _client(session)
+    try:
+        assert c.post("/payments/orders", json={"project_id": chosen.id}).status_code == 409  # no quote yet
+        r = c.post(f"/projects/{chosen.id}/train")
+        assert r.status_code == 409 and r.json()["detail"]  # no confirmed hold
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_u7_budget_denial_stays_403(session, storage, chosen, provider, monkeypatch):
+    from app.main import app
+    from app.services.cost import budget
+    held(session, storage, chosen, provider)
+    monkeypatch.setattr(budget, "can_start", lambda *a, **k: False)
+    c = _client(session)
+    try:
+        assert c.post(f"/projects/{chosen.id}/train").status_code == 403
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize("status,words", [("paid", "payment"), ("training", "training"), ("voided", "ended")])
+def test_u7_pilot_message_is_accurate_for_later_statuses(session, chosen, status, words):
+    from app.main import app
+    chosen.status = status
+    session.commit()
+    c = _client(session)
+    try:
+        r = c.post(f"/chats/{chosen.id}/pilot", json={"target": 0.8})
+        assert r.status_code == 409 and words in r.json()["detail"] and "baseline first" not in r.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()

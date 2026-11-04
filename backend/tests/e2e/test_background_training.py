@@ -100,7 +100,7 @@ def test_api_train_refused_without_payment(session, storage, chosen, provider):
     app = FastAPI()
     app.include_router(project_routes.router)
     app.dependency_overrides[get_session] = lambda: session
-    assert TestClient(app).post(f"/projects/{chosen.id}/train").status_code == 403
+    assert TestClient(app).post(f"/projects/{chosen.id}/train").status_code == 409
 
 
 def test_enqueue_failure_voids_everything(session, storage, chosen, provider, paid):

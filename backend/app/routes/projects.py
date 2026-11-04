@@ -203,7 +203,9 @@ def train(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_fact
     ctx = make(p)
     try:
         run = training.start_training(s, p, ctx.backend)
-    except gate.GateDenied as e:
+    except gate.NotReady as e:
+        raise HTTPException(409, str(e))
+    except gate.GateDenied as e:  # a real refusal, such as the global budget guard
         raise HTTPException(403, str(e))
     try:
         runner.enqueue(run.id)

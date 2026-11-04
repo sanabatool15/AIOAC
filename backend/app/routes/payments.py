@@ -22,6 +22,8 @@ def create_order(body: OrderIn, s: Session = Depends(get_session)):
         raise HTTPException(404)
     try:
         pay, url = payments.create_order(s, get_payment_provider(), settings.payment_provider, project)
+    except gate.NotReady as e:
+        raise HTTPException(409, str(e))
     except gate.GateDenied as e:
         raise HTTPException(403, str(e))
     except payments.PaymentError as e:

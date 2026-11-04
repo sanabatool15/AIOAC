@@ -34,6 +34,16 @@ def forecast_view(f: Forecast) -> dict:
             "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", [])}
 
 
+_PILOT_BLOCKED = {
+    "awaiting_payment": "a payment is already in progress for this project, so the free test cannot be run again now",
+    "paid": "the payment is already confirmed for this project, so the free test cannot be run again now",
+    "training": "training is already running for this project, so the free test cannot be run again now",
+    "failed": "this project has ended, so the free test cannot be run again",
+    "stopped": "this project has ended, so the free test cannot be run again",
+    "voided": "this project has ended, so the free test cannot be run again",
+}
+
+
 @router.post("/chats/{cid}/pilot")
 def run_pilot(cid: str, body: PilotIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
     """Free. Small test on about 5-10% of the data, then the forecast. After a MISSED run this is the Improve round."""
@@ -45,7 +55,7 @@ def run_pilot(cid: str, body: PilotIn, s: Session = Depends(get_session), make=D
         except lifecycle.BadTransition:
             raise HTTPException(409, "the finished run reached its target, so there is nothing to improve")
     if p.status not in {"baseline_done", "quoted"}:
-        raise HTTPException(409, "run the free baseline first")
+        raise HTTPException(409, _PILOT_BLOCKED.get(p.status, "run the free baseline first"))
     try:
         f = pilot.run_pilot(s, make(p).storage, p, body.target)
     except pilot.ForecastError as e:

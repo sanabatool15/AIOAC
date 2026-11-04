@@ -48,7 +48,7 @@ def start_training(session: Session, project: Project, backend: TrainingBackend)
     """Gate check, status -> training, create the run. Returns at once; the work happens in execute_run."""
     gate.authorize(session, project, gate.Action.START_TRAINING)  # raises GateDenied unless payment is server-verified
     if not projects_repo.claim_status(session, project, "paid", "training"):  # atomic: only one request can win
-        raise gate.GateDenied("training has already been started for this project")
+        raise gate.NotReady("training has already been started for this project")
     return runs_repo.create(session, project.id, backend.name, backend.instance_type, "waiting to start", _now())
 
 

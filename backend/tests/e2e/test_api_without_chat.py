@@ -66,7 +66,7 @@ def test_full_flow_without_chat(api):
     assert by_project["payment_id"] == order["payment_id"] and by_project["approve_url"] == order["approve_url"]
     assert by_project["project_id"] == pid
     assert api.get(f"/payments/{order['payment_id']}").json()["approve_url"] == order["approve_url"]
-    assert api.post(f"/projects/{pid}/train").status_code == 403  # no confirmed hold yet
+    assert api.post(f"/projects/{pid}/train").status_code == 409  # no confirmed hold yet
     assert api.post(f"/payments/{order['payment_id']}/authorize").json() == {"held": True, "state": "held"}
 
     detail = api.get(f"/projects/{pid}").json()

@@ -38,7 +38,7 @@ Conventions (built):
 - 400 `no quote yet`. 400 `this quote has expired; ask for a new one`. 400 with a status pair like `awaiting_payment -> awaiting_payment` on a second call (not idempotent, B6).
 
 `POST /projects/{id}/train` no body -> 200 `{run_id, status}` (status `running`). Returns at once; the job runs in the background.
-- 403 with the gate's reason: no quote, no server-confirmed hold for the current quote, project not `paid` (this is also what a second call gets: `project is 'training', not 'paid'`), or the global budget guard refused. Planned 409 (B6).
+- 409 with the gate's reason: no quote, no server-confirmed hold for the current quote, project not `paid`, or training already started (a second call). 403 only when the global budget guard refuses.
 - 503 `could not start the training job; nothing was charged and your hold is being released`. The hold is voided.
 
 `GET /projects/{id}/training` -> 200 `{run_id, status, stage, fraction, elapsed_seconds, spend_so_far_cents, spend_is_estimate, cap_cents, eta, stop_requested, result}`.
@@ -75,7 +75,7 @@ Conventions (built):
 
 `POST /payments/orders` body `{project_id}` -> 200 `{payment_id, hold_cents, compute_max_cents, success_fee_max_cents, approve_url, state}`. State `none` means nothing is held yet.
 - Returns the existing payment for the current quote if there is one (a reload resumes it), even if it is `declined` or `expired`.
-- 403 gate reason (no quote, quote not approved, quote expired). Planned 409 (B6). 404 unknown project. 502 `The payment service could not be reached. Nothing was charged...`.
+- 409 gate reason (no quote, quote not approved, quote expired); 409 also when the payment for the quote is dead (expired, declined, voided: ask for a new quote) or the project can no longer take a payment. 404 unknown project. 502 `The payment service could not be reached. Nothing was charged...`.
 
 `POST /payments/{payment_id}/authorize` no body -> 200 `{held: bool, state}`. The server asks PayPal to place the hold and checks the amount. Only a server-confirmed hold sets `held` and moves the project to `paid`. `held: false` means not held yet or declined. 404. 409 on an amount mismatch. 502 if PayPal is unreachable.
 

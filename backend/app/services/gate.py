@@ -38,6 +38,11 @@ class GateDenied(Exception):
     pass
 
 
+class NotReady(GateDenied):
+    """Denied because of where the project is (no quote yet, not paid, already training). The API answers 409.
+    A plain GateDenied is a real refusal (the global budget guard) and stays 403."""
+
+
 class NeedsApproval(Exception):
     def __init__(self, card: dict):
         super().__init__(card["what"])
@@ -58,9 +63,9 @@ def authorize(session: Session, project: Project, action: Action, user_approved:
     now = now or datetime.now(timezone.utc)
     trace = TraceRepository(session)
 
-    def deny(reason: str):
+    def deny(reason: str, not_ready: bool = True):
         trace.add(project.id, "gate", {"action": action.value, "allowed": False, "reason": reason})
-        raise GateDenied(reason)
+        raise (NotReady if not_ready else GateDenied)(reason)
 
     level = LEVEL[action]
     quote = None
@@ -84,7 +89,7 @@ def authorize(session: Session, project: Project, action: Action, user_approved:
             if project.status != "paid":
                 deny(f"project is '{project.status}', not 'paid'")
             if not budget.can_start(session, quote.compute_cap_cents):
-                deny("global budget guard: not enough budget left to start a paid job")
+                deny("global budget guard: not enough budget left to start a paid job", not_ready=False)
 
     trace.add(project.id, "gate", {"action": action.value, "allowed": True})
     return quote
