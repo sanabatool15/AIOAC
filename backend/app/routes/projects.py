@@ -93,9 +93,9 @@ def messages(pid: str, s: Session = Depends(get_session)):
                 card = json.loads(m.content)
             except ValueError:
                 continue
-            out.append({"id": m.id, "role": "assistant", "text": card.get("what", ""), "kind": "card", "card": card, "created_at": m.created_at})
+            out.append({"id": m.id, "role": "assistant", "text": card.get("what", ""), "kind": "card", "card": card, "blocks": m.payload or [], "created_at": m.created_at})
         elif m.role in ("user", "assistant") and m.kind in ("chat", "note") and m.content:
-            out.append({"id": m.id, "role": m.role, "text": m.content, "kind": m.kind, "created_at": m.created_at})
+            out.append({"id": m.id, "role": m.role, "text": m.content, "kind": m.kind, "blocks": m.payload or [], "created_at": m.created_at})
     return out
 
 
@@ -106,7 +106,7 @@ def chat(pid: str, body: ChatIn, s: Session = Depends(get_session), make=Depends
         r = run_agent(make(p, body.approve), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
     except TurnInProgress as e:
         raise HTTPException(409, str(e))
-    return {"status": r.status, "text": r.text, "card": r.card}
+    return {"status": r.status, "text": r.text, "card": r.card, "blocks": r.blocks}
 
 
 @router.post("/{pid}/data")

@@ -228,6 +228,7 @@ class Message(Stamped, Base):
     kind: Mapped[str] = mapped_column(String, default="chat")  # chat | skill | card | note
     stub: Mapped[str | None] = mapped_column(String, nullable=True)  # one-line replacement for an old, large tool result
     tokens: Mapped[int] = mapped_column(Integer, default=0)  # estimate
+    payload: Mapped[list | None] = mapped_column(JSON, nullable=True)  # assistant messages: typed UI blocks built from tool results (delete an old aioac.db)
 
 
 class AgentStep(Stamped, Base):

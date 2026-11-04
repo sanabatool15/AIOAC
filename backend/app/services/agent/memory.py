@@ -48,12 +48,13 @@ def get_conversation(session: Session, project_id: str, source: str = "app", met
 
 def add_message(session: Session, conv_id: str, role: str, content: str = "", *, run_id: str | None = None,
                 tool_calls: list | None = None, tool_call_id: str | None = None, tool_name: str | None = None,
-                kind: str = "chat", stub: str | None = None) -> Message:
+                kind: str = "chat", stub: str | None = None, payload: list | None = None) -> Message:
     """Append one message. seq is max+1; the unique (conversation, seq) key is the backstop if two writers ever race."""
     size = estimate_tokens(content) + (estimate_tokens(json.dumps(tool_calls)) if tool_calls else 0)
     for _ in range(5):
         m = conversations.append_message(session, conv_id, run_id=run_id, role=role, content=content, tool_calls=tool_calls,
-                                         tool_call_id=tool_call_id, tool_name=tool_name, kind=kind, stub=stub, tokens=size)
+                                         tool_call_id=tool_call_id, tool_name=tool_name, kind=kind, stub=stub, tokens=size,
+                                         payload=payload or None)
         if m is not None:
             return m
     raise RuntimeError("could not assign a message number")

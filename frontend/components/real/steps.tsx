@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
@@ -299,7 +300,8 @@ export function IneligibleStep({ project, onChanged }: StepProps) {
 // ---- 5. quote ----
 export function QuoteStep({ project, onChanged }: StepProps) {
   const f = toForecast(project.forecast);
-  const q = quoteFromProject(project);
+  // Only a quote made for this round counts; after an Improve pilot the old quote is stale.
+  const q = project.status === "quoted" ? quoteFromProject(project) : null;
   const { busy, error, run } = useAction();
   const requote = (
     <Button
@@ -365,6 +367,7 @@ export function QuoteStep({ project, onChanged }: StepProps) {
 
 // ---- 6. pay (awaiting_payment) ----
 export function PayStep({ project, onChanged }: StepProps) {
+  const router = useRouter();
   const { busy, error, run } = useAction();
   const pay = project.payment;
   const dead = pay && ["declined", "expired", "voided"].includes(pay.state);
@@ -417,7 +420,7 @@ export function PayStep({ project, onChanged }: StepProps) {
               onClick={() =>
                 run(async () => {
                   if (pay) real.rememberPayment({ paymentId: pay.payment_id, projectId: project.id });
-                  window.location.assign("/pay/return");
+                  router.push("/pay/return");
                 })
               }
             >

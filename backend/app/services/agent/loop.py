@@ -5,7 +5,7 @@ import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from ...config import settings
@@ -14,7 +14,7 @@ from ...ports import LLMClient, LLMError, ToolCall
 from ...repositories import agent_runs, transactions
 from ...repositories.traces import TraceRepository
 from .. import gate
-from . import context, guards, memory
+from . import blocks as blocks_mod, context, guards, memory
 from .runlog import RunLog, summarize_result
 from .tools import TOOLS, ToolContext
 
@@ -40,6 +40,7 @@ class AgentResult:
     text: str | None = None
     card: dict | None = None
     reason: str | None = None   # for limit: steps | tokens | project_tokens | cost | repeat | timeout
+    blocks: list = field(default_factory=list)   # typed UI blocks built from this turn's tool results
 
 
 def _project_usage(session, project_id: str, exclude_run: str) -> tuple[int, int]:
@@ -118,14 +119,16 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
         log.emit("user_message", text=user_message)
     seen: dict[str, int] = {}
 
+    blocks: list[dict] = []
+
     def say(text: str, kind: str = "chat") -> None:
-        memory.add_message(ctx.session, conv.id, "assistant", text, run_id=run.id, kind=kind)
+        memory.add_message(ctx.session, conv.id, "assistant", text, run_id=run.id, kind=kind, payload=blocks)
 
     def stop(reason: str) -> AgentResult:
         trace.add(pid, "limit", {"reason": reason}, run.id)
         log.emit("limit", "WARN", reason=reason, steps_used=run.steps_used, tokens_used=run.tokens_used, cost_usd=run.llm_cost_micros / 1e6)
         say(LIMIT_TEXT[reason], "note")
-        return AgentResult("limit", text=LIMIT_TEXT[reason], reason=reason)
+        return AgentResult("limit", text=LIMIT_TEXT[reason], reason=reason, blocks=blocks)
 
     prior_tokens, prior_micros = _project_usage(ctx.session, pid, run.id)
     carried_out = False
@@ -164,7 +167,7 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
             log.emit("llm_error", "ERROR", message=str(exc), retryable=bool(getattr(exc, "retryable", False)))
             text = f"I could not get an answer from my AI service just now. {exc}"
             say(text, "note")
-            return AgentResult("error", text=text, reason="llm")
+            return AgentResult("error", text=text, reason="llm", blocks=blocks)
         ms = int((time.monotonic() - t_llm) * 1000)
         run.steps_used += 1
         usage = resp.usage
@@ -203,7 +206,7 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
             trace.add(pid, "assistant", {"text": text}, run.id)
             say(text)
             log.emit("assistant_reply", text=text, corrected=corrected)
-            return AgentResult("reply", text=text)
+            return AgentResult("reply", text=text, blocks=blocks)
 
         calls_json = [{"id": c.id, "type": "function", "function": {"name": c.name, "arguments": json.dumps(c.args, default=str)}}
                       for c in resp.tool_calls]
@@ -262,10 +265,10 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
                     log.emit("approval_card", "WARN", tool=call.name, args=call.args, what=need.card.get("what"))
                     memory.add_message(ctx.session, conv.id, "tool", json.dumps({"waiting_for_user": "approval", **card}, default=str),
                                        run_id=run.id, tool_call_id=call.id, tool_name=call.name, kind="card",
-                                       stub=f"{call.name}: waiting for the user to approve")
+                                       stub=f"{call.name}: waiting for the user to approve", payload=blocks)
                     unanswered.remove(call.id)
                     close_group("waiting for the user to approve an earlier call")
-                    return AgentResult("awaiting_approval", card=card)
+                    return AgentResult("awaiting_approval", card=card, blocks=blocks)
                 except gate.GateDenied as denied:
                     log.emit("gate", "WARN", action=tool.action.value, level_num=level_num, allowed=False, reason=str(denied))
                     result = {"error": f"not allowed: {denied}"}
@@ -288,6 +291,7 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
             log.emit("tool_result", "INFO" if ok else "WARN", call_id=call.id, name=call.name,
                      ms=int((time.monotonic() - t_tool) * 1000), ok=ok, summary=summary, result=result,
                      **({"error_detail": detail} if detail else {}))
+            blocks.extend(blocks_mod.blocks_from_result(call.name, result, ctx.project))
             is_skill = call.name == "load_skill" and isinstance(result, dict) and "playbook" in result
             memory.add_message(ctx.session, conv.id, "tool", json.dumps(result, default=str), run_id=run.id, tool_call_id=call.id,
                                tool_name=call.name, kind="skill" if is_skill else "chat", stub=memory.stub_for(call.name, result))

@@ -24,9 +24,10 @@ Conventions (built):
 - 404 `project not found`.
 - Fuller since 2026-11-04 (see A0).
 
-`POST /projects/{id}/chat` body `{message?: string, approve?: string[]}` -> 200 `{status, text, card}`. 503 with a plain `detail` when no real model key is configured (empty or placeholder); 409 if a turn is already running.
+`POST /projects/{id}/chat` body `{message?: string, approve?: string[]}` -> 200 `{status, text, card, blocks}`. 503 with a plain `detail` when no real model key is configured (empty or placeholder); 409 if a turn is already running.
 - `status`: `reply` | `awaiting_approval` | `limit` | `error`. `card` is null except for `awaiting_approval`.
 - `card` (L1 approval): `{what, level, tool, args}`, for example tool `select_dataset` with `{candidate_id, target}`. The user approves by sending the request again with `approve: ["select_dataset"]` (the gate action name).
+- `blocks`: list (empty when nothing applies), built by code from this turn's successful tool results, never from model text. Types: `readiness` `{grade, findings: [{kind: "OK"|"NOTE", text}], trust}` (`trust` is null until the free test ran); `baseline` `{accuracy, simple_guess_accuracy, trust}` (0 to 1); `quote` `{quote_id, estimate_cents, low_cents, high_cents, cap_cents, success_fee_cents, is_estimate: true}`; `pay` `{payment_id, approve_url, hold_cents}`. They are stored on the turn's assistant message (`messages.payload`, new column: delete any old `aioac.db`) and returned by `GET /projects/{id}/messages` as `blocks` on every item (`[]` for user messages).
 - `limit`: a step, token, cost, repeat or timeout limit was hit; `text` explains it in plain words.
 - `error`: the model service failed, including a missing LLM key. The HTTP status is still 200.
 - 404 project not found. 409 `The assistant is still working on your last message...` while a turn for this project runs.
@@ -96,12 +97,12 @@ Predict (one record or CSV), model download, share link, auth. No CORS.
 - `POST /projects/{id}/baseline` -> 200 `{accuracy, simple_guess_accuracy, trust_level, status}` (wraps `analysis.baseline`). 409 `choose a dataset first`, `run the readiness check first`, or `the free test was already done for this project`.
 - `GET /projects` -> `[{id, goal, status, created_at}]`, newest first.
 - `GET /projects/{id}` now also returns `dataset {rows, columns, target, source, license}`, `readiness {grade, findings}`, `forecast` (the A3 view), `payment {payment_id, state, approve_url, hold_cents}` and `run {run_id, status}`; each is null until it exists.
-- `GET /projects/{id}/messages` -> `[{id, role, text, kind, card?, created_at}]`. Chat text of the user and assistant (kind `chat` or `note`) and approval cards (`kind: "card"`, role `assistant`, `text` = the card's `what`, `card` = the full card). Tool results, skills and empty tool-call turns are not returned.
+- `GET /projects/{id}/messages` -> `[{id, role, text, kind, blocks, card?, created_at}]`. Chat text of the user and assistant (kind `chat` or `note`) and approval cards (`kind: "card"`, role `assistant`, `text` = the card's `what`, `card` = the full card). Tool results, skills and empty tool-call turns are not returned.
 - `GET /projects/{id}/payment` -> the receipt body plus `project_id`; 404 `no payment has been started for this project`. `GET /payments/{id}` now includes `approve_url`.
 - `GET /projects/{id}/training` before any run -> 200 `{status: "not_started"}`.
 - `POST /projects/{id}/quote/approve` is idempotent: an approved, unexpired quote returns 200 `{approved: true, cap_cents}` again. An expired one still gives 400.
 
-Still in B: `blocks` on chat replies (U5) and the 409 status codes on `/train` and `/payments/orders` (step 2).
+Still in B: the 409 status codes on `/train` and `/payments/orders` (step 2).
 
 ## B. PLANNED (not built)
 

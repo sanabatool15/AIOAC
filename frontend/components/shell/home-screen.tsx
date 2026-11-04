@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { RealHome } from "@/components/real/real-home";
+import { USE_MOCK_API } from "@/lib/config";
 import { startChat } from "@/lib/mock-api";
 import { getFirstRunSnapshot, subscribeSession } from "@/lib/session";
 import { FirstRunScreen } from "./first-run-screen";
@@ -17,6 +19,10 @@ const suggestions = [
 
 // Screen 2: Chat home. Any prompt (typed or from a chip) starts a new chat and opens it.
 export function HomeScreen() {
+  return USE_MOCK_API ? <MockHome /> : <RealHome />;
+}
+
+function MockHome() {
   // New users (just signed up, nothing started yet) get the first-run layout (screen 35).
   const firstRun = useSyncExternalStore(
     subscribeSession,

@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { RealFlow } from "@/components/real/real-flow";
+import { USE_MOCK_API } from "@/lib/config";
 import { ErrorState, Skeleton } from "@/components/ui/state";
 import { useAsync, usePersistedState } from "@/lib/hooks";
 import { getChat, sendMessage } from "@/lib/mock-api";
@@ -16,8 +18,21 @@ import { ResearchChat } from "./research-chat";
 import { TrainingChat } from "./training-chat";
 import { ChatPanel } from "./chat-panel";
 
-// Route body for /c/[chatId]: chat column + canvas column, with loading / error / empty / retry.
-export function ChatScreen({
+// Route body for /c/[chatId]. Real mode: one screen chosen from the project status (components/real).
+// Mock mode: the chat column + canvas column below.
+export function ChatScreen(props: {
+  chatId: string;
+  phase?: "agreement" | "pay";
+  agreementId?: string;
+}) {
+  return USE_MOCK_API ? (
+    <MockChatScreen {...props} />
+  ) : (
+    <RealFlow projectId={props.chatId} />
+  );
+}
+
+function MockChatScreen({
   chatId,
   phase = "agreement",
   agreementId,

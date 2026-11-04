@@ -93,7 +93,7 @@ Common rules (BUILT):
 
 ## create_quote
 - Purpose: compute estimate, range, cap (estimate includes the 5% success fee, which is charged only if the result is verified). Refused unless the forecast is eligible. Gate `CREATE_QUOTE`, level 0 (it only prepares the approval screen).
-- Offered in: `baseline_done`, `quoted`.
+- Offered in: `baseline_done`, `quoted`, `awaiting_payment` (so an expired quote can be replaced; refused if a live hold exists for the current quote).
 - Input: none. Output: `{quote_id, estimate_cents, range_cents:[lo,hi], cap_cents, label:"estimate", next}`.
 - DB changes: new `Quote` (expires after `quote_ttl_minutes`), status -> `quoted`. Calling again in `quoted` makes another quote.
 - Failure: `{error}` (no baseline, too expensive, or any exception).
@@ -101,7 +101,7 @@ Common rules (BUILT):
 ## request_payment
 - Purpose: create the PayPal hold order for the approved quote (the hold is not a charge). `REQUEST_PAYMENT`, **level 2**.
 - Offered in: `awaiting_payment`.
-- Input: none. Output: `{payment_id, amount_cents, approve_url, next}`.
+- Input: none. Output: `{payment_id, hold_cents, approve_url, next}`.
 - Gate (`gate.py`): a quote exists, is approved, not expired. The `approve` list is not used for level 2.
 - DB changes: `Payment` row (amount = quote cap). If a payment for the quote already exists it is returned (no second order). `payments.create_order` calls the gate again, so two `gate` steps appear.
 - The user approves the hold in PayPal. The server confirms the hold (`POST /payments/{id}/authorize`) and captures at the end; never this tool.
@@ -131,3 +131,9 @@ Common rules (BUILT):
 | `run_analysis_code` (sandbox) | Model-written analysis scripts | **Never for the MVP.** Fixed functions are testable and safe |
 | `explain_result` (read stored result) | Give the agent training results in `done` | **Build now** (read-only). Today only `load_skill` is offered in `done`, so the agent cannot read the result |
 | `settle` (capture, void), `apply_infrastructure` | Money or cloud actions | **Never as agent tools.** The system does these (`agent.md` section 4) |
+
+## Chat blocks, approved calls, deadline (2026-11)
+- After each successful tool result the loop calls `services/agent/blocks.py`: `run_readiness` -> `readiness`, `run_baseline` -> `baseline`, `create_quote` -> `quote`, `request_payment` -> `pay`. Shapes in `specs/api.md`. Blocks are saved on the turn's assistant message (`messages.payload`).
+- Terminal states (`done`, `failed`, `stopped`, `voided`) offer only `load_skill`; the state block's Next line tells the model what to explain.
+- Argument checks (`guards.check_args`) cover string, number, integer, boolean, array (items, min/max items) and object; the model gets a message naming the field.
+- If an approved card's tool is not called by the model, the server runs the card's stored call once (trace `approved_call_forced`). Per-turn deadline `agent_turn_deadline_s` (120) gives `limit/timeout`.

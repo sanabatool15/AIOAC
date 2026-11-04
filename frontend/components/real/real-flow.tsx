@@ -36,7 +36,8 @@ export function RealFlow({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   useEffect(() => {
-    void load();
+    const t = setTimeout(() => void load(), 0);
+    return () => clearTimeout(t);
   }, [load]);
 
   // While a run or a release is in motion, keep the page in step with the server.
