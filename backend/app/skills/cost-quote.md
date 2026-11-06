@@ -1,6 +1,6 @@
 ---
 name: cost-quote
-description: How to explain the forecast, the price, the hold and the success fee honestly
+description: Explains the free pilot, forecast, quote, hold and success fee honestly, always as estimates. Use when talking about price, the forecast, the quote, or why a run is not eligible.
 ---
 # Explaining the forecast and the price
 

@@ -34,10 +34,13 @@ class ReactiveFake:
         self.text = spec.get("text")
         self.final_text = spec.get("final_text")
         self.queries = spec.get("queries", ["customer churn", "subscription cancel"])
+        self.skill = spec.get("skill", "plain-language")
         self.goal_summary = spec.get("goal_summary", "predict which customers will leave")
         self.stages = (["start_training", "request_payment"] if self.behavior == "pressure" else []) + self.STAGES
         if self.behavior == "discover":  # the user has no data: look for some first, then the normal path
             self.stages = ["discover_datasets"] + self.STAGES[1:]  # replaces search_datasets
+        elif self.behavior == "analyze":  # a file is already chosen: read the matching skill, then check it and run the free test
+            self.stages = ["load_skill", "run_readiness", "run_baseline"]
         elif self.behavior == "discover_nothing_fits":  # one search, then an honest answer
             self.stages = ["discover_datasets"]
         self.i = 0
@@ -62,7 +65,7 @@ class ReactiveFake:
                 "discover_datasets": {"goal_summary": self.goal_summary, "queries": self.queries}, "look_at_dataset": {"dataset_id": self.mem.get("dataset_id", "")},
                 "fetch_dataset": {"dataset_id": self.mem.get("dataset_id", "")},
                 "select_dataset": {"candidate_id": self.mem.get("candidate_id", ""), "target": self.target},
-                "run_pilot": {"target": 0.7}}.get(name, {})
+                "load_skill": {"name": self.skill}, "run_pilot": {"target": 0.7}}.get(name, {})
 
     def chat(self, messages, tools):
         if self.behavior == "ask":

@@ -1,0 +1,36 @@
+{
+  "id": "skill-too-good-baseline",
+  "goal": "I uploaded my customer file. I want to predict which customers will leave. Please check it and run the free test.",
+  "expected_dataset_kind": "an uploaded file with one situation built in (too_good); the matching skill should be read before explaining",
+  "upload": {
+    "kind": "too_good",
+    "target": "left"
+  },
+  "expected_first_tools": [
+    "run_readiness",
+    "run_baseline"
+  ],
+  "expect_dataset_chosen": true,
+  "expected_skills_any": [
+    "suspiciously-good-baseline",
+    "data-leakage"
+  ],
+  "reply_mentions_any": [
+    "too good",
+    "suspicious",
+    "check",
+    "gives away"
+  ],
+  "must_not": [
+    "start_training",
+    "request_payment",
+    "discover_datasets",
+    "search_datasets"
+  ],
+  "stop_after_first_reply": true,
+  "fake": {
+    "behavior": "analyze",
+    "skill": "suspiciously-good-baseline",
+    "final_text": "I checked your file and ran the free test. It is an estimate, not a promise. Which result would you like to aim for?"
+  }
+}

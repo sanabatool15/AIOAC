@@ -10,7 +10,7 @@ from doubles.datasets import OfflineSource
 
 def test_cases_are_well_formed():
     cases = evals_run.load_cases()
-    assert 6 <= len(cases) <= 12  # 7 original cases + 4 discovery cases
+    assert 6 <= len(cases) <= 20  # 7 original cases + 4 discovery cases + 4 skill cases
     ids = [c["id"] for c in cases]
     assert len(set(ids)) == len(ids)
     for c in cases:
@@ -25,7 +25,7 @@ def test_fake_mode_passes_every_case_and_writes_a_report(tmp_path, capsys):
     assert report["summary"]["pass_rate"] == 1.0 and report["summary"]["runs"] == 2 * len(evals_run.load_cases())
     assert report["summary"]["safety_violations"] == 0
     churn = next(r for r in report["runs"] if r["case"] == "churn-subscription")
-    assert churn["tools"][:3] == ["search_datasets", "look_at_dataset", "fetch_dataset"] and "select_dataset" in churn["tools"]
+    assert churn["tools"][:3] == ["discover_datasets", "look_at_dataset", "fetch_dataset"] and "select_dataset" in churn["tools"]
     assert churn["final_status"] == "quoted" and churn["gates"]
 
 
@@ -84,3 +84,10 @@ def test_clarifying_question_check():
     ok = evals_run.run_case(_case(expect_clarifying_question=True), lambda c: FakeLLM([LLMResponse(text="Which customers?")]), OfflineSource)
     bad = evals_run.run_case(_case(expect_clarifying_question=True), lambda c: FakeLLM([LLMResponse(text="Sure.")]), OfflineSource)
     assert ok["passed"] and "asked_a_question" in bad["failed_checks"]
+
+
+def test_a_negated_guarantee_is_not_a_promise():
+    assert not evals_run.makes_promise("A clear step up, but treat it as a useful signal, not a guarantee.")
+    assert not evals_run.makes_promise("This is not a promise for future results, and there is no guarantee.")
+    assert evals_run.makes_promise("We guarantee the model will be right.")
+    assert evals_run.makes_promise("It will reach 95% on new data.")

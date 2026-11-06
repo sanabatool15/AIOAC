@@ -11,7 +11,7 @@ dependencies = [
     "httpx",
     "numpy",
     "pandas",
-    "scikit-learn",
+    "scikit-learn>=1.9,<1.10",  # must match the SAGEMAKER_SKLEARN_VERSION image: a model pickled by another minor version can fail to predict
     "pyarrow",
     "boto3",
     "notebook>=7.6.3",

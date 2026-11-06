@@ -1,5 +1,7 @@
 # Testing Strategy
 
+Live-service tests (AWS, PayPal sandbox, Azure LLM) are described first in `integration-testing.md`: how to run them, cost rules and the findings log.
+
 The demo is what gets judged, so testing aims at one result: the core path works every time we record it. Time is spent where failure is most likely and most embarrassing.
 
 ## 1. Priorities

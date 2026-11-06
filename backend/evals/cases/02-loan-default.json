@@ -2,9 +2,31 @@
   "id": "loan-default",
   "goal": "Predict whether a loan applicant will fail to pay the loan back.",
   "expected_dataset_kind": "loan or credit table, one row per applicant, default yes/no",
-  "expected_first_tools": ["search_datasets", "look_at_dataset"],
+  "expected_first_tools": [
+    "discover_datasets",
+    "look_at_dataset"
+  ],
   "expect_dataset_chosen": null,
-  "expected_target_hints": ["default", "loan_status", "status", "bad", "target", "class", "repaid"],
-  "must_not": ["start_training", "request_payment"],
-  "fake": {"behavior": "dataset", "query": "loan default", "target": "left"}
+  "expected_target_hints": [
+    "default",
+    "loan_status",
+    "status",
+    "bad",
+    "target",
+    "class",
+    "repaid"
+  ],
+  "must_not": [
+    "start_training",
+    "request_payment"
+  ],
+  "fake": {
+    "behavior": "discover",
+    "goal_summary": "predict which loan applicants will not repay",
+    "queries": [
+      "loan default",
+      "credit risk"
+    ],
+    "target": "left"
+  }
 }

@@ -4,7 +4,7 @@ Numbers come from code, never from a model. Same input gives the same grade.
 """
 import pandas as pd
 
-from .features import id_like_columns, numeric_like_columns
+from .features import id_like_columns, leaky_columns, numeric_like_columns
 
 GRADES = [(95, "A"), (90, "A-"), (85, "B+"), (80, "B"), (75, "B-"), (70, "C+"), (65, "C"), (55, "D")]
 
@@ -27,13 +27,7 @@ def analyze(df: pd.DataFrame, target: str) -> dict:
     counts = df[target].value_counts(normalize=True)
     minority = float(counts.min()) if len(counts) else 0.0
     constant = [c for c in feats.columns if feats[c].nunique(dropna=True) <= 1]
-    leaky = []
-    for c in feats.columns:
-        try:
-            if feats[c].astype(str).equals(df[target].astype(str)):
-                leaky.append(c)
-        except Exception:
-            pass
+    leaky = leaky_columns(df, target)
 
     score, findings = 100, []
 

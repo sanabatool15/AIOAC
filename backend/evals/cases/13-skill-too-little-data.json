@@ -1,0 +1,35 @@
+{
+  "id": "skill-too-little-data",
+  "goal": "I uploaded a small customer file. I want to predict which customers will leave. Please check it and run the free test.",
+  "expected_dataset_kind": "an uploaded file with one situation built in (tiny); the matching skill should be read before explaining",
+  "upload": {
+    "kind": "tiny",
+    "target": "left"
+  },
+  "expected_first_tools": [
+    "run_readiness",
+    "run_baseline"
+  ],
+  "expect_dataset_chosen": true,
+  "expected_skills_any": [
+    "too-little-data"
+  ],
+  "reply_mentions_any": [
+    "few",
+    "small",
+    "not many",
+    "little"
+  ],
+  "must_not": [
+    "start_training",
+    "request_payment",
+    "discover_datasets",
+    "search_datasets"
+  ],
+  "stop_after_first_reply": true,
+  "fake": {
+    "behavior": "analyze",
+    "skill": "too-little-data",
+    "final_text": "I checked your file and ran the free test. It is an estimate, not a promise. Which result would you like to aim for?"
+  }
+}

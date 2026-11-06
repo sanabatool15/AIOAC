@@ -10,6 +10,7 @@ import logging
 import math
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 
 from ...ports import DatasetHit, SourceError
@@ -22,7 +23,7 @@ MIN_ROWS = 300            # below this a dataset is dropped (the dataset-search 
 SMALL_ROWS = 1000         # below this it is kept but flagged as small
 FIT_THRESHOLD = 0.30      # relevance below this means "nothing fits"
 RELATIVE_CUTOFF = 0.6     # and a result must reach 60% of the best result's relevance to be listed
-SOURCE_BUDGET_S = 40.0    # total time for all live searches in one call (a free tool is cut off at 60 s)
+SOURCE_BUDGET_S = 25.0    # total time for all live searches in one call (a free tool is cut off at 60 s)
 NOISE = {"raw", "clean", "cleaned", "data", "dataset", "datasets", "csv", "copy", "corrupted", "new", "final", "v", "version",
          "train", "test", "tabular", "kaggle"}
 STOP = {"the", "a", "an", "of", "and", "for", "to", "in", "on", "my", "i", "me", "we", "our", "will", "which", "who", "what", "is", "are",
@@ -248,28 +249,47 @@ def discover(registry: SourceRegistry, goal_summary: str, queries: list[str], sa
         entry = registry.get(item.id.split(":", 1)[0])
         cands.append(from_curated(item, entry.label if entry else "curated list"))
     deadline = time.monotonic() + budget_s
-    for prefix in SEARCH_ORDER:
-        entry = registry.get(prefix)
-        if entry is None:
-            continue
-        if time.monotonic() > deadline:
-            status[entry.label] = "skipped: ran out of time"
-            continue
-        found, error, t0 = 0, None, time.monotonic()
+
+    def search_one(entry):
+        """All queries against one source. Returns (hits, error, ms). Stops early once the shared deadline passes."""
+        hits, error, t0 = [], None, time.monotonic()
         for q in queries:
+            if time.monotonic() > deadline:
+                error = "ran out of time"
+                break
             try:
-                for hit in entry.source.search(q, limit=8):
-                    cands.append(from_hit(prefix, entry.label, hit))
-                    found += 1
+                hits.extend(entry.source.search(q, limit=8))
             except SourceError as exc:
                 error = str(exc)
             except Exception as exc:  # any other failure of one source must not fail the tool
-                log.warning("dataset source %s failed: %s", prefix, type(exc).__name__)
+                log.warning("dataset source %s failed: %s", entry.label, type(exc).__name__)
                 error = "had a problem"
             if error:
                 break
-        status[entry.label] = f"unavailable: {error}" if error else f"ok, {found} found"
-        emit("discover_source", source=prefix, ok=error is None, found=found, error=error, ms=int((time.monotonic() - t0) * 1000))
+        return hits, error, int((time.monotonic() - t0) * 1000)
+
+    # Live sources run side by side, so one slow source cannot use up the time of the others. After the budget we
+    # use what has arrived and leave stragglers behind (their threads finish on their own; nothing waits for them).
+    entries = [(prefix, registry.get(prefix)) for prefix in SEARCH_ORDER]
+    entries = [(prefix, entry) for prefix, entry in entries if entry is not None]
+    pool = ThreadPoolExecutor(max_workers=max(len(entries), 1))
+    futures = {prefix: pool.submit(search_one, entry) for prefix, entry in entries}
+    wait(list(futures.values()), timeout=budget_s)
+    pool.shutdown(wait=False, cancel_futures=True)
+    for prefix, entry in entries:  # merge in the fixed source order so ranking ties stay stable
+        fut = futures[prefix]
+        if not fut.done():
+            status[entry.label] = "skipped: ran out of time"
+            emit("discover_source", source=prefix, ok=False, found=0, error="ran out of time", ms=int(budget_s * 1000))
+            continue
+        hits, error, ms = fut.result()
+        for hit in hits:
+            cands.append(from_hit(prefix, entry.label, hit))
+        if error == "ran out of time":
+            status[entry.label] = "skipped: ran out of time"
+        else:
+            status[entry.label] = f"unavailable: {error}" if error else f"ok, {len(hits)} found"
+        emit("discover_source", source=prefix, ok=error is None, found=len(hits), error=error, ms=ms)
     real = [c for c in cands if not c.sample]
     scored, removed, dropped = rank(real, goal_summary, queries, curated, top_n)
     best = max((s.relevance for s in scored), default=0.0)

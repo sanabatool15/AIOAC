@@ -1,6 +1,6 @@
 ---
 name: lopsided-classes
-description: What to say when far more rows have one answer than the other
+description: Explains results when one answer is far more common than the other. Use only when a finding says the smaller group is under 20% of rows, or the free test is close to the simple-guess number.
 ---
 # Lopsided answers (class imbalance)
 

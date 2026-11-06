@@ -57,10 +57,10 @@ Small changes only, each with a test on the mock provider, each explained to the
 
 | Id | Problem | Where | Fix | Status |
 |---|---|---|---|---|
-| D1 | PayPal sandbox hold, capture, second capture and void have never run for real | `integrations/paypal/provider.py`, `tests/integration/test_paypal_sandbox.py` | Run the two-step live check; record PayPal's limits | open (re-audit: still never run for real) |
+| D1 | PayPal sandbox hold, capture, second capture and void have never run for real | `integrations/paypal/provider.py`, `tests/integration/test_paypal_sandbox.py` | Run the two-step live check; record PayPal's limits | done 2026-11-02: authorize, repeated authorize, partial capture, second capture, repeated capture/void with same request id, void of remainder and refused capture after void all passed on the real sandbox. Still unchecked: webhook signature, more than two captures per hold, hold lifetime |
 | D2 | The local backend costs 0, so the receipt shows nothing captured and the demo money step looks empty | `integrations/training_local/` | A believable demo job (see Order of work, step 5) | open |
 | D3 | Prices are placeholders; quotes are about 53 cents | `services/cost/prices.py` | Measure one real job and replace them | open |
-| D4 | The real LLM has never been run; the agent evals have no real pass rates | `backend/evals/` | One real run after the owner is told (see below) | open |
+| D4 | The real LLM has never been run; the agent evals have no real pass rates | `backend/evals/` | One real run after the owner is told (see below) | done: real model gpt-5.4 (Azure) passed 22/22 eval runs (see `specs/integration-testing.md`) |
 | D5 | No authentication. Deferred on purpose | `routes/` | Plan: a demo user created by `POST /auth/demo`, then optional email login | open |
 
 ## 5. Order of work
