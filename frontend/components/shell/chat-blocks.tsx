@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { dollars, outOf100 } from "@/lib/adapters";
-import type { ChatBlock, ChatCard } from "@/lib/chat";
+import { cardFacts, cardTitle, type ChatBlock, type ChatCard } from "@/lib/chat";
 
 // Blocks are built by the server from tool results (specs/api.md A2). Plain words, every estimate labelled.
 // The chat never moves money: the pay block only links to PayPal when the server sent a link.
@@ -70,11 +70,14 @@ export function ChatBlockView({ b }: { b: ChatBlock }) {
   return null;
 }
 
-function Fact({ label, value }: { label: string; value: React.ReactNode }) {
+function Fact({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 text-sm">
-      <dt className="text-muted">{label}</dt>
-      <dd className="min-w-0 truncate text-right text-ink">{value}</dd>
+      <dt className="shrink-0 text-muted">{label}</dt>
+      <dd className="min-w-0 text-right text-ink">
+        {value}
+        {note && <span className="text-muted">: {note}</span>}
+      </dd>
     </div>
   );
 }
@@ -93,20 +96,18 @@ export function ApprovalCard({
   onApprove: () => void;
   onDecline: () => void;
 }) {
-  const d = card.detail;
-  const hasDetail = !!d && d.name !== null;
+  const facts = cardFacts(card);
+  const title = cardTitle(card);
   return (
     <Card variant="amber" aria-label="Approval needed" className="gap-3 p-4">
-      <h3 className="text-sm font-semibold text-ink">{pending ? "Needs your OK" : "Asked for your OK"}</h3>
-      <p className="text-sm leading-5 text-ink-2">{card.what}</p>
-      {hasDetail && (
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{pending ? "Needs your OK" : "Asked for your OK"}</p>
+      <h3 className="text-base font-semibold text-ink">{title}</h3>
+      {title !== card.what && <p className="text-sm leading-5 text-ink-2">{card.what}</p>}
+      {facts.length > 0 && (
         <dl aria-label="The dataset" className="flex flex-col gap-1.5 rounded-lg border border-border bg-white p-3">
-          <Fact label="Dataset" value={d.name} />
-          {d.source && <Fact label="From" value={d.source} />}
-          {d.rows !== null && <Fact label="Rows" value={d.rows.toLocaleString()} />}
-          {d.columns !== null && <Fact label="Columns" value={d.columns} />}
-          {d.target && <Fact label="We will predict" value={d.target} />}
-          <Fact label="License" value={d.license ?? "not stated"} />
+          {facts.map((f) => (
+            <Fact key={f.label} label={f.label} value={f.value} note={f.note} />
+          ))}
         </dl>
       )}
       <p className="text-sm text-muted">This only picks the data to work with. Nothing is charged.</p>

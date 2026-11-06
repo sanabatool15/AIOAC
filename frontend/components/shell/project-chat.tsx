@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { LoaderCircle } from "lucide-react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { pendingCard } from "@/lib/chat";
 import { ChatController } from "@/lib/chat-controller";
+import { thinkingMessage } from "@/lib/thinking";
 import { ApprovalCard, ChatBlockView } from "./chat-blocks";
 import { Composer } from "./composer";
 import { AgentRow, UserBubble } from "./inline-chat";
@@ -22,6 +22,25 @@ export function useProjectChat(projectId: string, goal: string, status: string, 
   return { chat, state };
 }
 export type ProjectChat = ReturnType<typeof useProjectChat>;
+
+// Shown while a /chat call runs. A local timer only: it makes no network calls.
+function Thinking({ findingData }: { findingData: boolean }) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSeconds((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <p role="status" aria-live="polite" className="flex items-center gap-2 pl-9 text-sm text-muted">
+      <span aria-hidden className="flex gap-1">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="size-1.5 rounded-full bg-brand motion-safe:animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+        ))}
+      </span>
+      {thinkingMessage(seconds, findingData)}
+    </p>
+  );
+}
 
 export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStatus: string }) {
   const { chat, state } = pc;
@@ -51,11 +70,7 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
           </AgentRow>
         ),
       )}
-      {state.busy && state.items !== null && (
-        <p role="status" className="flex items-center gap-2 pl-9 text-sm text-muted">
-          <LoaderCircle aria-hidden size={14} className="motion-safe:animate-spin" /> The assistant is working…
-        </p>
-      )}
+      {state.busy && state.items !== null && <Thinking findingData={projectStatus === "described"} />}
       {state.declined && (
         <p className="pl-9 text-sm text-muted">No problem. Tell me what you would like instead, or upload your own file.</p>
       )}

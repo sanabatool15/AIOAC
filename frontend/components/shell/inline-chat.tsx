@@ -2,6 +2,7 @@
 import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 import { Composer } from "./composer";
+import { MarkdownText } from "./markdown-text";
 import { ShareButton } from "./share-dialog";
 import { TopBar } from "./top-bar";
 
@@ -91,7 +92,7 @@ export function AgentRow({ text, children }: { text: string; children?: React.Re
         className="size-6 shrink-0 rounded-xl bg-brand-gradient shadow-glow"
       />
       <div className="flex min-w-px flex-1 flex-col gap-3">
-        {text && <p className="whitespace-pre-wrap text-sm leading-[23px] text-ink">{text}</p>}
+        {text && <MarkdownText text={text} />}
         {children}
       </div>
     </div>

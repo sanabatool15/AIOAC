@@ -90,3 +90,12 @@ Small changes only, each with a test on the mock provider, each explained to the
 7. Agent items A1 to A5 fit between steps 2 and 4.
 
 Real-LLM runs, real PayPal sandbox runs and any AWS run (step 4) cost money or use shared keys. Tell the owner first and wait for a yes. Never use real money.
+
+## 6. Chat polish found in a real Azure run (2026-11-06)
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| H1 | Assistant text shown with raw markdown (`**bold**`, backticks, `- ` lists) | `components/shell/inline-chat.tsx` | Safe markdown reader, tests with XSS cases | fixed on branch claude/fix-chat-ui |
+| H2 | Approval card title and facts: ids or the long sentence instead of a dataset name and a facts grid | `components/shell/chat-blocks.tsx`, `lib/chat.ts` | Title from `detail.name` (id-like falls back to `what`), grid with optional `target_meaning` | fixed on branch claude/fix-chat-ui |
+| H3 | No sign of life during a reply that takes about 50 s | `components/shell/project-chat.tsx` | Calm indicator with rotating plain messages, `aria-live` polite, no network calls | fixed on branch claude/fix-chat-ui |
+| H4 | Risk of raw cents or decimals on screens; activity text with `[redacted` | `components/`, `lib/screens.ts` | Guard test (money only through `dollars()`), activity test | fixed on branch claude/fix-chat-ui |
