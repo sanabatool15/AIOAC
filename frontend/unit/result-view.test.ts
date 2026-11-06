@@ -72,3 +72,12 @@ test("recap note never claims a charge that did not happen", () => {
   assert.match(recapNote("verified", toRecap(R(receiptVerified))), /Compute plus the success fee/);
   assert.match(recapNote("missed", toRecap(R(receiptMissed))), /compute only, no success fee/);
 });
+
+import { improveStart } from "../lib/result-view";
+
+test("Improve starts at the suggested target, else the current target, never the lower verified result", () => {
+  assert.equal(improveStart(0.75, 80), 75);
+  assert.equal(improveStart(null, 80), 80);
+  assert.equal(improveStart(undefined, 80), 80);
+  assert.equal(improveStart(undefined, null), null);
+});

@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Tag } from "@/components/ui/tag";
 import type { BProject, BReceipt, BTraining } from "@/lib/api";
 import * as real from "@/lib/api-real";
-import { needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "@/lib/result-view";
+import { improveStart, needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "@/lib/result-view";
 import { cn } from "@/lib/utils";
 import { TargetAction } from "./step-actions";
 import { ErrorLine, Row, useAction } from "./step-parts";
@@ -147,7 +147,7 @@ export function ResultStep({ project, onChanged }: StepProps) {
         <TargetAction
           project={project}
           onChanged={onChanged}
-          initial={v.value}
+          initial={improveStart(project.forecast?.suggested_target, v.target)}
           intro="Improve (free): try another target. A new free pilot costs nothing. A new run needs a new price and a new PayPal hold."
         />
       )}

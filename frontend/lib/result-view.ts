@@ -89,3 +89,10 @@ export function recapNote(kind: ResultKind, r: Pick<Recap, "chargedCents"> | nul
   if (kind === "verified") return "Compute plus the success fee were charged, because the result was verified. The rest of the hold was released.";
   return "You paid for compute only, no success fee. The rest of the hold was released.";
 }
+
+// Where the Improve form's target field starts after a miss: the forecast's suggested target when there is one
+// (an estimate we can honestly sell), else the target the user already set. Never the lower verified result.
+export function improveStart(suggestedFraction: number | null | undefined, currentTarget: number | null): number | null {
+  const suggested = percent(suggestedFraction);
+  return suggested ?? currentTarget;
+}
