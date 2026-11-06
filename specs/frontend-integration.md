@@ -237,3 +237,25 @@ Each step ships alone and ends with typecheck, lint, `test:unit`, build; browser
 3. Try-one-record for the video (step 11): yes or no? It adds a backend endpoint and model loading.
 4. Describe step: keep chat only there (buttons later), or chat on every step? Plan says buttons later, chat only on describe.
 5. Risk: steps 7 to 9 are tested on the mock payment double only; the full browser cycle on the real PayPal sandbox and SageMaker is the owner's manual check (F2). Also `/auth/me` 401 choice (9.5).
+
+## 10. Restored screens on real data (2026-11-06)
+
+Owner request: bring back the polished screens deleted in steps 2 and 3, wherever a backend route now exists (`specs/api.md` section D). No mock code, no fake data. Pure logic is in `frontend/lib/screens.ts` (and `welcome.ts`, `nav.ts`) with unit tests on fixtures copied from real JSON (`frontend/unit/fixtures-screens.ts`, taken from the browser test server after a finished run).
+
+| Route / piece | What it shows | Backend |
+|---|---|---|
+| `/projects/[projectId]` (`shell/project-detail.tsx`) | Goal, plain status, "Open chat". Tabs Overview, History, Activity, Model (`?tab=model` opens one). Projects list rows link here | `GET /projects/{id}`, `/history`, `/activity` |
+| Model tab (`shell/model-tab.tsx`) | "Try it on one record" built from `columns` (select for `choices`, number input, example as placeholder, empty fields allowed), answer as "about N out of 100" with "an estimate, not a promise"; "Run it on a CSV" (file or paste, up to 5,000 rows, preview table, Download results CSV); "Download the model" with the scikit-learn version note; `usable=false` shows `unusable_reason` and keeps Download; `available=false` shows "No trained model yet". The result step links here when a model exists | `GET /model`, `POST /predict`, `/predict-batch`, `GET /model/download` |
+| `/account/usage` | Projects, runs, compute charged, success fees, released, AI tokens (cost only if above zero, called an estimate), recent activity | `GET /account/usage` |
+| `/account/billing` | Receipts table (goal, plain state, held, compute, fee, released, total, date), each row links to the project; empty state | `GET /account/payments` |
+| Share button + dialog (`shell/share-dialog.tsx`, in the chat and project top bars) | Create link (copy), state, "Stop sharing" with confirm | `POST/GET/DELETE /projects/{id}/share` |
+| `/s/[token]` (`app/s/`, outside the signed-in layout; `shell/public-result.tsx`) | Goal, data name and rows, answer column, free test, verified vs target as "X out of 100", estimate note, read-only badge, "Built with AIOAC"; 404 shows "This link is not available". `lib/api.ts` sends no cookies and never redirects to login for `/public/*` | `GET /public/results/{token}` |
+| `/welcome` | Three plain steps and Start. Shown once after the first sign-up in this browser (`localStorage` flag in try/catch); never after login | none |
+| Navigation | Sidebar and user menu: Projects, Usage, Billing history. No dead links | none |
+| Improve form | Starts at the forecast's `suggested_target`, else the target already set (never the lower verified result) | none |
+
+Browser check (test launcher, system Chrome): signup shows Welcome; a full run to a finished project; project detail tabs; one record, CSV and model download; Usage; Billing history; share link opened in a new browser context with no cookies renders without login and shows no money, email or payment text; after "Stop sharing" the same address shows "This link is not available". Not run against real PayPal, AWS or Azure.
+
+Notes: the Activity feed comes from the agent's stored trace, so steps done with buttons (data check, free test) do not appear in it; only agent turns and gate decisions do. Local training charges $0, so the receipts show a full release.
+
+Intentionally not restored (no backend, or not part of the product): plans and the upgrade wizard (`/billing/*`), payment methods, invoices and PDFs, API keys and the key snippet, integrations, the live view tab, the experiment chart, inviting people by email, model versions delete.
