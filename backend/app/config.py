@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     paypal_client_secret: str = ""
     paypal_webhook_id: str = ""
     paypal_base_url: str = "https://api-m.sandbox.paypal.com"  # sandbox only (CLAUDE.md rule 2)
+    # Login (specs/api.md section C). No usable default: without a real secret the auth routes answer 503.
+    secret_key: str = ""                  # signs the session token; at least 32 random characters. Never commit it.
+    jwt_ttl_minutes: int = 720
+    cookie_secure: bool = False           # true behind https
+    cookie_samesite: str = "lax"          # lax | strict | none (none needs cookie_secure)
+    cookie_name: str = "aioac_session"
+    demo_login_enabled: bool = False      # true only for the demo video: POST /auth/demo logs in a fixed demo user
+    login_max_failures: int = 10          # per email and ip, within login_window_minutes
+    login_window_minutes: int = 10
     cors_origins: str = "http://localhost:3000"  # comma-separated list of browser origins allowed to call the API
     paypal_return_url: str = "http://localhost:3000/pay/return"
     paypal_cancel_url: str = "http://localhost:3000/pay/cancel"

@@ -1,12 +1,16 @@
 """Schema from specs/db.md. Money is integer cents.
 
-LedgerEntry and WebhookEvent are insert-only. `org_id` is reserved for later
-multi-tenancy and is not enforced anywhere.
+LedgerEntry and WebhookEvent are insert-only.
+
+Ownership: a project belongs to one user and one organization (`projects.user_id`, `projects.org_id`, set on creation).
+Every other table reaches its owner through `project_id`. The API only serves a project to its own user and org
+(`deps.owned_project`). Rows made before login existed have no owner and are unreachable. There are no migrations:
+delete any old local `aioac.db` after this change.
 """
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .session import Base
@@ -26,13 +30,25 @@ class Stamped:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Organization(Base):
+    """A tenant. Signup creates a personal one named after the email."""
+    __tablename__ = "organizations"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class User(Stamped, Base):
     __tablename__ = "users"
-    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True)  # stored lower-case
+    password_hash: Mapped[str] = mapped_column(String)  # scrypt, see services/auth.py; never the password
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
 
 
 class Project(Stamped, Base):
     __tablename__ = "projects"
+    __table_args__ = (Index("ix_projects_org_user", "org_id", "user_id"),)
+    org_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)  # always set for new rows
     goal: Mapped[str] = mapped_column(String)
     task_type: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, default="described")
@@ -40,7 +56,7 @@ class Project(Stamped, Base):
     readiness_grade: Mapped[str | None] = mapped_column(String, nullable=True)
     trust_level: Mapped[str | None] = mapped_column(String, nullable=True)
     baseline_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)  # always set for new rows
 
 
 class DatasetCandidate(Stamped, Base):

@@ -14,6 +14,7 @@ dependencies = [
     "scikit-learn>=1.9,<1.10",  # must match the SAGEMAKER_SKLEARN_VERSION image: a model pickled by another minor version can fail to predict
     "pyarrow",
     "boto3",
+    "PyJWT>=2.8",
     "notebook>=7.6.3",
     "ipywidgets>=8.1.9",
     "jupyter>=1.1.1",

@@ -4,11 +4,17 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from ..db import Session
-from ..db.tables import Payment
+from ..db.tables import Payment, Project
 
 
 def get(session: Session, payment_id: str) -> Payment | None:
     return session.get(Payment, payment_id)
+
+
+def get_owned(session: Session, payment_id: str, user_id: str, org_id: str) -> Payment | None:
+    """A payment only if its project belongs to this user and org (read-only; changes no payment logic)."""
+    return session.scalar(select(Payment).join(Project, Project.id == Payment.project_id)
+                          .where(Payment.id == payment_id, Project.user_id == user_id, Project.org_id == org_id))
 
 
 def for_quote(session: Session, quote_id: str) -> Payment | None:

@@ -14,8 +14,13 @@ def reload(session: Session, project: Project) -> Project:
     return project
 
 
-def create(session: Session, goal: str) -> Project:
-    p = Project(goal=goal)
+def get_owned(session: Session, project_id: str, user_id: str, org_id: str) -> Project | None:
+    """The project only if it belongs to this user and org; None otherwise (the caller answers 404)."""
+    return session.scalar(select(Project).where(Project.id == project_id, Project.user_id == user_id, Project.org_id == org_id))
+
+
+def create(session: Session, goal: str, user_id: str | None = None, org_id: str | None = None) -> Project:
+    p = Project(goal=goal, user_id=user_id, org_id=org_id)
     session.add(p)
     session.commit()
     return p
@@ -36,3 +41,8 @@ def claim_status(session: Session, project: Project, expected: str, new: str) ->
 
 def list_all(session: Session) -> list[Project]:
     return list(session.scalars(select(Project).order_by(Project.created_at.desc(), Project.id.desc())))
+
+
+def list_owned(session: Session, user_id: str, org_id: str) -> list[Project]:
+    return list(session.scalars(select(Project).where(Project.user_id == user_id, Project.org_id == org_id)
+                                .order_by(Project.created_at.desc(), Project.id.desc())))
