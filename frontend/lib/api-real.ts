@@ -151,7 +151,7 @@ export const runPilot = (id: string, target: number) =>
   api<BForecast>(`/chats/${id}/pilot`, { body: { target } });
 export const createQuote = (id: string) =>
   api<BQuote>(`/agreements/${id}/quote`, { method: "POST" });
-export const approveQuote = (id: string) =>
+const approveQuote = (id: string) =>
   api<{ approved: boolean; cap_cents: number }>(`/projects/${id}/quote/approve`, {
     method: "POST",
   });
@@ -161,7 +161,6 @@ export const createOrder = (projectId: string) =>
   api<BOrder>("/payments/orders", { body: { project_id: projectId } });
 export const authorizePayment = (paymentId: string) =>
   api<{ held: boolean; state: string }>(`/payments/${paymentId}/authorize`, { method: "POST" });
-export const getReceipt = (paymentId: string) => api<BReceipt>(`/payments/${paymentId}`);
 export const getProjectPayment = (projectId: string) =>
   api<BReceipt>(`/projects/${projectId}/payment`);
 export const retrySettle = (projectId: string) =>

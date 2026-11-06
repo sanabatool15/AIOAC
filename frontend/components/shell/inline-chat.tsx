@@ -1,7 +1,5 @@
 "use client";
-import { MessageSquare } from "lucide-react";
 import { Tag } from "@/components/ui/tag";
-import { EmptyState } from "@/components/ui/state";
 import { cn } from "@/lib/utils";
 import { Composer } from "./composer";
 import { ShareButton } from "./share-dialog";
@@ -70,16 +68,6 @@ export function InlineChatFrame({
         </div>
       </div>
     </section>
-  );
-}
-
-export function EmptyThread() {
-  return (
-    <EmptyState
-      icon={<MessageSquare />}
-      title="No messages yet"
-      body="Start by telling AIOAC what you want to predict."
-    />
   );
 }
 

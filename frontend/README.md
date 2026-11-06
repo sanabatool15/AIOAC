@@ -18,10 +18,10 @@ Read `AGENTS.md` first: this Next version has breaking changes (page `params` ar
 - `NEXT_PUBLIC_DEMO_LOGIN`: optional, `true` shows the demo login button.
 
 ## Layout
-- `app/`: routes. `/login`, `/signup`, `/` (new project), `/c/{id}` (one screen chosen from the project status), `/projects`, `/pay/return`, `/pay/cancel` (PayPal sandbox returns; the backend's `PAYPAL_RETURN_URL` and `PAYPAL_CANCEL_URL` must point there).
+- `app/`: routes. `/login`, `/signup`, `/` (new project), `/c/{id}` (one screen chosen from the project status), `/projects`, `/pay/return`, `/pay/cancel`, `/projects/{id}` (tabs), `/account/usage`, `/account/billing`, `/welcome`, `/s/{token}` (public result link, no login) (PayPal sandbox returns; the backend's `PAYPAL_RETURN_URL` and `PAYPAL_CANCEL_URL` must point there).
 - `lib/api.ts` (client), `lib/api-real.ts` (one function per endpoint), `lib/adapters.ts` (cents, percent, camelCase in one place), `lib/status.ts` (status to screen), `lib/chat.ts` (agent chat), `lib/session.ts` (signed-in state from `GET /auth/me`, memory only).
-- `components/real/`: the screens that serve the demo path today (login aside). They are replaced step by step by the polished screens in `components/shell/` (plan: `specs/frontend-integration.md` section 9).
-- `components/shell/`: polished shell. Some screens (`agreement-chat`, `budget-card`, `budget-panel`, `result-chat`, `round2-chat`, `sidebar`, `training-chat`, `verified-chat`) are not rewired yet and are excluded from `tsconfig.json` and `eslint.config.mjs`. Remove an entry from both when you port that screen.
+- `components/shell/`: all screens (sidebar, chat thread, step cards, quote, pay return, training, result and receipt, project detail with Model tab, usage, billing history, share dialog, public result page). `components/ui/`: small shared pieces.
+- `lib/screens.ts`, `lib/result-view.ts`, `lib/pay-flow.ts`, `lib/chat-controller.ts`, `lib/welcome.ts`, `lib/nav.ts`: pure logic with no React, covered by `unit/`.
 - `unit/`: `npm run test:unit` (adapter, status, client, chat tests; fixtures copied from real backend JSON).
 
 ## Browser tests (Playwright)

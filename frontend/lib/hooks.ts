@@ -30,39 +30,6 @@ export function useAsync<T>(fn: () => Promise<T>, key?: unknown) {
   return { ...state, retry };
 }
 
-// localStorage-backed state. Always renders `initial` first (no hydration mismatch), then loads saved value.
-export function usePersistedState<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(initial);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw !== null) setValue(JSON.parse(raw) as T);
-    } catch {
-      /* storage unavailable: keep initial */
-    }
-  }, [key]);
-
-  const set = useCallback(
-    (next: T | ((prev: T) => T)) => {
-      setValue((prev) => {
-        const resolved =
-          typeof next === "function" ? (next as (p: T) => T)(prev) : next;
-        try {
-          localStorage.setItem(key, JSON.stringify(resolved));
-        } catch {
-          /* ignore */
-        }
-        return resolved;
-      });
-    },
-    [key],
-  );
-
-  return [value, set] as const;
-}
-
 // "unknown" on the server and during hydration, then "in" | "out".
 export function useSession() {
   return useSyncExternalStore(
