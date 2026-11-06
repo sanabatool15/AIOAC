@@ -1,7 +1,7 @@
 // Pure view rules for the restored screens (project detail, model, usage, billing history, sharing, welcome).
 // Inputs are raw backend bodies (specs/api.md section D); money goes through adapters.dollars. No React, no fetch.
 import { dollars, outOf100 } from "./adapters";
-import type { BActivityItem, BHistory } from "./api";
+import type { BActivityItem, BHistory, BModelColumn, BPredict } from "./api";
 
 // "2026-11-06T17:13:05.3" -> "Nov 6, 17:13". The server sends UTC; a value with no zone is read as UTC.
 // `timeZone` is for tests; screens leave it out and show the viewer's own time.
@@ -157,4 +157,82 @@ export function overviewLine(status: string): string {
     default:
       return "";
   }
+}
+
+// ---------------------------------------------------------------- the model tab
+
+export const MAX_BATCH_ROWS = 5000;
+
+// What the user typed in the "try one record" form -> the body of POST /predict.
+// Empty fields are left out (the model fills them in). A number column needs a number.
+export function buildRecord(
+  columns: Pick<BModelColumn, "name" | "kind">[],
+  values: Record<string, string>,
+): { record: Record<string, string | number>; error: string | null } {
+  const record: Record<string, string | number> = {};
+  for (const c of columns) {
+    const raw = (values[c.name] ?? "").trim();
+    if (raw === "") continue;
+    if (c.kind === "number") {
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return { record: {}, error: `"${c.name}" needs a number, for example 12 or 3.5.` };
+      record[c.name] = n;
+    } else {
+      record[c.name] = raw;
+    }
+  }
+  if (Object.keys(record).length === 0) return { record, error: "Fill in at least one field." };
+  return { record, error: null };
+}
+
+export interface PredictionView {
+  answer: string;
+  rows: { label: string; text: string; share: number }[];
+  note: string;
+}
+// Probabilities as "about N out of 100", biggest first. Always carries the "estimate, not a promise" note.
+export function toPrediction(r: BPredict): PredictionView {
+  const rows = Object.entries(r.probabilities ?? {})
+    .map(([label, p]) => ({ label, text: `about ${Math.round(p * 100)} out of 100`, share: p }))
+    .sort((a, b) => b.share - a.share);
+  return { answer: String(r.prediction), rows, note: r.note || "an estimate, not a promise" };
+}
+
+// Rows in pasted or picked CSV text (header not counted, blank lines ignored).
+export function csvRowCount(text: string): number {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+  return Math.max(0, lines.length - 1);
+}
+export function batchProblem(text: string): string | null {
+  if (text.trim() === "") return "Paste CSV text or pick a CSV file first.";
+  const n = csvRowCount(text);
+  if (n < 1) return "The CSV needs a header line and at least one row.";
+  if (n > MAX_BATCH_ROWS) return `That file has ${n.toLocaleString("en-US")} rows. The limit is ${MAX_BATCH_ROWS.toLocaleString("en-US")}. Please use a smaller file.`;
+  return null;
+}
+
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} bytes`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+export function sklearnNote(version: string | null | undefined): string {
+  return version
+    ? `To open this file you need scikit-learn ${version} (use joblib.load). Another version may not load it.`
+    : "To open this file you need the same scikit-learn version it was trained with.";
+}
+
+export function cellText(v: string | number | null | undefined): string {
+  if (v === null || v === undefined) return "";
+  return typeof v === "number" && !Number.isInteger(v) ? String(Math.round(v * 10000) / 10000) : String(v);
+}
+
+// ---------------------------------------------------------------- project tabs
+
+export const TABS = ["Overview", "History", "Activity", "Model"] as const;
+export type TabId = (typeof TABS)[number];
+// ?tab=model on /projects/{id} opens the Model tab. Anything else opens Overview.
+export function tabFromQuery(raw: string | undefined): TabId {
+  return TABS.find((t) => t.toLowerCase() === raw?.toLowerCase()) ?? "Overview";
 }

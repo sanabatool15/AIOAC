@@ -67,3 +67,69 @@ test("overview line covers every status", () => {
     assert.ok(overviewLine(s).length > 10, s);
   assert.equal(overviewLine("???"), "");
 });
+
+import { batchProblem, buildRecord, cellText, csvRowCount, fileSize, sklearnNote, tabFromQuery, toPrediction } from "../lib/screens";
+import type { BBatch, BModel, BPredict } from "../lib/api";
+
+const model = sx.model as unknown as Extract<BModel, { available: true }>;
+
+test("buildRecord drops empty fields and turns number columns into numbers", () => {
+  const r = buildRecord(model.columns, { months_active: " 12 ", plan: "basic", days_since_last_purchase: "" });
+  assert.deepEqual(r, { record: { months_active: 12, plan: "basic" }, error: null });
+});
+
+test("buildRecord says what is wrong in plain words", () => {
+  assert.match(buildRecord(model.columns, { months_active: "lots" }).error ?? "", /"months_active" needs a number/);
+  assert.equal(buildRecord(model.columns, {}).error, "Fill in at least one field.");
+  assert.equal(buildRecord(model.columns, { plan: "   " }).error, "Fill in at least one field.");
+});
+
+test("the real model body has the shape the form needs", () => {
+  assert.equal(model.available, true);
+  assert.ok(model.columns.some((c) => c.kind === "text" && (c.choices ?? []).length > 0));
+  assert.ok(model.columns.some((c) => c.kind === "number" && c.example !== null));
+});
+
+test("prediction shows 'about N out of 100', biggest first, with the note", () => {
+  const v = toPrediction(sx.predict as unknown as BPredict);
+  assert.equal(v.answer, "No");
+  assert.deepEqual(v.rows.map((r) => r.text), ["about 82 out of 100", "about 18 out of 100"]);
+  assert.equal(v.note, "an estimate, not a promise");
+  const none = toPrediction({ prediction: 3, probabilities: null, note: "" });
+  assert.equal(none.answer, "3");
+  assert.deepEqual(none.rows, []);
+  assert.equal(none.note, "an estimate, not a promise");
+});
+
+test("csv checks: empty, header only, too many rows", () => {
+  assert.equal(csvRowCount("a,b\n1,2\n\n3,4\n"), 2);
+  assert.match(batchProblem("") ?? "", /Paste CSV text/);
+  assert.match(batchProblem("a,b\n") ?? "", /at least one row/);
+  assert.equal(batchProblem("a\n1\n2"), null);
+  const big = "a\n" + Array.from({ length: 5001 }, (_, i) => String(i)).join("\n");
+  assert.match(batchProblem(big) ?? "", /5,001 rows\. The limit is 5,000/);
+  assert.equal(batchProblem("a\n" + Array.from({ length: 5000 }, (_, i) => String(i)).join("\n")), null);
+});
+
+test("the batch body from the server renders as cells", () => {
+  const b = sx.batch as unknown as BBatch;
+  assert.deepEqual(b.columns, ["months_active", "days_since_last_purchase", "prediction", "confidence"]);
+  assert.equal(cellText(b.preview[0].confidence), "0.9833");
+  assert.equal(cellText(null), "");
+  assert.equal(cellText(12), "12");
+  assert.match(b.csv_text, /^months_active,/);
+});
+
+test("file size and scikit-learn note", () => {
+  assert.equal(fileSize(500), "500 bytes");
+  assert.equal(fileSize(7714763), "7.4 MB");
+  assert.match(sklearnNote("1.9.1"), /scikit-learn 1\.9\.1/);
+  assert.match(sklearnNote(null), /same scikit-learn version/);
+});
+
+test("?tab= picks a tab and falls back to Overview", () => {
+  assert.equal(tabFromQuery("model"), "Model");
+  assert.equal(tabFromQuery("History"), "History");
+  assert.equal(tabFromQuery("nonsense"), "Overview");
+  assert.equal(tabFromQuery(undefined), "Overview");
+});

@@ -142,6 +142,7 @@ export function ResultStep({ project, onChanged }: StepProps) {
       <MoneyRecap receipt={receipt} note={recapNote(v.kind, toRecap(receipt))} />
       <ReceiptCard receipt={receipt} />
       <RetrySettle project={project} receipt={receipt} refresh={refresh} onChanged={onChanged} />
+      <ModelLink projectId={project.id} />
       {v.kind === "missed" && (
         <TargetAction
           project={project}
@@ -151,6 +152,30 @@ export function ResultStep({ project, onChanged }: StepProps) {
         />
       )}
     </>
+  );
+}
+
+// Shown only when a model has been saved for this project (GET /model says available).
+function ModelLink({ projectId }: { projectId: string }) {
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    real.getModel(projectId).then((m) => alive && setHas(m.available)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [projectId]);
+  if (!has) return null;
+  return (
+    <Card variant="violet" aria-label="Use your model" data-testid="model-link" className="gap-2 p-4 shadow-card-tight">
+      <h2 className="text-sm font-semibold text-ink">Use your model</h2>
+      <p className="text-sm leading-5 text-ink-2">Try it on one record, run it on a CSV, or download it. This is free.</p>
+      <div>
+        <Link href={`/projects/${projectId}?tab=model`} className="text-sm font-semibold text-brand-ink underline">
+          Open the model
+        </Link>
+      </div>
+    </Card>
   );
 }
 

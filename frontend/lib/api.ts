@@ -163,6 +163,40 @@ export interface BActivityItem {
   text: string;
 }
 
+export interface BModelColumn {
+  name: string;
+  kind: "number" | "text";
+  example: number | string | null;
+  choices: string[] | null;
+}
+export type BModel =
+  | { available: false }
+  | {
+      available: true;
+      trained_at: string;
+      target: string;
+      accuracy: number | null;
+      simple_guess_accuracy: number | null;
+      is_estimate_note: string;
+      sklearn_version: string | null;
+      size_bytes: number;
+      usable: boolean;
+      unusable_reason: string | null;
+      columns: BModelColumn[];
+      classes: string[];
+    };
+export interface BPredict {
+  prediction: string | number;
+  probabilities: Record<string, number> | null;
+  note: string;
+}
+export interface BBatch {
+  rows: number;
+  columns: string[];
+  preview: Record<string, string | number | null>[];
+  csv_text: string;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {

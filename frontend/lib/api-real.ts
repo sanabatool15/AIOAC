@@ -3,15 +3,20 @@
 import {
   api,
   ApiError,
+  detailMessage,
   type BActivityItem,
   type BForecast,
+  type BBatch,
   type BHistory,
+  type BModel,
+  type BPredict,
   type BOrder,
   type BProject,
   type BQuote,
   type BReceipt,
   type BTraining,
 } from "./api";
+import { API_BASE_URL } from "./config";
 import { clearRealUser, setRealUser, type SessionUser } from "./session";
 
 // ---- small browser memory (never the source of truth; every value can be recovered from the server) ----
@@ -74,6 +79,34 @@ export const listProjects = () =>
 // ---- project detail (specs/api.md section D) ----
 export const getHistory = (id: string) => api<BHistory>(`/projects/${id}/history`);
 export const getActivity = (id: string) => api<BActivityItem[]>(`/projects/${id}/activity`);
+
+// ---- the trained model (free: no gate, no money) ----
+export const getModel = (id: string) => api<BModel>(`/projects/${id}/model`);
+export const predictOne = (id: string, record: Record<string, string | number>) =>
+  api<BPredict>(`/projects/${id}/predict`, { body: { record } });
+export const predictBatch = (id: string, csvText: string) =>
+  api<BBatch>(`/projects/${id}/predict-batch`, { body: { csv_text: csvText } });
+// The saved model as a file. Returns the bytes and the scikit-learn version it needs (from X-Requires-Scikit-Learn).
+export async function downloadModel(id: string): Promise<{ blob: Blob; sklearn: string | null; filename: string }> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/projects/${id}/model/download`, { credentials: "include" });
+  } catch {
+    throw new ApiError("We could not reach the server. Check that it is running, then try again.", 0);
+  }
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(detailMessage(body, res.status), res.status);
+  }
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const filename = /filename="?([^";]+)"?/.exec(cd)?.[1] ?? `model-${id.slice(0, 8)}.joblib`;
+  return { blob: await res.blob(), sklearn: res.headers.get("X-Requires-Scikit-Learn"), filename };
+}
 
 // ---- data, checks, free test ----
 export const uploadCsv = (id: string, name: string, csvText: string) =>

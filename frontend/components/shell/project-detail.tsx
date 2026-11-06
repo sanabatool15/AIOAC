@@ -9,19 +9,18 @@ import { toBaseline, toForecast } from "@/lib/adapters";
 import type { BProject } from "@/lib/api";
 import { getActivity, getHistory, getProject } from "@/lib/api-real";
 import { useAsync } from "@/lib/hooks";
-import { overviewLine, toActivity, toHistory } from "@/lib/screens";
+import { overviewLine, TABS, toActivity, toHistory, type TabId } from "@/lib/screens";
 import { statusLabel } from "@/lib/status";
 import { cn } from "@/lib/utils";
+import { ModelTab } from "./model-tab";
 import { Row } from "./step-parts";
 import { TopBar } from "./top-bar";
 
-const TABS = ["Overview", "History", "Activity"] as const;
-type TabId = (typeof TABS)[number];
 
 // Project detail page: goal and plain status, then Overview, History and Activity from the server.
-export function ProjectDetail({ projectId }: { projectId: string }) {
+export function ProjectDetail({ projectId, initialTab = "Overview" }: { projectId: string; initialTab?: TabId }) {
   const { data, error, loading, retry } = useAsync(() => getProject(projectId), projectId);
-  const [tab, setTab] = useState<TabId>("Overview");
+  const [tab, setTab] = useState<TabId>(initialTab);
   const name = data ? (data.goal.length > 48 ? `${data.goal.slice(0, 48)}…` : data.goal) : "";
 
   return (
@@ -80,6 +79,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
               {tab === "Overview" && <Overview project={data} />}
               {tab === "History" && <History projectId={projectId} />}
               {tab === "Activity" && <Activity projectId={projectId} />}
+              {tab === "Model" && <ModelTab projectId={projectId} />}
             </div>
           </>
         )}
