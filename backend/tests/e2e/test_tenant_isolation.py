@@ -166,7 +166,8 @@ def test_health_and_webhook_stay_open():
 # ------------------------------------------------------------ isolation
 
 OPEN = {("GET", "/health"), ("POST", "/webhooks/paypal"), ("POST", "/auth/signup"), ("POST", "/auth/login"),
-        ("POST", "/auth/logout"), ("POST", "/auth/demo")}
+        ("POST", "/auth/logout"), ("POST", "/auth/demo"),
+        ("GET", "/public/results/{token}")}  # public on purpose: the unguessable token is the key (tests/e2e/test_screens.py)
 
 
 def _protected_routes():
@@ -189,9 +190,14 @@ PROJECT_ROUTES = {
     ("POST", "/projects/{pid}/settle/retry"): None, ("POST", "/projects/{pid}/cancel"): None, ("GET", "/projects/{pid}/trace"): None,
     ("POST", "/chats/{pid}/pilot"): {"target": 0.8}, ("GET", "/jobs/{pid}/forecast"): None,
     ("POST", "/agreements/{pid}/quote"): None,
+    ("GET", "/projects/{pid}/history"): None, ("GET", "/projects/{pid}/activity"): None, ("GET", "/projects/{pid}/model"): None,
+    ("POST", "/projects/{pid}/predict"): {"record": {"a": 1}}, ("POST", "/projects/{pid}/predict-batch"): {"csv_text": "a\n1\n"},
+    ("GET", "/projects/{pid}/model/download"): None, ("POST", "/projects/{pid}/share"): None,
+    ("GET", "/projects/{pid}/share"): None, ("DELETE", "/projects/{pid}/share"): None,
 }
 OTHER_PROTECTED = {("POST", "/projects"), ("GET", "/projects"), ("POST", "/payments/orders"), ("POST", "/payments/{payment_id}/authorize"),
-                   ("GET", "/payments/{payment_id}"), ("GET", "/auth/me")}
+                   ("GET", "/payments/{payment_id}"), ("GET", "/auth/me"),
+                   ("GET", "/account/usage"), ("GET", "/account/payments")}
 
 
 def test_every_route_is_covered_by_a_isolation_test():

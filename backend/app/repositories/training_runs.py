@@ -82,3 +82,12 @@ def mark_stop_requested(session: Session, run: TrainingRun) -> None:
 def add_model(session: Session, project_id: str, run_id: str, storage_key: str, quality: dict) -> None:
     session.add(Model(project_id=project_id, training_run_id=run_id, storage_key=storage_key, quality=quality))
     session.commit()
+
+
+def all_for_project(session: Session, project_id: str) -> list[TrainingRun]:
+    return list(session.scalars(select(TrainingRun).where(TrainingRun.project_id == project_id)
+                                .order_by(TrainingRun.started_at.desc(), TrainingRun.id.desc())))
+
+
+def latest_model(session: Session, project_id: str) -> Model | None:
+    return session.scalar(select(Model).where(Model.project_id == project_id).order_by(Model.created_at.desc(), Model.id.desc()))

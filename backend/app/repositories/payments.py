@@ -68,3 +68,7 @@ def save(session: Session, payment: Payment, **values) -> None:
     for k, v in values.items():
         setattr(payment, k, v)
     session.commit()
+
+
+def latest_for_project(session: Session, project_id: str) -> Payment | None:
+    return session.scalar(select(Payment).where(Payment.project_id == project_id).order_by(Payment.created_at.desc(), Payment.id.desc()))

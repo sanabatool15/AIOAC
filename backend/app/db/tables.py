@@ -206,6 +206,17 @@ class Model(Stamped, Base):
     visibility: Mapped[str] = mapped_column(String, default="private")
 
 
+class Share(Base):
+    """A public, read-only result link for one project (HUMAN REVIEW: the token is the only secret).
+    Revoking sets `revoked_at`; the row stays. Create it with `python -m app.db.init`; on Supabase also enable RLS."""
+    __tablename__ = "shares"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    token: Mapped[str] = mapped_column(String, unique=True)  # secrets.token_urlsafe(32), at least 32 random bytes
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class AgentRun(Stamped, Base):
     __tablename__ = "agent_runs"
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
