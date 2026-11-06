@@ -27,6 +27,8 @@ Status: 2026-11-04. Found by audits and re-checked against the code. Paths are u
 | F5 | The demo path is only reachable at `/` and `/c/{id}`; the old mock routes (`/c/{id}/pay`, projects, billing, keys) still render mock screens that fail in real mode | `app/(app)/` | Redirect or hide in real mode | partly (re-audit: old mock routes show a "real backend only" notice via `mock-notice.tsx` instead of failing; they are not redirected) |
 | F6 | `Stop` on the local backend takes effect only between stages (D2); the screen says "Stopping..." until the run ends | `TrainingStep` | Backend side | open |
 | F7 | Frontend unit tests (`npm run test:unit`) use `tsx`; no component tests and no Playwright test for real mode | `frontend/unit/` | Add a real-mode Playwright run when a fake PayPal exists | partly (re-audit: `npm run test:unit` has 22 passing tests; still no real-mode Playwright run) |
+| F8 | Two UIs: polished screens run on fake data, real-mode screens are plain. Goal is one polished UI on real data, with dead screens deleted and `USE_MOCK_API` removed | `frontend/components/shell`, `components/real`, `lib/mock-api.ts` | Plan in `frontend-integration.md` section 9, steps 1 to 11 | open |
+| F9 | The approval card does not name the dataset (text is only "The agent wants to select dataset") | `backend/app/services/gate.py:73`, `services/agent/loop.py:267` | Add `detail {name, source, rows, columns, license, target}` and a plain `what` for `select_dataset` (frontend-integration 9.5, step 1) | open |
 
 ## 2. Payments (HUMAN REVIEW REQUIRED for every item, CLAUDE.md)
 

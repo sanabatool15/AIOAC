@@ -123,3 +123,102 @@ Wired (real mode):
 Code: `lib/api.ts` (fetch client, `ApiError`), `lib/api-real.ts` (one function per endpoint), `lib/adapters.ts` (all unit conversions), `lib/status.ts`, `components/real/`. Tests: `npm run test:unit`.
 
 Wired 2026-11-06 (F1): chat on the describe step (history, agent replies, dataset approval card, blocks; one `/chat` call per user action, no polling or auto-retry). Not wired (still mock): chat on later steps,  try-one-record, CSV predictions, model download, sharing, usage, keys, plans, forgot password (see breakpoints F rows). Paid steps were not run against real PayPal.
+
+## 9. One polished UI on the real backend (plan 2026-11-06)
+
+Goal: keep ONE UI, the polished one (`components/shell`), driven only by the real backend. Plan only, no code changed yet. Read-only audit of the frontend on 2026-11-06.
+
+Idea in one line: the polished screens are chat-first (`InlineChatFrame`, `AgentRow`, `UserBubble`, inline cards) and today a fake "chat name" picks the screen. We keep that look, but `ChatScreen` picks the screen from the project status (`lib/status.ts`, api.md B8) and each card is fed by a view model from `lib/adapters.ts` (cents, 0 to 1, one id), never by `lib/types.ts` mock shapes.
+
+### 9.1 Inventory
+
+Counts: 18 route pages (7 keep or rewire, 11 delete). 43 files in `components/shell` (3 keep as is, 19 rewire, 21 delete). `components/billing` (7 files), `components/real` (9 files, replaced step by step), `lib/mock-api.ts` (2115 lines) and `lib/billing-flow.ts` go.
+
+Route pages (`frontend/app/`):
+
+| Route file | Action | Note |
+|---|---|---|
+| `(auth)/login/page.tsx`, `(auth)/signup/page.tsx` | rewire | `auth-screen.tsx` loses mock branches, forgot password, OAuth buttons |
+| `(app)/page.tsx` | rewire | `home-screen.tsx`: goal box, then create project; returning user sees last project |
+| `(app)/c/[chatId]/page.tsx` | rewire | the whole demo path, one page, screen chosen by status |
+| `(app)/pay/return/page.tsx`, `(app)/pay/cancel/page.tsx` | rewire | keep logic of `real/pay-return.tsx`, restyle in the shell |
+| `(app)/projects/page.tsx` | rewire | `projects-screen.tsx` shows `GET /projects` only (no rename, delete, members) |
+| `(app)/c/[chatId]/pay/page.tsx` | delete | fake PayPal popup route |
+| `(app)/projects/[projectId]/page.tsx` | delete | runs and versions, no backend |
+| `(app)/account/billing/page.tsx`, `(app)/account/usage/page.tsx` | delete | plans, usage, payment methods, billing history |
+| `(app)/settings/keys/page.tsx` | delete | API keys |
+| `(app)/welcome/page.tsx` | delete | first-run tour |
+| `(flow)/billing/{plan,review,payment,done}/page.tsx`, `(flow)/layout.tsx` | delete | plan wizard (+ `components/billing/*`, `lib/billing-flow.ts`) |
+| `(public)/s/[shareId]/page.tsx` | delete | share link (+ `public-result.tsx`) |
+
+Shell files (`frontend/components/shell/`):
+
+| Action | Files |
+|---|---|
+| keep as is | `inline-chat.tsx`, `composer.tsx`, `confirm-dialog.tsx` |
+| rewire | `app-shell.tsx`, `sidebar.tsx` (replaces `real/real-sidebar.tsx`), `top-bar.tsx` (drop Share), `user-menu.tsx` (email + Log out only), `home-screen.tsx`, `auth-screen.tsx`, `chat-screen.tsx`, `projects-screen.tsx`, `baseline-chat.tsx`, `agreement-chat.tsx`, `ineligible-chat.tsx`, `training-chat.tsx`, `verified-chat.tsx`, `result-chat.tsx`, `round2-chat.tsx`, `budget-card.tsx`, `budget-panel.tsx`, `add-data-modal.tsx` (shrink to CSV upload; 686 lines of integrations go), `add-data-provider.tsx` |
+| delete | `activity-chat`, `research-chat`, `live-view-tab`, `canvas-panel`, `canvas-files`, `canvas-progress`, `experiment-canvas`, `model-tab`, `chat-panel`, `tool-strip`, `trace-card`, `key-drawer`, `keys-screen`, `usage-screen`, `billing-screen`, `payment-methods-tab`, `share-dialog`, `public-result`, `paypal-window`, `first-run-screen`, `project-screen` |
+
+Also delete the mock-only parts of `lib/types.ts` (Job, Step, ResearchRun, LiveView, Share*, Key*, Plan*, Billing*, Usage*, Tier*, ModelUse, BatchResult; most of the file) and `lib/hooks.ts` pieces only used by them. Delete `components/real/*` last (step 10).
+
+### 9.2 Demo-path screens
+
+Backend shapes are in api.md; "view" means a function in `lib/adapters.ts` (new ones marked +).
+
+| Screen (status) | Reuse (polished) | Replaces (real/lib) | Endpoints | Adapter and prop mapping |
+|---|---|---|---|---|
+| Login, logout | `auth-screen`, `user-menu` | `real/real-sidebar` logout | `/auth/login`, `/auth/signup`, `/auth/logout`, `/auth/me` | already in `api-real.ts`; keep `?next` and demo button |
+| Projects list | `projects-screen`, `sidebar` | `real/real-sidebar` | `GET /projects` | `{id, goal, status, created_at}` to `ProjectSummary{id,name=goal,subtitle=status label}`; +`statusLabel()` |
+| Describe + chat + approval card (`described`) | `InlineChatFrame`, `AgentRow`, `UserBubble`, `Composer`, card style of `ineligible-chat` | `real/chat.tsx` (keep its logic, `lib/chat.ts`) | `GET /messages`, `POST /chat`, `POST /data`, `POST /data/{c}/select` | message `{role: assistant}` to `agent`; `card.args` shown as dataset box (name, source, rows, answer column) |
+| Data + readiness (`data_chosen`) | `baseline-chat` ReadinessCard | `real/steps` ReadinessStep | `POST /readiness` | `BaselineRun.readiness{grade,title,detail,tag}` from `readiness.grade` + findings `[{kind,text}]` (OK/NOTE list, not one tag): +`readinessView` |
+| Free test (`readiness_done`) | `baseline-chat` ResultCard, Metric, Bar | `real/steps` BaselineStep | `POST /baseline` | `result{precision,recall,targetPrecision}` to `{accuracy, simpleGuess}` as "X out of 100"; drop recall |
+| Target + forecast (`baseline_done`) | `agreement-chat` AgreementCard (one target, no tiers) | `real/steps` TargetForm, ForecastCard | `POST /chats/{id}/pilot` | `toForecast`: confidence, band, `is_estimate`; tiers and `maxUsd` removed; `suggested_target` as one chip |
+| Not eligible | `ineligible-chat` EligibilityCard | `real/steps` IneligibleStep | forecast in `GET /projects/{id}` | `IneligibleCheck` to `reason, issues[], suggested_target`; remove "upgrade plan" option |
+| Quote + approve (`baseline_done` eligible, `quoted`) | `agreement-chat` PaySummary | `real/steps` QuoteStep | `POST /agreements/{id}/quote`, `quote/approve` | `toQuote`: estimate/low/high/cap/compute cap/fee max, each "estimate", cap as limit; `terms` text from server |
+| Pay (`awaiting_payment`) | `agreement-chat` (hold lines), `budget-card` | `real/steps` PayStep, `paypal-window` | `POST /payments/orders`, redirect `approve_url` | hold parts to "Compute (up to)", "Success fee (up to, only if verified)", "Released" |
+| `/pay/return`, `/pay/cancel` | `inline-chat` frame + `Button` | `real/pay-return.tsx` | `POST /payments/{id}/authorize` (poll), `POST /train`, `GET /projects/{id}/payment` | logic unchanged (`recoverPayment`); server check is the proof |
+| Train + Stop (`training`) | `training-chat` ProgressBody, `confirm-dialog`, `budget-panel` | `real/steps-run` TrainingStep | `GET /training` (poll 3 s), `POST /training/stop` | `TrainingRun.eta{headline,detail,progress}` from stage, fraction, `eta.low/high`, spend "estimate"; drop LiveChartCard, series, tools; Stop text: compute used so far, no fee |
+| Result verified or missed (`done`) | `verified-chat` VerificationCard, MoneyRecap, BestModelCard, Banner | `real/steps-run` ResultStep | `GET /training` `result.verification`, `GET /payments/{id}` | `VerifiedRun.metrics[0]{value,ruleLabel,met}` from `{value,target,passed}`; recap `held/charged/released` from receipt cents; missed copy "you paid compute only, no success fee" |
+| Receipt | `result-chat` ReceiptTab | `real/steps-run` Receipt | `GET /projects/{id}/payment` | `ResultRun.receipt rows` from `toReceipt`; demo shows about 52 cents captured, rest released |
+| Improve after miss | `round2-chat` (trim) | ResultStep "new pilot" | `POST /chats/{id}/pilot` | plan card text only; new hold needs a new quote |
+| Voided, failed, stopped | `verified-chat` MoneyRecap + `AgentRow` | `real/steps-run` VoidedStep, StoppedStep | `GET /projects/{id}/payment`, `settle/retry` | "our failure, you pay $0" for voided/failed; stopped shows compute used, no fee |
+
+Not in the demo path (delete): `PredictionCard` and `WaysCard` in `result-chat` unless step 11 is approved.
+
+### 9.3 Mock mode: remove `USE_MOCK_API` entirely
+
+- Remove it. Delete `lib/mock-api.ts` (2115 lines), `lib/billing-flow.ts`, the `?mock=` states and all `if (USE_MOCK_API)` branches (about 12 files). `lib/config.ts` keeps only `API_BASE_URL` and `DEMO_LOGIN`.
+- Two code paths is what produced two UIs; a tiny mock would drift again, and the backend already has a scripted-model test double for offline work.
+- Playwright: delete all 34 mock-based specs and `tests/shots` (the 9 stale "pay $0" specs go with them). Replace with a few real-mode specs run against the real FastAPI app with the scripted model (steps 5 to 9); `npm run test:unit` stays the fast gate.
+
+### 9.4 Order of work
+
+Each step ships alone and ends with typecheck, lint, `test:unit`, build; browser steps use a scratchpad-only script that starts the real FastAPI app with FakeLLM and the mock payment double (stripped env, no outside calls). Real Azure and real PayPal only with the owner's yes.
+
+| # | Step | Size | Test |
+|---|---|---|---|
+| 1 | Backend: approval card names the dataset (9.5) | small | pytest unit + e2e card test; api.md updated |
+| 2 | Delete dead routes, screens, `components/billing`, nav entries (9.1) while mock still exists; fix imports | medium | typecheck, lint, build; grep finds no import of deleted files |
+| 3 | Remove `USE_MOCK_API`, `mock-api.ts`, mock specs, shrink `types.ts`; auth-screen cleanup | large | typecheck, lint, unit, build; browser: login, signup, logout |
+| 4 | Shell on real data: `AppShell`, `Sidebar` (replaces `real-sidebar`), `TopBar`, `UserMenu`, projects list, home | medium | unit for `statusLabel`; browser: sign up, create project, see list |
+| 5 | `ChatScreen` picks by status; describe step in the polished thread (chat, card with dataset box, CSV upload) | medium | unit (card view); browser: "I have no data" with FakeLLM, approve card |
+| 6 | Readiness, free test, target, forecast, not eligible views | medium | adapter unit tests from real JSON; browser: eligible and ineligible paths |
+| 7 | Quote, pay, `/pay/return`, `/pay/cancel` | medium | unit for hold lines; browser on mock payment double: hold, return, train starts |
+| 8 | Train, Stop, budget card and panel | medium | unit for progress/ETA view; browser: progress, Stop |
+| 9 | Result (verified, missed), receipt, voided, failed, stopped, Improve | large | unit for money recap; browser: verified, missed, our failure with exact cents |
+| 10 | Delete `components/real/*`, write 4 to 5 real-mode Playwright specs, update README and docs | medium | full frontend gate + backend `pytest` + demo check + secret scan |
+| 11 | Optional, owner decides: try-one-record (`POST /projects/{id}/predict`) | medium | backend unit + one browser check |
+
+### 9.5 Backend changes
+
+- **Approval card names the dataset (F9).** Today the card is `{what: "The agent wants to select dataset", level, tool, args}` (`services/gate.py` line 73, `services/agent/loop.py` line 267). Change: in `loop.py`, when the tool is `select_dataset`, build `card["detail"] = {name, source, rows, columns, license, target}` and a plain `what` ("Use the dataset <name> (<source>, <rows> rows) and predict <target>") from the candidate row, through a small helper in `services/agent/tools.py` that reads the candidate via the datasets repository. Add `detail` to `chat` and `messages` card JSON in `routes/projects.py` and to api.md A2. No gate logic change (level stays 1; approval stays a user click).
+- Not needed: any other new endpoint for the demo path. `GET /projects` already has `status`; hold lines come from `quote` and `payment`.
+- Small and optional: `GET /auth/me` answers 401 when signed out (console noise); either accept it or return `200 {user: null}` in `routes/auth.py` (changes the api.md C1 contract, owner to decide). Logout clears the cookie but the JWT stays valid until it expires (known, documented in api.md C1).
+
+### 9.6 Risks and open questions for the owner
+
+1. Delete the mock completely (recommended) and lose offline UI demos without the backend? Or keep a tiny mock? This plan assumes delete.
+2. Playwright specs against the real app need a test-only backend launcher with FakeLLM. OK to commit that launcher (under `backend/tests/helpers`), or keep it scratchpad-only and run the browser checks by hand?
+3. Try-one-record for the video (step 11): yes or no? It adds a backend endpoint and model loading.
+4. Describe step: keep chat only there (buttons later), or chat on every step? Plan says buttons later, chat only on describe.
+5. Risk: steps 7 to 9 are tested on the mock payment double only; the full browser cycle on the real PayPal sandbox and SageMaker is the owner's manual check (F2). Also `/auth/me` 401 choice (9.5).
