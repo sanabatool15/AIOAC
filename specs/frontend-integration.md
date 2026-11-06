@@ -118,8 +118,8 @@ Wired (real mode):
 - Pay: `quote/approve` then `POST /payments/orders` then the browser goes to `approve_url`. `/pay/return` calls `POST /payments/{id}/authorize` (polls 5 times if `held:false`), then `POST /projects/{id}/train`, then `/c/{id}`. `/pay/cancel` says nothing was held. `payment_id` is kept in sessionStorage and recovered from `GET /projects/{id}/payment` (or the project list) if lost.
 - Train: polls `GET .../training` (`not_started` is normal). Stop calls `.../training/stop` with the honest wording.
 - Result and receipt: `result.verification.passed` picks "Target reached" or "Target not reached"; receipt from `GET /projects/{id}/payment`. Stopped, voided and failed states, with "our failure: you pay $0". A missed run offers a new free pilot (Improve).
-- No login: real mode opens a demo session automatically.
+- Login (2026-11-06): real mode no longer opens a demo session. `/login` and `/signup` call `/auth/login` and `/auth/signup`; `GET /auth/me` decides signed-in state (`lib/session.ts`, memory only); a 401 outside `/auth/*` clears the user and goes to `/login?next=<path>` (never from `/login` or `/signup`); the sidebar shows the email and Log out; per-user browser memory (`aioac.pay`, `aioac.lastProject`) is wiped when the user changes; optional 'Try the demo' with `NEXT_PUBLIC_DEMO_LOGIN=true`. Mock mode is unchanged. Forgot password and OAuth are mock-only.
 
 Code: `lib/api.ts` (fetch client, `ApiError`), `lib/api-real.ts` (one function per endpoint), `lib/adapters.ts` (all unit conversions), `lib/status.ts`, `components/real/`. Tests: `npm run test:unit`.
 
-Not wired (still mock): chat history and agent replies (F1), dataset discovery, try-one-record, CSV predictions, model download, sharing, usage, keys, plans, login (see breakpoints F rows). Paid steps were not run against real PayPal.
+Not wired (still mock): chat history and agent replies (F1), dataset discovery, try-one-record, CSV predictions, model download, sharing, usage, keys, plans, forgot password (see breakpoints F rows). Paid steps were not run against real PayPal.

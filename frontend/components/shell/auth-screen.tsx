@@ -5,7 +5,14 @@ import { useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { forgotPassword, login, oauthLogin, signup } from "@/lib/mock-api";
+import * as mock from "@/lib/mock-api";
+import * as real from "@/lib/api-real";
+import { DEMO_LOGIN, USE_MOCK_API } from "@/lib/config";
+import { safeNext } from "@/lib/session";
+
+const { forgotPassword, oauthLogin } = mock;
+const login = USE_MOCK_API ? mock.login : real.login;
+const signup = USE_MOCK_API ? mock.signup : real.signup;
 
 const points = [
   "Free baseline before you commit",
@@ -48,7 +55,9 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
     setNotice(null);
     try {
       await action();
-      router.push("/");
+      // Real mode returns to the page that sent us here; the path is checked to stay on this site.
+      const next = USE_MOCK_API ? "/" : safeNext(new URLSearchParams(window.location.search).get("next"));
+      router.push(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setBusy(false);
@@ -114,34 +123,38 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
           <h1 className="text-[28px] font-semibold text-ink">{c.title}</h1>
           <p className="text-sm text-muted">{c.sub}</p>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            disabled={busy}
-            onClick={() => run(() => oauthLogin("google"))}
-          >
-            Continue with Google
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            disabled={busy}
-            onClick={() => run(() => oauthLogin("github"))}
-          >
-            Continue with GitHub
-          </Button>
+          {USE_MOCK_API && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                disabled={busy}
+                onClick={() => run(() => oauthLogin("google"))}
+              >
+                Continue with Google
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                disabled={busy}
+                onClick={() => run(() => oauthLogin("github"))}
+              >
+                Continue with GitHub
+              </Button>
 
-          <div
-            className="flex items-center gap-3"
-            role="separator"
-            aria-label="or"
-          >
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-sm text-muted">or</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
+              <div
+                className="flex items-center gap-3"
+                role="separator"
+                aria-label="or"
+              >
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-sm text-muted">or</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            </>
+          )}
 
           <Field label="Email" htmlFor="email">
             <Input
@@ -161,7 +174,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
               autoComplete={
                 mode === "login" ? "current-password" : "new-password"
               }
-              placeholder="••••••••"
+              placeholder={mode === "signup" && !USE_MOCK_API ? "At least 8 characters" : "••••••••"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               aria-invalid={!!error}
@@ -187,7 +200,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
           </Button>
 
           <div className="flex items-start justify-between text-sm">
-            {mode === "login" ? (
+            {mode === "login" && USE_MOCK_API ? (
               <button
                 type="button"
                 onClick={onForgot}
@@ -206,9 +219,23 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
             </Link>
           </div>
 
-          <p className="text-xs text-muted">
-            Demo sign-in. Google and GitHub buttons are dummy OAuth for now.
-          </p>
+          {!USE_MOCK_API && DEMO_LOGIN && (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              disabled={busy}
+              onClick={() => run(() => real.demoLogin())}
+            >
+              Try the demo
+            </Button>
+          )}
+
+          {USE_MOCK_API && (
+            <p className="text-xs text-muted">
+              Demo sign-in. Google and GitHub buttons are dummy OAuth for now.
+            </p>
+          )}
         </form>
       </section>
     </main>

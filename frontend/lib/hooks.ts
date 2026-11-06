@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { getSessionSnapshot, subscribeSession } from "./session";
+import { getRealUser, getSessionSnapshot, subscribeSession, type SessionUser } from "./session";
 
 // Tiny data hook: loading / error / data + retry. Remount (key) to reset on id change.
 export function useAsync<T>(fn: () => Promise<T>, key?: unknown) {
@@ -70,4 +70,9 @@ export function useSession() {
     getSessionSnapshot,
     () => "unknown" as const,
   );
+}
+
+// The signed-in user in real mode (null while unknown or signed out).
+export function useRealUser(): SessionUser | null {
+  return useSyncExternalStore(subscribeSession, getRealUser, () => null);
 }

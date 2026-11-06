@@ -10,6 +10,7 @@ import {
   type BReceipt,
   type BTraining,
 } from "./api";
+import { clearRealUser, setRealUser, type SessionUser } from "./session";
 
 // ---- small browser memory (never the source of truth; every value can be recovered from the server) ----
 const PAY_KEY = "aioac.pay"; // sessionStorage: {paymentId, projectId}, kept across the PayPal round trip
@@ -152,3 +153,57 @@ export const stopTraining = (id: string) =>
   });
 export const cancelHold = (id: string) =>
   api<{ payment_state: string; status: string }>(`/projects/${id}/cancel`, { method: "POST" });
+
+// ---- login (specs/api.md auth section). The cookie is httpOnly; the browser keeps no token. ----
+export function authMessage(e: unknown): string {
+  if (!(e instanceof ApiError)) return "Something went wrong. Please try again.";
+  switch (e.status) {
+    case 401:
+      return "Wrong email or password.";
+    case 409:
+      return "That email is already registered. Try logging in instead.";
+    case 422:
+      return "Use a valid email and a password of at least 8 characters.";
+    case 429:
+      return "Too many tries. Wait a few minutes, then try again.";
+    case 503:
+      return "Login is not set up on this server yet.";
+    case 404:
+      return "That sign-in option is not available on this server.";
+    default:
+      return e.message;
+  }
+}
+async function enter(path: string, body: unknown): Promise<{ user: SessionUser }> {
+  try {
+    const r = await api<{ user: SessionUser }>(path, { method: "POST", body });
+    setRealUser(r.user);
+    return r;
+  } catch (e) {
+    throw new Error(authMessage(e));
+  }
+}
+export const login = (email: string, password: string) => enter("/auth/login", { email, password });
+export const signup = (email: string, password: string) => enter("/auth/signup", { email, password });
+export const demoLogin = () => enter("/auth/demo", {});
+export async function logout(): Promise<{ ok: boolean }> {
+  try {
+    return await api<{ ok: boolean }>("/auth/logout", { method: "POST" });
+  } finally {
+    clearRealUser(); // even if the call failed, this browser forgets the user
+  }
+}
+// Who is signed in? Updates the session state; null when signed out. A network failure leaves the state unknown.
+export async function me(): Promise<SessionUser | null> {
+  try {
+    const r = await api<{ user: SessionUser }>("/auth/me");
+    setRealUser(r.user);
+    return r.user;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      clearRealUser();
+      return null;
+    }
+    throw e;
+  }
+}

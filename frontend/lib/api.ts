@@ -1,6 +1,7 @@
 // Small typed fetch client for the FastAPI backend (contract: specs/api.md section A).
 // Used only when NEXT_PUBLIC_USE_MOCK_API=false. Relative imports on purpose, so unit tests can load it.
 import { API_BASE_URL } from "./config";
+import { clearRealUser, redirectToLogin } from "./session";
 
 // Raw backend shapes. snake_case, money in whole cents, rates 0 to 1. Convert only in adapters.ts.
 export interface BProject {
@@ -163,6 +164,13 @@ export async function api<T>(
   } catch {
     /* empty or non-JSON body */
   }
-  if (!res.ok) throw new ApiError(detailMessage(body, res.status), res.status);
+  if (!res.ok) {
+    // Signed out (or the cookie expired): forget the user and go to login. /auth/* answers are the screen's business.
+    if (res.status === 401 && !path.startsWith("/auth/")) {
+      clearRealUser();
+      redirectToLogin();
+    }
+    throw new ApiError(detailMessage(body, res.status), res.status);
+  }
   return body as T;
 }
