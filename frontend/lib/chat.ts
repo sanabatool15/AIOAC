@@ -10,6 +10,7 @@ export interface CardDetail {
   columns: number | null;
   license: string | null;
   target: string | null;
+  target_meaning?: string | null; // optional: what the answer column means in plain words (may be absent)
 }
 
 export interface ChatCard {
@@ -18,6 +19,31 @@ export interface ChatCard {
   tool: string;
   args: Record<string, unknown>;
   detail?: CardDetail | null;
+}
+
+// A dataset name that is only an id ("350", "uci:350", "hf:...", a long hex id) tells the user nothing.
+export function looksLikeId(name: string): boolean {
+  const n = name.trim();
+  return !n || /^\d+$/.test(n) || /^(hf|uci|oml|openml|kaggle|local|sample|bundled):/i.test(n) || /^[0-9a-f]{16,}$/i.test(n);
+}
+
+// Title of the approval card: the dataset name, or the card's own plain sentence when the name is missing or an id.
+export function cardTitle(card: ChatCard): string {
+  const n = card.detail?.name;
+  return n && !looksLikeId(n) ? n.trim() : card.what;
+}
+
+// The small facts grid under the title. Only facts the server sent; License is always there ("not stated" if unknown).
+export function cardFacts(card: ChatCard): { label: string; value: string; note?: string }[] {
+  const d = card.detail;
+  if (!d || d.name === null) return [];
+  const out: { label: string; value: string; note?: string }[] = [];
+  if (d.source) out.push({ label: "Source", value: d.source });
+  if (d.rows !== null) out.push({ label: "Rows", value: d.rows.toLocaleString("en-US") });
+  if (d.columns !== null) out.push({ label: "Columns", value: String(d.columns) });
+  if (d.target) out.push({ label: "Answer column", value: d.target, note: d.target_meaning?.trim() || undefined });
+  out.push({ label: "License", value: d.license || "not stated" });
+  return out;
 }
 
 // Typed blocks built by the server from tool results (specs/api.md A2). Unknown types are ignored by the screen.

@@ -1,7 +1,7 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/api";
-import { bootChat, chatError, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
+import { bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
 
 // Shapes follow specs/api.md A2 and backend/tests/e2e/test_chat_blocks.py.
 const PID = "p1";
@@ -101,4 +101,33 @@ test("errors read as plain words and say what to do", () => {
 test("limit and error replies show their text; an empty text with no card adds nothing", () => {
   assert.equal(itemsFromReply({ status: "limit", text: "I stopped to save time.", card: null, blocks: [] })[0].text, "I stopped to save time.");
   assert.equal(itemsFromReply({ status: "reply", text: "", card: null, blocks: [] }).length, 0);
+});
+
+const detail = { name: "German credit", source: "OpenML", rows: 1000, columns: 21, license: null, target: "Y", target_meaning: "whether the next payment was missed" };
+
+test("card title is the dataset name; ids fall back to the plain sentence", () => {
+  assert.equal(cardTitle({ ...card, detail }), "German credit");
+  for (const name of ["350", "uci:350", "hf:scikit-learn/x", "oml:31", "0123456789abcdef0123"]) {
+    assert.ok(looksLikeId(name), name);
+    assert.equal(cardTitle({ ...card, detail: { ...detail, name } }), card.what);
+  }
+  assert.equal(cardTitle(card), card.what);
+  assert.equal(cardTitle({ ...card, detail: { ...detail, name: null } }), card.what);
+  assert.equal(cardTitle({ ...card, detail: { ...detail, name: "scikit-learn/churn-prediction" } }), "scikit-learn/churn-prediction");
+});
+
+test("card facts: source, rows, columns, answer column with meaning, license", () => {
+  const f = cardFacts({ ...card, detail });
+  assert.deepEqual(f.map((x) => x.label), ["Source", "Rows", "Columns", "Answer column", "License"]);
+  assert.equal(f[1].value, "1,000");
+  assert.equal(f[3].note, "whether the next payment was missed");
+  assert.equal(f[4].value, "not stated");
+});
+
+test("card facts: target_meaning is optional and null is fine", () => {
+  const { target_meaning: _omit, ...bare } = detail;
+  void _omit;
+  assert.equal(cardFacts({ ...card, detail: bare })[3].note, undefined);
+  assert.equal(cardFacts({ ...card, detail: { ...detail, target_meaning: null } })[3].note, undefined);
+  assert.deepEqual(cardFacts(card), []);
 });
