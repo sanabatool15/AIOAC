@@ -2,7 +2,7 @@
 from sqlalchemy import select
 
 from ..db import Session
-from ..db.tables import BaselineRun, InsightReport, Project
+from ..db.tables import BaselineRun, DatasetVersion, InsightReport, Project
 
 
 def add_insight_report(session: Session, project: Project, **fields) -> InsightReport:
@@ -29,3 +29,12 @@ def latest_baseline_run(session: Session, project_id: str) -> BaselineRun | None
 def latest_insight_report(session: Session, dataset_version_id: str) -> InsightReport | None:
     return session.scalar(select(InsightReport).where(InsightReport.dataset_version_id == dataset_version_id)
                           .order_by(InsightReport.created_at.desc()))
+
+
+def insight_reports_for_project(session: Session, project_id: str) -> list[InsightReport]:
+    return list(session.scalars(select(InsightReport).join(DatasetVersion, DatasetVersion.id == InsightReport.dataset_version_id)
+                                .where(DatasetVersion.project_id == project_id).order_by(InsightReport.created_at)))
+
+
+def baseline_runs_for_project(session: Session, project_id: str) -> list[BaselineRun]:
+    return list(session.scalars(select(BaselineRun).where(BaselineRun.project_id == project_id).order_by(BaselineRun.created_at)))

@@ -299,3 +299,54 @@ def test_activity_is_plain_language_built_from_the_trace(api, session, project):
     assert "sk-abcdefghijklmnopqrstuvwxyz123456" not in joined and "Traceback" not in joined and "secret_row" not in joined
     assert "{" not in joined and "playbook" not in joined and not any("skill" in x.lower() for x in texts)
     assert texts.index("Searched open datasets for loan default, credit risk") < texts.index("Created a price estimate")
+
+
+def test_activity_includes_steps_done_with_buttons_from_stored_rows(api, session, trained):
+    """No agent trace at all here: every line comes from insight_reports, baseline_runs, forecasts, quotes, payments, runs."""
+    feed = api.get(f"/projects/{trained.id}/activity").json()
+    texts = [f["text"] for f in feed]
+    assert all(set(f) == {"when", "kind", "text"} for f in feed)
+    wanted = ["Checked data readiness: grade", "Ran the free test: about", "Forecast ready: about", "Price estimate ready",
+              "You approved the price estimate", "Payment hold requested", "PayPal hold confirmed by the server",
+              "Training started", "Training finished", "Released"]
+    for w in wanted:
+        assert any(t.startswith(w) for t in texts), (w, texts)
+    # in the order the steps happen
+    first = [next(i for i, t in enumerate(texts) if t.startswith(w)) for w in wanted[:9]]
+    assert first == sorted(first), texts
+    joined = " ".join(texts)
+    for bad in ("{", "[", "storage", "models/", "splits/", "Traceback", "sk-", "ledger", "provider_", "PAYID"):
+        assert bad not in joined, bad
+    assert "estimate" in " ".join(t for t in texts if t.startswith("Price estimate ready")).lower()
+
+
+def test_activity_does_not_repeat_a_step_that_is_in_both_the_trace_and_the_stored_rows(api, session, trained):
+    t = TraceRepository(session)
+    t.add(trained.id, "tool_result", {"name": "run_readiness", "result": {"grade": "A", "findings": []}})
+    t.add(trained.id, "tool_result", {"name": "run_baseline", "result": {"accuracy": 0.8}})
+    t.add(trained.id, "tool_result", {"name": "create_quote", "result": {"quote_id": "q"}})
+    t.add(trained.id, "tool_result", {"name": "start_training", "result": {"run_id": "r"}})
+    t.add(trained.id, "tool_result", {"name": "run_pilot", "result": {}})
+    texts = [f["text"] for f in api.get(f"/projects/{trained.id}/activity").json()]
+    for start in ("Checked data readiness", "Ran the free test", "Price estimate ready", "Training started", "Forecast ready"):
+        assert sum(x.startswith(start) for x in texts) == 1, (start, texts)
+    assert "Created a price estimate" not in texts and "Started training" not in texts
+
+
+def test_activity_for_a_cancelled_hold_says_it_was_released_in_full(api, session, chosen, provider, storage):
+    from app.services import payments
+    q, pay = held(session, storage, chosen, provider)
+    payments.cancel(session, provider, chosen)
+    texts = [f["text"] for f in api.get(f"/projects/{chosen.id}/activity").json()]
+    assert any(t.startswith("The hold was released in full") for t in texts), texts
+    assert not any(t.startswith("Charged") for t in texts)
+
+
+def test_activity_shows_exact_charges_and_a_skipped_fee(api, session, trained):
+    from app.repositories import payments as payments_repo
+    pay = payments_repo.latest_for_project(session, trained.id)
+    payments_repo.save(session, pay, compute_captured_cents=52, fee_captured_cents=0, released_cents=4, state="fee_skipped")
+    texts = [f["text"] for f in api.get(f"/projects/{trained.id}/activity").json()]
+    assert "Charged $0.52 for the compute used" in texts
+    assert "No success fee: the target was not verified" in texts
+    assert "Released $0.04 of the hold; it was never charged" in texts

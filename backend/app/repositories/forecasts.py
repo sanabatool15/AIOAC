@@ -17,3 +17,7 @@ def add(session: Session, **fields) -> Forecast:
     session.add(fc)
     session.commit()
     return fc
+
+
+def all_for_project(session: Session, project_id: str) -> list[Forecast]:
+    return list(session.scalars(select(Forecast).where(Forecast.project_id == project_id).order_by(Forecast.created_at)))

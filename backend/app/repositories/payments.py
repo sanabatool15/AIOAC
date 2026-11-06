@@ -72,3 +72,7 @@ def save(session: Session, payment: Payment, **values) -> None:
 
 def latest_for_project(session: Session, project_id: str) -> Payment | None:
     return session.scalar(select(Payment).where(Payment.project_id == project_id).order_by(Payment.created_at.desc(), Payment.id.desc()))
+
+
+def all_for_project(session: Session, project_id: str) -> list[Payment]:
+    return list(session.scalars(select(Payment).where(Payment.project_id == project_id).order_by(Payment.created_at, Payment.id)))
