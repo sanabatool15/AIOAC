@@ -28,7 +28,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | AWS live runs | First live AWS pass 2026-10-30 (see `specs/integration-testing.md`); scikit-learn image pinned to `1.9-0` (2026-11-01). Real-model evals: gpt-5.4 22/22. Real PayPal sandbox lifecycle passed 2026-11-02 |
 | Terraform, AWS storage | Written in `infra/terraform/` (bucket, roles, app policy, budget alert). Not validated (terraform not installed) and never applied. No S3 storage provider for the app yet; the SageMaker backend uploads its own job files |
 | Web app | Built on a typed mock API (`frontend/`, 35 numbered screens on 16 route pages; builds, typechecks and lints clean). Not connected to the backend: every call goes through `frontend/lib/mock-api.ts`. Mismatches with the backend are listed in `specs/frontend-integration.md` |
-| Login | Not started. Crowdfunding was removed from the product (2026-10-26) |
+| Login and multitenancy | Built 2026-11-06 (email and password, signed cookie, one org per signup, every project route owner-scoped, 404 for others). Not built: password reset, email check, invite to an org, rate limit shared across processes. Needs human review (secrets handling). Frontend wiring is separate. Crowdfunding was removed from the product (2026-10-26) |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
 Tests (2026-11-04): 355 collected, 345 passed, 10 skipped (unit 159, contract 108, e2e 79, integration 9; one more test skips by itself; `tests/integration` only runs with `RUN_REAL=1`). No network needed. Run `pytest` in `backend/`.
@@ -114,7 +114,7 @@ Readiness grade from a documented scoring (rows, duplicates, missing values, lop
 - Reply guard: replies that claim payment, training or a settlement the state does not support are replaced with a correction (keyword-based, imperfect).
 
 ### 3.9 HTTP endpoints
-The full contract (request and response bodies, status codes, and the planned additions) is in `specs/api.md`. There is no login: anyone who can reach the API can call everything. That is a deliberate deferral. The API has no CORS and no routes for select dataset, readiness, baseline or message history yet (`specs/breakpoints.md`).
+The full contract (request and response bodies, status codes, and the planned additions) is in `specs/api.md`. Login is required for everything except health and the PayPal webhook (`specs/api.md` section C). The API has no CORS and no routes for select dataset, readiness, baseline or message history yet (`specs/breakpoints.md`).
 
 ## 4. Decisions made so far
 
@@ -157,7 +157,7 @@ The numbered breakpoints (UI wiring, payment edge cases flagged for human review
 6. **Inngest Cloud and Supabase are unverified.** The Inngest runner needs a public API URL (tunnel) and real keys; Postgres support is tested only by building the engine and compiling the schema for Postgres. Neither can be checked from this container.
 7. **No scheduled cleanup** for expired candidates or leftover cloud resources. Unused holds are expired only when the API starts.
 8. **Stop on the local backend** only takes effect between stages. The web app has no Stop button yet. The agent tool `start_training` is still blocking.
-9. **No authentication.** Anyone can call any endpoint.
+9. **Authentication** exists (see Login row). The login throttle is in memory per process. Legacy rows without an owner are unreachable.
 10. **Money model** is decided (2026-10-26) but only tested on the mock and mocked HTTP; PayPal's limits on captures per authorization and hold duration are unchecked, and nothing has run against the real sandbox since the switch to holds. Eligibility thresholds (0.60 confidence, 500 rows) and the forecast method are untested on real datasets.
 11. **Unused tables** exist for funding (removed feature), users and agent runs.
 12. **Hugging Face rate limits** apply, and we send no token unless one is configured.

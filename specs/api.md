@@ -6,7 +6,7 @@ Conventions (built):
 - One id: the project id. `/chats/{id}`, `/jobs/{id}` and `/agreements/{id}` are aliases of it (see `payments.md` section 6).
 - Money is whole cents. Rates (accuracy, target, confidence, fraction) are 0 to 1. JSON keys are snake_case.
 - Errors are FastAPI's `{"detail": "<plain message>"}`. A body that fails validation gives 422 with `detail` as a list.
-- No login. CORS allows `CORS_ORIGINS` (default `http://localhost:3000`). No URL prefix: `http://localhost:8000`.
+- Login (2026-11-06, section C): every route except `GET /health`, `POST /webhooks/paypal` and `/auth/signup|login|logout|demo` needs the session cookie `aioac_session`. 401 `please sign in` without a valid one; 503 `login is not set up` when `SECRET_KEY` is missing. CORS allows `CORS_ORIGINS` (default `http://localhost:3000`). No URL prefix: `http://localhost:8000`.
 - Quote and forecast numbers are estimates (`is_estimate: true`).
 
 ## A. BUILT endpoints
@@ -87,7 +87,7 @@ Conventions (built):
 Payment `state`: `none`, `held`, `compute_captured`, `fee_captured`, `fee_skipped`, `released`, `voided`, `expired`, `declined`.
 
 ### A6. No route exists for
-Predict (one record or CSV), model download, share link, auth. No CORS.
+Predict (one record or CSV), model download, share link.
 
 ## A0. Added 2026-11-04 (step 1, non-payment items; BUILT)
 
@@ -168,3 +168,24 @@ Backend: cents, 0 to 1, snake_case, one project id. The mock frontend uses dolla
 - precision and recall to one accuracy number; drop the three target tiers and the max price field;
 - hold parts "Experiment 1/2" and "Safety buffer" to "Compute (up to)", "Success fee (up to, only if verified)" and "Released";
 - screen choice from `status` (B8), not from the chat name.
+
+
+## C. Login and ownership (BUILT 2026-11-06)
+
+### C1. Auth routes (`routes/auth.py`, `services/auth.py`)
+- `POST /auth/signup` body `{email, password}` (password 8 to 200 characters, email must look like an address) -> 200 `{user: {id, email, org_id}}` and an httpOnly cookie. Creates a personal organization and the user in one transaction. 409 `that email is already registered`. 422 on bad input.
+- `POST /auth/login` same body and reply. 401 `wrong email or password` (same text and similar timing for an unknown email). 429 after 10 failures within 10 minutes for the same email and IP (in memory, per process).
+- `POST /auth/logout` -> 200 `{ok: true}`, clears the cookie.
+- `GET /auth/me` -> 200 `{user}` or 401.
+- `POST /auth/demo` -> 404 unless `DEMO_LOGIN_ENABLED=true`; then logs in a fixed demo user (`demo@aioac.example`, random password, so it cannot be used with `/auth/login`).
+- 503 `login is not set up` on all of the above (and on every protected route) when `SECRET_KEY` is empty, shorter than 16 characters or a placeholder. `GET /health` adds `auth: {configured: bool}`.
+- The cookie holds a signed JWT (HS256) with `sub` (user id), `org` (org id) and `exp` (`JWT_TTL_MINUTES`, default 720). Name `aioac_session`; `COOKIE_SECURE` (default false) and `COOKIE_SAMESITE` (default lax). A token whose org no longer matches the user's org is refused. The browser must send credentials (`credentials: "include"`); CORS already allows credentials for `CORS_ORIGINS`.
+
+### C2. Ownership rule
+A project belongs to one user and one org (`projects.user_id`, `projects.org_id`, set from the signed-in user on `POST /projects`). Every route that takes a project id (`/projects/{id}/...`, `/chats/{id}/pilot`, `/jobs/{id}/forecast`, `/agreements/{id}/quote`) loads it through `deps.owned_project`. `POST /payments/orders` checks the project the same way; `POST /payments/{id}/authorize` and `GET /payments/{id}` load the payment together with its project owner.
+- **404, never 403.** A project or payment that is not yours answers exactly like one that does not exist (`project not found` / `payment not found`), so existence is not leaked. This replaces the old `not found` bodies of the forecast and quote routes and the empty 404 of the payment routes.
+- `GET /projects` returns only the signed-in user's projects.
+- Open on purpose: `GET /health`, `POST /webhooks/paypal` (PayPal's signature is the authentication). The background job runner and start-up crash recovery have no request user and work on run ids only.
+- Conversations and messages are only reached through the owned project. The agent never accepts a conversation id from another project.
+- Projects made before login have no owner and cannot be reached (delete the old `aioac.db`).
+- Test: `tests/e2e/test_tenant_isolation.py` lists every route and fails when a new one is not classified.

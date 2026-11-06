@@ -57,4 +57,10 @@ The full money check needs a sandbox buyer to approve in a browser, so it has tw
 
 SQLite is the default. To use Supabase: `pip install -e '.[postgres]'`, then in Supabase open Project Settings > Database > Connection string and copy the pooled string (Supavisor, port 6543). Put it in `.env` as `DATABASE_URL`. The app rewrites `postgresql://` to the psycopg 3 driver, turns off prepared statements and client-side pooling for port 6543 (transaction mode needs that), and creates the tables on start. Never commit the real string. The Supabase path has not been run against a real project yet. Existing local databases need deleting after schema changes (there are no migrations yet).
 
+To create the tables on a new Supabase database, once: `cd backend && python -m app.db.init` (reads `DATABASE_URL`, prints the dialect with the password hidden and the tables it created; it never drops anything).
+
+## Login (required)
+
+Every screen's API call needs a signed-in user; each project belongs to one user and one organization, and nobody else can see it (other users get 404). Set `SECRET_KEY` in `.env` to at least 32 random characters (`python -c "import secrets; print(secrets.token_urlsafe(48))"`), otherwise `/auth/*` and the project routes answer 503 "login is not set up" and `/health` shows `auth.configured: false`. Other settings: `JWT_TTL_MINUTES` (720), `COOKIE_SECURE` (true behind https), `COOKIE_SAMESITE` (lax; `none` needs secure), `DEMO_LOGIN_ENABLED` (false; true adds `POST /auth/demo` for the video). Delete any old `aioac.db` after pulling this change: the schema gained `organizations`, user passwords and project owners, and projects created before login have no owner and cannot be reached.
+
 License: MIT

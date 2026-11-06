@@ -61,7 +61,7 @@ Small changes only, each with a test on the mock provider, each explained to the
 | D2 | The local backend costs 0, so the receipt shows nothing captured and the demo money step looks empty | `integrations/training_local/` | A believable demo job (see Order of work, step 5) | open |
 | D3 | Prices are placeholders; quotes are about 53 cents | `services/cost/prices.py` | Measure one real job and replace them | open |
 | D4 | The real LLM has never been run; the agent evals have no real pass rates | `backend/evals/` | One real run after the owner is told (see below) | done: real model gpt-5.4 (Azure) passed 22/22 eval runs (see `specs/integration-testing.md`) |
-| D5 | No authentication. Deferred on purpose | `routes/` | Plan: a demo user created by `POST /auth/demo`, then optional email login | open |
+| D5 | No authentication. Deferred on purpose | `routes/` | Email and password login, org per signup, owner-scoped routes; optional `POST /auth/demo` behind `DEMO_LOGIN_ENABLED` | done 2026-11-06 (api.md section C; frontend still to wire, send cookies) |
 
 ## 5. Order of work
 

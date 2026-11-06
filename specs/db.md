@@ -6,7 +6,7 @@ Design level only. Exact column types are decided when the code is written.
 
 - Money is stored as whole cents, never decimals.
 - The ledger and webhook records are insert-only.
-- Every table has an id, a created time, and a reserved `org_id` (empty for now) so multi-tenancy can be added later without a rewrite. Nothing enforces it yet.
+- Every table has an id and a created time. Ownership: a project has `user_id` and `org_id` (both set for every new row; foreign keys, indexed together as `ix_projects_org_user`). All other tables belong to a project and reach their owner through `project_id`; they carry no owner columns. The API enforces the rule (`specs/api.md` section C). The inherited `org_id` column on other tables is unused.
 - SQLite for the demo, written so it works on Postgres.
 - The database records what exists; files themselves live in object storage.
 
@@ -63,14 +63,19 @@ A single running record of actual AWS spend, used by the global guard.
 ### Funding campaign and contribution (removed, unused)
 Crowdfunding was dropped from the product. The tables may still exist in the code but nothing uses them.
 
-### User (placeholder)
-Minimal identity for the demo; real login is deferred.
+### Organization
+A tenant. Fields: id, name, created time. Signup creates a personal one named after the email.
+
+### User
+Fields: unique indexed `email` (stored lower-case), `password_hash` (salted scrypt, never the password), `org_id` (foreign key to organizations). Created together with its organization in one transaction. Projects created before login have no owner and cannot be reached; there are no migrations, so delete an old local `aioac.db`.
 
 ## 3. Relationships
 
 A project has many candidates, dataset versions, quotes and agent runs. A quote leads to at most one payment hold. A hold has up to two ledger entries (compute and fee). A project has at most one forecast per pilot run. A project has at most one active training run and ends with at most one model.
 
 ## 4. Integrity rules
+
+0. A project is only served to the user and org that own it; anything else is a 404.
 
 1. A project can only be marked paid if a server-confirmed hold exists for its approved quote.
 2. A training run cannot start without that paid state.
