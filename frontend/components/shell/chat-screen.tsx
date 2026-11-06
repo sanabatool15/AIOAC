@@ -18,14 +18,14 @@ import { PROJECTS_CHANGED } from "./sidebar";
 export function ChatScreen({ chatId }: { chatId: string }) {
   const [project, setProject] = useState<BProject | null>(null);
   const [error, setError] = useState<ApiError | Error | null>(null);
+  const lastStatus = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const p = await getProject(chatId);
-      setProject((prev) => {
-        if (prev && prev.status !== p.status) window.dispatchEvent(new Event(PROJECTS_CHANGED)); // the sidebar shows the new status
-        return p;
-      });
+      if (lastStatus.current && lastStatus.current !== p.status) window.dispatchEvent(new Event(PROJECTS_CHANGED)); // the sidebar shows the new status
+      lastStatus.current = p.status;
+      setProject(p);
       setError(null);
       rememberProject(chatId);
     } catch (e) {

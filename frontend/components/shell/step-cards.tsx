@@ -74,7 +74,7 @@ export function FreeTestCard({ project }: { project: BProject }) {
   return (
     <Card variant="blue" aria-label="Free test" data-testid="baseline-result" className="gap-3 p-[18px] shadow-card-tight">
       <p className="text-sm font-semibold leading-[normal] text-ink">Free test</p>
-      <div className="flex items-end gap-7">
+      <div className="flex items-center gap-7">
         <p className="min-w-px flex-1 text-sm leading-5 text-ink-2">
           On data it had not seen, a simple first model got about <strong>{b.right} out of 100</strong> right. Always
           guessing the most common answer would get about {b.guess} out of 100.{" "}
