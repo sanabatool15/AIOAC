@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import * as real from "@/lib/api-real";
-import { Panel } from "./parts";
+import { Panel } from "@/components/shell/step-parts";
 
 const POLLS = 5;
 const WAIT_MS = 2000;

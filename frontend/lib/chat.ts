@@ -2,11 +2,22 @@
 // Cost rule: ONE POST /chat per user action. Nothing here polls, retries or resends on its own.
 import { api, ApiError } from "./api";
 
+// Set by the server for select_dataset (null fields when the candidate is unknown). Absent on other cards.
+export interface CardDetail {
+  name: string | null;
+  source: string | null;
+  rows: number | null;
+  columns: number | null;
+  license: string | null;
+  target: string | null;
+}
+
 export interface ChatCard {
   what: string;
   level: number;
   tool: string;
   args: Record<string, unknown>;
+  detail?: CardDetail | null;
 }
 
 // Typed blocks built by the server from tool results (specs/api.md A2). Unknown types are ignored by the screen.
@@ -112,7 +123,8 @@ export interface Boot {
 // First visit: read the stored messages (a GET). Only if there are none, send the goal ONCE.
 // Two calls for the same project at the same time (React strict mode, a quick remount) share one promise.
 const booting = new Map<string, Promise<Boot>>();
-export function bootChat(projectId: string, goal: string): Promise<Boot> {
+// `sendGoal` is false on later steps: an empty history there is not a reason to talk to the model.
+export function bootChat(projectId: string, goal: string, sendGoal = true): Promise<Boot> {
   const running = booting.get(projectId);
   if (running) return running;
   const p = (async (): Promise<Boot> => {
@@ -123,6 +135,7 @@ export function bootChat(projectId: string, goal: string): Promise<Boot> {
       return { items: [], error: chatError(e) };
     }
     if (stored.length > 0) return { items: stored.map(fromStored), error: null };
+    if (!sendGoal) return { items: [], error: null };
     const first = userItem(goal);
     try {
       const r = await postChat(projectId, { message: goal });

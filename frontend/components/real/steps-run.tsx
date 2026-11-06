@@ -6,7 +6,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { toReceipt, toTraining, type ReceiptView } from "@/lib/adapters";
 import { ApiError, type BProject, type BReceipt, type BTraining } from "@/lib/api";
 import * as real from "@/lib/api-real";
-import { ErrorLine, Panel, Row, useAction } from "./parts";
+import { ErrorLine, Panel, Row, useAction } from "@/components/shell/step-parts";
 import { TargetForm } from "./steps";
 
 interface StepProps {
