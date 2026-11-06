@@ -1,10 +1,12 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, LogOut } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { logout } from "@/lib/api-real";
 import { useRealUser } from "@/lib/hooks";
+import { NAV_ITEMS } from "@/lib/nav";
 
 const rowClass =
   "flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-left text-sm leading-[normal] text-ink hover:bg-white focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-ink-2";
@@ -84,6 +86,12 @@ export function UserMenu() {
           <div className="p-2.5 text-sm leading-[normal]">
             <span className="block truncate text-muted">{email}</span>
           </div>
+          <div role="separator" className="h-px w-full bg-border" />
+          {NAV_ITEMS.map((n) => (
+            <Link key={n.href} href={n.href} role="menuitem" onClick={() => setOpen(false)} className={rowClass}>
+              <span className="min-w-px flex-1">{n.label}</span>
+            </Link>
+          ))}
           <div role="separator" className="h-px w-full bg-border" />
           <button
             type="button"

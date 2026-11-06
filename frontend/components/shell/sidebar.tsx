@@ -2,11 +2,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { MessageSquare, Plus } from "lucide-react";
+import { CreditCard, FolderOpen, Gauge, MessageSquare, Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { ErrorState, Skeleton } from "@/components/ui/state";
 import { listProjects } from "@/lib/api-real";
 import { useAsync, useRealUser } from "@/lib/hooks";
+import { isCurrent, NAV_ITEMS } from "@/lib/nav";
 import { statusLabel } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "./user-menu";
@@ -44,8 +45,29 @@ export function Sidebar() {
         New project
       </Link>
 
-      <nav aria-label="Projects" className="flex min-h-0 flex-col gap-0.5">
-        <SectionLabel>YOUR PROJECTS</SectionLabel>
+      <nav aria-label="Main" className="flex flex-col gap-0.5">
+        {NAV_ITEMS.map((n) => {
+          const on = isCurrent(n.href, pathname);
+          const Icon = n.href === "/projects" ? FolderOpen : n.href === "/account/usage" ? Gauge : CreditCard;
+          return (
+            <Link
+              key={n.href}
+              href={n.href}
+              aria-current={on ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-2 py-1.5 text-[13px] leading-5",
+                on ? "border-brand-line bg-brand-tint font-semibold text-brand-ink" : "border-transparent font-medium text-ink hover:bg-white/60",
+              )}
+            >
+              <Icon aria-hidden size={14} className="shrink-0" />
+              {n.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <nav aria-label="Recent projects" className="flex min-h-0 flex-col gap-0.5">
+        <SectionLabel>RECENT PROJECTS</SectionLabel>
         {loading && !data && (
           <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading projects">
             <Skeleton className="h-9" />
