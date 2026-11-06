@@ -39,7 +39,7 @@ From `backend/`, with a real `.env` or exported variables:
 
 2026-10-30, first full live pass:
 
-- **AWS:** account `097087134314`, user `aioac-dev`, bucket `aioac-097087134314-us-east-1` accepts writes, role `aioac-sagemaker-role` exists, image `1.4-2-cpu-py3` is ACTIVE, `ml.m5.xlarge` training quota is 20.
+- **AWS:** account `<ACCOUNT_ID>`, user `aioac-dev`, bucket `aioac-<ACCOUNT_ID>-us-east-1` accepts writes, role `aioac-sagemaker-role` exists, image `1.4-2-cpu-py3` is ACTIVE, `ml.m5.xlarge` training quota is 20.
 - **Real price:** `ml.m5.xlarge` training is $0.23/hour; the placeholder in `services/cost/prices.py` is 25 cents (slightly conservative).
 - **Real job:** cap 60 cents, 69 billable seconds, accuracy 0.82 against 0.69 for a simple guess, app cost 52 cents (1 compute, 1 storage, 50 platform fee), real AWS compute about 0.44 cents.
 - **Known gap, role:** it has `AmazonS3FullAccess` and `AmazonSageMakerFullAccess`. Needs an inline policy for the project bucket and log group `/aws/sagemaker/TrainingJobs*`.
