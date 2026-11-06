@@ -30,6 +30,19 @@ Status: 2026-11-04. Found by audits and re-checked against the code. Paths are u
 | F8 | Two UIs: polished screens run on fake data, real-mode screens are plain. Goal is one polished UI on real data, with dead screens deleted and `USE_MOCK_API` removed | `frontend/components/shell`, `components/real`, `lib/mock-api.ts` | Plan in `frontend-integration.md` section 9, steps 1 to 11 | in progress (2026-11-06): steps 1 to 6 done (shell, sidebar, home, project chat on every status, describe, data check, free test, target, forecast, not eligible). Steps 7 to 10 left: quote and pay, train, result and receipt, delete `components/real` (dead screens, mock mode and mock specs were deleted in steps 2 and 3) |
 | F9 | The approval card does not name the dataset (text is only "The agent wants to select dataset") | `backend/app/services/gate.py:73`, `services/agent/loop.py:267` | Add `detail {name, source, rows, columns, license, target}` and a plain `what` for `select_dataset` (frontend-integration 9.5, step 1) | done 2026-11-06: `select_dataset_card` in `services/agent/tools.py`, merged into the card by `loop.py`; shape in api.md A2 |
 
+### 1c. Screens back on real data (E rows, 2026-11-06)
+
+Routes for screens that were removed from the polished UI. Contract: `specs/api.md` section D. Free, owner-scoped (404 for others), no money logic touched.
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| E1 | No history screen data (versions, runs, quotes, payment) | `routes/screens.py`, `services/history.py` | `GET /projects/{id}/history` | done |
+| E2 | No way to try, batch-run or download the trained model | `services/model_use.py` | `GET /projects/{id}/model`, `POST .../predict`, `POST .../predict-batch`, `GET .../model/download`; size and rate limits; plain message on a scikit-learn version mismatch | done |
+| E3 | No usage totals or receipts list for the account | `services/account.py`, `repositories/account.py` | `GET /account/usage`, `GET /account/payments` | done |
+| E4 | No public read-only result link | `services/share.py`, table `shares` | `POST/GET/DELETE /projects/{id}/share`, public `GET /public/results/{token}` (HUMAN REVIEW; allow-listed fields, per-IP rate limit). Owner must create the table and enable RLS (db.md) | done |
+| E5 | No plain activity feed | `services/activity.py` | `GET /projects/{id}/activity`, built from the stored trace by code | done |
+| E6 | The rate limits are per process | `services/ratelimit.py` | A shared limiter when the API runs on several processes | open |
+
 ## 2. Payments (HUMAN REVIEW REQUIRED for every item, CLAUDE.md)
 
 Small changes only, each with a test on the mock provider, each explained to the reviewer.

@@ -189,6 +189,10 @@ The old model "charge the cap, then refund the unused amount" and the crowdfundi
 
 State: tested on the mock provider and mocked HTTP only. The PayPal sandbox has not been tried for authorize, partial capture, second capture, void or webhook. Not designed yet: the "change of engineering approach" step that lifts a low forecast (see `payments.md` section 2a). The agent's blocking `start_training` tool still settles through the same path. Quote caps: the compute cap stays within the per-job maximum, the hold (compute cap plus maximum fee) can exceed it by the fee.
 
+## 12. Screens back on real data (2026-11-06)
+
+Built: history, activity, model info, predict, predict-batch, model download, account usage, account receipts, share management and the public result link (`specs/api.md` section D, `specs/breakpoints.md` E1 to E6). New table `shares` (delete nothing; run `python -m app.db.init`, then enable RLS on `shares` in Supabase). The public route and the share token are marked HUMAN REVIEW. Prediction runs the stored scikit-learn pipeline in the API process; a model trained under another scikit-learn version gives a plain message, and the file can still be downloaded. Not built: a shared (multi-process) rate limiter, share expiry, model deletion. Tests: `tests/e2e/test_screens.py`.
+
 ## 11. Restructure note (2026-10-27)
 
 Behaviour unchanged; folders renamed so the layout explains itself. `providers/`, `app/jobs/` and `models/` are gone: outside systems are under `integrations/` (one folder each), interfaces are in `ports.py`, tables are in `db/`, all SQL is in `repositories/` (services have none; `tests/unit/test_architecture.py` enforces this and that `app/` never imports `doubles/`). The mock payment provider and the scripted fake model and offline dataset source moved to `backend/doubles/` and are used only by tests and evals. The app has no mock mode: `PAYMENT_PROVIDER` defaults to `paypal`. Tests are split into `unit/`, `contract/`, `e2e/` and `integration/` (renamed from `real/`); `tests/conftest.py` isolates tests from the developer's `.env`. Real-service checks: `RUN_REAL=1 pytest tests/integration -v -s`.

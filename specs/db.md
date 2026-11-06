@@ -60,6 +60,9 @@ Fields: run (project, start, end, limits used) and steps (order, kind: model cal
 ### Spend budget
 A single running record of actual AWS spend, used by the global guard.
 
+### Share (public result link, table `shares`)
+Fields: id, `project_id` (foreign key, indexed), `token` (unique, `secrets.token_urlsafe(32)`), created time, `revoked_at` (null while active). A project has at most one active share; revoking sets `revoked_at` and keeps the row. The public route finds a share by token and only while `revoked_at` is null. HUMAN REVIEW: the token is the only secret. New table: run `python -m app.db.init` to create it, and on Supabase enable row level security on `shares` (no policies; the API connects with the table owner role).
+
 ### Funding campaign and contribution (removed, unused)
 Crowdfunding was dropped from the product. The tables may still exist in the code but nothing uses them.
 
