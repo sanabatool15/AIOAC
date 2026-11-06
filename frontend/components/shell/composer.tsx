@@ -1,17 +1,17 @@
 "use client";
 import { useRef, useState } from "react";
-import { ArrowUp, Globe, Mic, Paperclip, Square } from "lucide-react";
+import { ArrowUp, Mic, Paperclip, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useAddData } from "./add-data-provider";
 
-// Identical on every chat screen: attach, search, mic, send.
+// Identical on every chat screen: attach (only when the screen supports it), mic, send.
 interface ComposerProps {
-  onSend: (text: string, opts: { webSearch: boolean }) => void;
+  onSend: (text: string) => void;
   onAttach?: () => void;
   streaming?: boolean;
   onStop?: () => void;
   busy?: boolean;
+  disabled?: boolean;
   placeholder?: string;
 }
 
@@ -35,18 +35,17 @@ export function Composer({
   streaming = false,
   onStop,
   busy = false,
+  disabled = false,
   placeholder = "Message AIOAC...",
 }: ComposerProps) {
-  const addData = useAddData();
   const [value, setValue] = useState("");
-  const [webSearch, setWebSearch] = useState(false);
   const [recording, setRecording] = useState(false);
   const recRef = useRef<SpeechRec | null>(null);
-  const canSend = value.trim().length > 0 && !busy;
+  const canSend = value.trim().length > 0 && !busy && !disabled;
 
   function send() {
     if (!canSend) return;
-    onSend(value.trim(), { webSearch });
+    onSend(value.trim());
     setValue("");
   }
 
@@ -86,6 +85,7 @@ export function Composer({
       <textarea
         rows={1}
         value={value}
+        disabled={disabled}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
@@ -98,24 +98,11 @@ export function Composer({
         className="w-full resize-none bg-transparent text-[15px] leading-[22px] text-ink outline-none placeholder:text-muted"
       />
       <div className="flex items-center gap-1">
-        <Button
-          variant="icon"
-          size="icon"
-          aria-label="Attach data"
-          onClick={onAttach ?? (() => addData.open("upload"))}
-        >
-          <Paperclip />
-        </Button>
-        <Button
-          variant="icon"
-          size="icon"
-          aria-label="Search the web"
-          aria-pressed={webSearch}
-          onClick={() => setWebSearch((v) => !v)}
-          className={cn(webSearch && "bg-brand-tint text-brand-ink")}
-        >
-          <Globe />
-        </Button>
+        {onAttach && (
+          <Button variant="icon" size="icon" aria-label="Attach data" onClick={onAttach}>
+            <Paperclip />
+          </Button>
+        )}
         <div className="flex-1" />
         <Button
           variant="icon"

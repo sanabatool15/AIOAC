@@ -91,3 +91,23 @@ export function stepIndex(screen: DemoScreen): number {
 export function isSettling(status: string | undefined): boolean {
   return status === "failed" || status === "training" || status === "paid";
 }
+
+// Plain-words label for a project status (sidebar and projects list). Unknown statuses fall back to the raw text.
+const STATUS_LABELS: Record<string, string> = {
+  described: "Choosing data",
+  data_chosen: "Data chosen",
+  readiness_done: "Data checked",
+  baseline_done: "Free test done",
+  quoted: "Price ready",
+  awaiting_payment: "Waiting for PayPal",
+  paid: "Payment confirmed",
+  training: "Training",
+  done: "Finished",
+  failed: "Stopped by an error",
+  stopped: "Stopped",
+  voided: "Released, nothing charged",
+};
+export function statusLabel(status: string | null | undefined): string {
+  if (!status) return "";
+  return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+}

@@ -6,10 +6,11 @@ import { Tag } from "@/components/ui/tag";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/state";
 import { useAsync } from "@/lib/hooks";
 import { listProjects } from "@/lib/api-real";
+import { statusLabel } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { TopBar } from "./top-bar";
 
-// Projects page: the signed-in user's projects from GET /projects. Plan step 4 adds a status label helper and restyles it.
+// Projects page: the signed-in user's projects from GET /projects.
 export function ProjectsScreen() {
   const { data, error, loading, retry } = useAsync(() => listProjects());
 
@@ -50,7 +51,7 @@ export function ProjectsScreen() {
                   className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 hover:bg-surface"
                 >
                   <span className="min-w-0 truncate text-sm font-medium text-ink">{p.goal}</span>
-                  <Tag>{p.status.replace(/_/g, " ")}</Tag>
+                  <Tag>{statusLabel(p.status)}</Tag>
                 </Link>
               </li>
             ))}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSettling, screenFor, stepIndex } from "../lib/status";
+import { isSettling, screenFor, statusLabel, stepIndex } from "../lib/status";
 import type { BForecast } from "../lib/api";
 
 const forecast = (eligible: boolean) => ({ eligible }) as BForecast;
@@ -45,4 +45,14 @@ test("polling is on only while the server is still moving", () => {
   assert.equal(isSettling("failed"), true);
   assert.equal(isSettling("done"), false);
   assert.equal(isSettling(undefined), false);
+});
+
+test("statusLabel gives plain words for every backend status and a safe fallback", () => {
+  for (const s of ["described", "data_chosen", "readiness_done", "baseline_done", "quoted", "awaiting_payment", "paid", "training", "done", "failed", "stopped", "voided"]) {
+    const label = statusLabel(s);
+    assert.ok(label && !label.includes("_"), s);
+  }
+  assert.equal(statusLabel("voided"), "Released, nothing charged");
+  assert.equal(statusLabel("something_new"), "something new");
+  assert.equal(statusLabel(null), "");
 });

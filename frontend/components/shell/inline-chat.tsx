@@ -14,13 +14,15 @@ export function InlineChatFrame({
   wide = false,
   width: widthProp,
   onSend,
+  composer,
   children,
 }: {
   projectName: string;
   stepLabel?: string;
   wide?: boolean;
   width?: "narrow"; // 560px thread (screen 10, with the canvas open)
-  onSend: (text: string) => void;
+  onSend?: (text: string) => void;
+  composer?: React.ReactNode; // replaces the default composer (the project chat brings its own)
   children: React.ReactNode;
 }) {
   const width =
@@ -48,10 +50,13 @@ export function InlineChatFrame({
       </div>
       <div className="flex shrink-0 justify-center pb-[22px] pt-2">
         <div className={cn("max-w-[calc(100%-48px)]", width)}>
-          <Composer
-            onSend={onSend}
-            placeholder="Ask AIOAC anything, or describe what to predict..."
-          />
+          {composer ??
+            (onSend && (
+              <Composer
+                onSend={onSend}
+                placeholder="Ask AIOAC anything, or describe what to predict..."
+              />
+            ))}
         </div>
       </div>
     </section>
@@ -80,14 +85,17 @@ export function UserBubble({ text }: { text: string }) {
   );
 }
 
-export function AgentRow({ text }: { text: string }) {
+export function AgentRow({ text, children }: { text: string; children?: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
       <div
         aria-hidden
         className="size-6 shrink-0 rounded-xl bg-brand-gradient shadow-glow"
       />
-      <p className="min-w-px flex-1 text-sm leading-[23px] text-ink">{text}</p>
+      <div className="flex min-w-px flex-1 flex-col gap-3">
+        {text && <p className="whitespace-pre-wrap text-sm leading-[23px] text-ink">{text}</p>}
+        {children}
+      </div>
     </div>
   );
 }

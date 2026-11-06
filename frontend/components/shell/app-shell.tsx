@@ -5,7 +5,7 @@ import { me } from "@/lib/api-real";
 import { redirectToLogin } from "@/lib/session";
 import { ToastProvider } from "@/components/ui/toast";
 import { AddDataProvider } from "./add-data-provider";
-import { RealSidebar } from "@/components/real/real-sidebar";
+import { Sidebar } from "./sidebar";
 
 // Sidebar on the left; each route renders its own chat + canvas columns.
 // Signed-out visitors are sent to the login screen (the app always starts there).
@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <ToastProvider>
       <AddDataProvider>
         <div className="flex h-screen w-full overflow-hidden bg-bg">
-          <RealSidebar key={user?.id ?? "none"} />
+          <Sidebar key={user?.id ?? "none"} />
           {children}
         </div>
       </AddDataProvider>

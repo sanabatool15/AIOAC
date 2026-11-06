@@ -10,7 +10,6 @@ const pendingShell = [
   "components/shell/budget-panel.tsx",
   "components/shell/result-chat.tsx",
   "components/shell/round2-chat.tsx",
-  "components/shell/sidebar.tsx",
   "components/shell/training-chat.tsx",
   "components/shell/verified-chat.tsx",
 ]
