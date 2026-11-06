@@ -5,10 +5,10 @@ import { ErrorState, Skeleton } from "@/components/ui/state";
 import { ApiError, type BProject } from "@/lib/api";
 import { getProject, rememberProject } from "@/lib/api-real";
 import { isSettling, screenFor, stepIndex } from "@/lib/status";
+import { DescribeStep } from "./chat";
 import { Stepper } from "./parts";
 import {
   BaselineStep,
-  DataStep,
   History,
   IneligibleStep,
   PayStep,
@@ -84,7 +84,7 @@ export function RealFlow({ projectId }: { projectId: string }) {
           </p>
         )}
         {showHistory && <History project={project} />}
-        {screen === "data" && <DataStep {...props} />}
+        {screen === "data" && <DescribeStep {...props} />}
         {screen === "readiness" && <ReadinessStep {...props} />}
         {screen === "baseline" && <BaselineStep {...props} />}
         {screen === "target" && <TargetForm {...props} />}
