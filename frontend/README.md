@@ -25,6 +25,10 @@ Read `AGENTS.md` first: this Next version has breaking changes (page `params` ar
 - `unit/`: `npm run test:unit` (adapter, status, client, chat tests; fixtures copied from real backend JSON).
 
 ## Browser tests (Playwright)
-TODO (plan step 10): real-mode specs against the real FastAPI app with the scripted model and the mock payment double. The old mock-based specs were deleted. `playwright.config.ts` and `npm test` still work (`npm test` passes with no specs). Install a browser with `npx playwright install chromium`.
+`npm run test:e2e` runs `tests/*.spec.ts` (6 files, 11 tests) in real mode. `playwright.config.ts` starts two servers and reuses them if they are already up:
+1. the TEST launcher of the real FastAPI app: `cd ../backend && python -m tests.browser_server --port 8765 --frontend http://localhost:3100` (scripted model, mock PayPal, local training, throwaway SQLite; never reads real keys, refuses a Postgres `DATABASE_URL`);
+2. the frontend built against it: `npm run build && npm run start -- -p 3100` with `NEXT_PUBLIC_API_BASE_URL=http://localhost:8765`.
+
+To start them yourself, run those two commands in two terminals (set the variable first; PowerShell: `$env:NEXT_PUBLIC_API_BASE_URL="http://localhost:8765"`), then `npm run test:e2e`. Needs a browser: set `CHROME_PATH` to a Chrome, or `npx playwright install chromium`. `npm test` runs only the unit tests. Not covered: real PayPal, real model, real SageMaker.
 
 Contract: `specs/api.md`. What is wired: `specs/frontend-integration.md`.
