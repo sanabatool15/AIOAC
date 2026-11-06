@@ -59,7 +59,7 @@ export function MarkdownText({ text }: { text: string }) {
             ))}
           </ul>
         ) : (
-          <ol key={i} className="list-decimal pl-5">
+          <ol key={i} start={b.start} className="list-decimal pl-5">
             {b.items.map((it, j) => (
               <li key={j}>
                 <Inlines xs={it} />

@@ -13,7 +13,7 @@ export type Inline =
 export type Block =
   | { t: "p"; c: Inline[] }
   | { t: "ul"; items: Inline[][] }
-  | { t: "ol"; items: Inline[][] };
+  | { t: "ol"; start: number; items: Inline[][] };
 
 // Only http(s) links survive. Anything else (javascript:, data:, mailto:, relative) is shown as its label.
 export function safeHref(raw: string): string | null {
@@ -96,26 +96,28 @@ function withBreaks(lines: string[]): Inline[] {
 }
 
 const UL = /^\s*[-*•]\s+(.*)$/;
-const OL = /^\s*\d+[.)]\s+(.*)$/;
+const OL = /^\s*(\d+)[.)]\s+(.*)$/;
 const HEAD = /^\s*#{1,6}\s+(.*)$/;
 
 export function parseMarkdown(src: string): Block[] {
   const lines = (src ?? "").replace(/\r\n?/g, "\n").split("\n");
   const blocks: Block[] = [];
   let para: string[] = [];
-  let list: { kind: "ul" | "ol"; items: Inline[][] } | null = null;
+  let list: { kind: "ul" | "ol"; start: number; items: Inline[][] } | null = null;
+  let gap = false; // a blank line came after the last list item: the list may still go on
   const endPara = () => {
     if (para.length) blocks.push({ t: "p", c: withBreaks(para) });
     para = [];
   };
   const endList = () => {
-    if (list) blocks.push({ t: list.kind, items: list.items });
+    if (list) blocks.push(list.kind === "ol" ? { t: "ol", start: list.start, items: list.items } : { t: "ul", items: list.items });
     list = null;
+    gap = false;
   };
   for (const line of lines) {
     if (!line.trim()) {
       endPara();
-      endList();
+      gap = true; // the list (if any) is closed later, only if the next line is not another item of it
       continue;
     }
     const ul = UL.exec(line);
@@ -125,8 +127,17 @@ export function parseMarkdown(src: string): Block[] {
       endPara();
       const kind = ul ? "ul" : "ol";
       if (list && list.kind !== kind) endList();
-      list ??= { kind, items: [] };
-      list.items.push(parseInline(hit[1].trim()));
+      // The author's own number wins: a numbered list starts at its first number, and a list that blank lines
+      // split in two still counts on (the browser numbers the items of one <ol> itself).
+      list ??= { kind, start: ol ? Number(ol[1]) : 1, items: [] };
+      list.items.push(parseInline((ul ? hit[1] : ol![2]).trim()));
+      gap = false;
+      continue;
+    }
+    // Indented text under an item belongs to that item.
+    if (list && /^\s{2,}\S/.test(line) && !HEAD.test(line)) {
+      list.items[list.items.length - 1].push({ t: "br" }, ...parseInline(line.trim()));
+      gap = false;
       continue;
     }
     const h = HEAD.exec(line);

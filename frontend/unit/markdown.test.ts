@@ -55,3 +55,41 @@ test("unclosed markers are left as text and never throw", () => {
 test("headings become bold paragraphs", () => {
   assert.deepEqual(parseMarkdown("## Next step"), [{ t: "p", c: [{ t: "strong", c: [{ t: "text", v: "Next step" }] }] }]);
 });
+
+type Ol = { t: "ol"; start: number; items: Inline[][] };
+
+test("numbered items split by blank lines stay one list (real reply shape)", () => {
+  const src =
+    "I found two options:\n\n1. German credit (UCI, 1,000 rows)\n\n2. Credit card default (UCI, 30,000 rows)\n\n3. Telco churn\n\nWhich one?";
+  const b = parseMarkdown(src);
+  assert.deepEqual(b.map((x) => x.t), ["p", "ol", "p"]);
+  const ol = b[1] as Ol;
+  assert.equal(ol.start, 1);
+  assert.equal(ol.items.length, 3);
+  assert.equal(flat(ol.items[1]), "Credit card default (UCI, 30,000 rows)");
+});
+
+test("a numbered list keeps the author's first number", () => {
+  const b = parseMarkdown("3. third\n4. fourth") as Ol[];
+  assert.equal(b[0].start, 3);
+  assert.equal(b[0].items.length, 2);
+});
+
+test("paragraph text between numbered items does not reset the numbers to 1", () => {
+  const b = parseMarkdown("1. First\n\nSome words about it.\n\n2. Second\n\nMore words.\n\n3. Third");
+  const ols = b.filter((x): x is Ol => x.t === "ol");
+  assert.deepEqual(ols.map((o) => o.start), [1, 2, 3]);
+});
+
+test("indented text under an item stays inside that item", () => {
+  const b = parseMarkdown("1. First\n   why it fits\n2. Second");
+  assert.equal(b.length, 1);
+  const ol = b[0] as Ol;
+  assert.equal(ol.items.length, 2);
+  assert.equal(flat(ol.items[0]), "First\nwhy it fits");
+});
+
+test("bullets split by blank lines stay one list; a new kind starts a new list", () => {
+  const b = parseMarkdown("- a\n\n- b\n\n1. c");
+  assert.deepEqual(b.map((x) => x.t), ["ul", "ol"]);
+});
