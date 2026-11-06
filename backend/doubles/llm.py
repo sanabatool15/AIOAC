@@ -77,6 +77,9 @@ class ReactiveFake:
                 and "waiting_for_user" not in last["content"]:
             self._absorb(last["content"])
             self.pending = None
+            if '"need_target"' in last["content"]:  # the user has not named a target: ask, and try the pilot again on the next turn
+                self.i -= 1
+                return LLMResponse(text="How many out of 100 predictions do you need to be right? The free test got about 80.")
         if self.pending:  # the call was not executed (approval card): propose it again
             return LLMResponse(tool_calls=[self.pending])
         if self.i >= len(self.stages):

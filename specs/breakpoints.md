@@ -68,6 +68,17 @@ Small changes only, each with a test on the mock provider, each explained to the
 | A4 | `check_args` only checks required keys and non-empty strings. Wrong types for numbers and arrays pass | `services/agent/guards.py:37-48` | Check types from the tool's JSON schema | fixed: string, number, integer, boolean, array (items, min/max), object |
 | A5 | If the user approves a card and the model then replies with text only, the approval is spent without running the tool | `services/agent/loop.py:173-186` | After an approval, run the approved call from the stored card, not from the model | fixed: the server runs the card's call (see agent.md); turn deadline `AGENT_TURN_DEADLINE_S` (120) ends a turn with `limit/timeout` |
 
+### 3b. Agent fixes from the first real-model run (gpt-5.4, Azure)
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| G1 | The agent chose the target accuracy itself (0.8) and ran pilot and quote in one turn | `services/agent/tools.py` `run_pilot`, `target.py` | Code guard: target must come from the user's own words, else `need_target`; prompt rule | fixed on branch claude/fix-agent |
+| G2 | Markdown, ids like `uci:144`, decimals and cents in replies | `services/agent/context.py` | Short wording rules; state block and tool results in out-of-100 and dollars | fixed on branch claude/fix-agent |
+| G3 | Price explanation was inaccurate (platform fee not visible) | `create_quote`, `blocks.py` | Quote result and block carry the stored breakdown; prompt line | fixed on branch claude/fix-agent |
+| G4 | Approval card said Dataset '350' and column 'Y' | `fetch_dataset`, `select_dataset_card` | Candidate keeps the discovery title; optional `target_meaning` shown in the card | fixed on branch claude/fix-agent |
+| G5 | Activity feed showed raw ids, approval text, and `[redacted key]` inside ids | `services/activity.py`, `runlog.py` | Titles only, synthetic text dropped; `sk-` pattern no longer matches inside a word or id | fixed on branch claude/fix-agent |
+| G6 | Slow first turn (many looks and fetches) | `context.py` | Prompt: look at or fetch at most the top 2, do not search again. Existing limits (50,000 rows, 50 MB, 30 s HTTP, 60 s tool) kept; effect not measured offline | fixed on branch claude/fix-agent (effect unmeasured) |
+
 ## 4. Demo and project risks
 
 | Id | Problem | Where | Fix | Status |

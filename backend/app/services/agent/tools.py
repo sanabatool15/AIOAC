@@ -18,7 +18,8 @@ from ..data.samples import CATALOG
 from ..data import analysis, datasets, discovery, pilot
 from ..cost import cost, quotes
 from .. import gate, payments, training
-from . import clarity, memory, skills
+from . import clarity, memory, skills, target as target_rule
+from ...repositories.traces import TraceRepository
 from ..data.insights import analyze
 from .context import mark, sanitise_license
 
@@ -90,6 +91,23 @@ def _needs_clarity(ctx) -> dict | None:
         return None
     ctx.emit("need_clarity", "INFO")
     return {"need_clarity": True, "advice": clarity.QUESTION_HINT}
+
+
+_TAG = re.compile(r"</?\s*untrusted_dataset_text\s*>", re.I)
+
+
+def dataset_title(ctx, dataset_id: str) -> str | None:
+    """The human title the user was shown for a dataset id (from this project's earlier search or discovery results), else None."""
+    for st in reversed(TraceRepository(ctx.session).steps(ctx.project.id, ("tool_result",))):
+        c = st.content if isinstance(st.content, dict) else {}
+        res = c.get("result")
+        if c.get("name") not in ("discover_datasets", "search_datasets") or not isinstance(res, dict):
+            continue
+        for item in (res.get("candidates") or []) + (res.get("results") or []) + ([res["sample_option"]] if res.get("sample_option") else []):
+            if isinstance(item, dict) and item.get("id") == dataset_id and isinstance(item.get("name"), str):
+                title = " ".join(_TAG.sub("", item["name"]).split())[:120]
+                return title or None
+    return None
 
 
 def search_datasets(ctx, a):
@@ -166,8 +184,11 @@ def look_at_dataset(ctx, a):
         i = r.entry.source.info(r.local_id)
     except SourceError as exc:
         return {"error": str(exc)}
-    return {"rows": i.rows, "tabular": i.tabular, "gated": i.gated, "license": sanitise_license(i.license),
-            "columns": mark([f"{c['name']} ({c['dtype']})" for c in i.columns[:25]], 80), "notes": i.notes}
+    out = {"rows": i.rows, "tabular": i.tabular, "gated": i.gated, "license": sanitise_license(i.license),
+           "columns": mark([f"{c['name']} ({c['dtype']})" for c in i.columns[:25]], 80), "notes": i.notes}
+    if (title := dataset_title(ctx, did)):
+        out["title"] = title
+    return out
 
 
 def fetch_dataset(ctx, a):
@@ -185,9 +206,12 @@ def fetch_dataset(ctx, a):
     except SourceError as exc:
         return {"error": str(exc)}
     lic = sanitise_license(f.license)
-    cand = datasets.add_candidate(ctx.session, ctx.storage, ctx.project, r.local_id, r.entry.label, f.csv_bytes,
+    title = dataset_title(ctx, did)  # the name the user was shown; the source id stays in source_url
+    cand = datasets.add_candidate(ctx.session, ctx.storage, ctx.project, title or r.local_id, r.entry.label, f.csv_bytes,
                                   source_url=r.entry.url(r.local_id), license=None if lic == "not stated" else lic)
     out = {"candidate_id": cand.id, "rows": f.rows, "truncated": f.truncated, "license": lic}
+    if title:
+        out["title"] = title
     if f.suggested_target:
         out["suggested_target"] = f.suggested_target
     return out
@@ -221,7 +245,9 @@ def select_dataset_card(ctx, a) -> dict:
     if cand is not None and cand.project_id != ctx.project.id:
         cand = None
     target = a.get("target") if isinstance(a.get("target"), str) and a.get("target") else None
-    detail = {"name": None, "source": None, "rows": None, "columns": None, "license": None, "target": target}
+    meaning = a.get("target_meaning") if isinstance(a.get("target_meaning"), str) and a.get("target_meaning").strip() else None
+    meaning = " ".join(meaning.split())[:120] if meaning else None
+    detail = {"name": None, "source": None, "rows": None, "columns": None, "license": None, "target": target, "target_meaning": meaning}
     if cand is None:
         return {"detail": detail}
     columns = None
@@ -234,7 +260,9 @@ def select_dataset_card(ctx, a) -> dict:
     source = "sample data" if cand.source == "bundled" else cand.source
     size = f"{source}, {cand.rows:,} rows" if cand.rows is not None else source
     what = f'Use "{cand.name}" ({size})'
-    if target:
+    if target and meaning:
+        what += f' and predict "{target}": {meaning}'
+    elif target:
         what += f' and predict the column "{target}"'
     return {"what": what, "detail": detail}
 
@@ -247,16 +275,24 @@ def run_readiness(ctx, a):
 def run_baseline_tool(ctx, a):
     r = analysis.baseline(ctx.session, ctx.storage, ctx.project)
     return {"accuracy": round(r.accuracy, 3), "simple_guess_accuracy": round(r.simple_guess_accuracy, 3),
+            "right_out_of_100": round(r.accuracy * 100), "simple_guess_out_of_100": round(r.simple_guess_accuracy * 100),
             "trust_level": ctx.project.trust_level}
 
 
 def run_pilot(ctx, a):
+    """The target is the user's choice: it must match a number in their own words (see target.py)."""
+    if not target_rule.user_named(memory.user_texts(ctx.session, ctx.project), float(a["target"])):
+        ctx.emit("need_target", "INFO")
+        b = ctx.project.baseline_result or {}
+        return {"need_target": True, "baseline_percent": round(b["accuracy"] * 100) if b.get("accuracy") is not None else None,
+                "hint": target_rule.QUESTION_HINT}
     try:
         f = pilot.run_pilot(ctx.session, ctx.storage, ctx.project, float(a["target"]))
     except pilot.ForecastError as exc:
         return {"error": str(exc)}
-    out = {"label": "estimate", "target": f.target, "predicted": round(f.predicted_metric, 3),
-           "band": [round(f.band_low, 3), round(f.band_high, 3)], "confidence": f.confidence, "eligible": f.eligible,
+    out = {"label": "estimate", "target": f.target, "target_out_of_100": round(f.target * 100),
+           "predicted": round(f.predicted_metric, 3), "predicted_out_of_100": round(f.predicted_metric * 100),
+           "band": [round(f.band_low, 3), round(f.band_high, 3)], "band_out_of_100": [round(f.band_low * 100), round(f.band_high * 100)], "confidence": f.confidence, "eligible": f.eligible,
            "pilot_rows": (f.pilot or {}).get("rows_used"),
            "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", [])}
     out["next"] = "create the quote" if f.eligible else "explain honestly why we cannot sell this run: " + (f.reason or "")
@@ -268,8 +304,19 @@ def create_quote(ctx, a):
         q = quotes.create_quote(ctx.session, ctx.project)
     except (quotes.QuoteError, cost.QuoteTooExpensive) as exc:  # plain-language messages (not eligible, too expensive, wrong step). Anything else reaches the loop's generic handler.
         return {"error": str(exc)}
+    bd = q.breakdown or {}
+    breakdown = {"compute_estimate_cents": bd.get("compute_estimate_cents"), "compute_cap_cents": q.compute_cap_cents,
+                 "storage_cents": bd.get("storage_cents"), "platform_fee_cents": bd.get("platform_fee_cents"),
+                 "success_fee_estimate_cents": bd.get("success_fee_estimate_cents"), "success_fee_max_cents": q.fee_cents}
+
+    def usd(c):
+        return f"${(c or 0) / 100:,.2f}"
     return {"quote_id": q.id, "estimate_cents": q.estimate_cents, "range_cents": [q.low_cents, q.high_cents],
-            "cap_cents": q.cap_cents, "success_fee_cents": q.fee_cents, "label": "estimate",
+            "cap_cents": q.cap_cents, "success_fee_cents": q.fee_cents, "breakdown": breakdown,
+            "in_dollars": {"estimate": usd(q.estimate_cents), "range": f"{usd(q.low_cents)} to {usd(q.high_cents)}", "cap": usd(q.cap_cents),
+                           "platform_fee": usd(breakdown["platform_fee_cents"]), "storage": usd(breakdown["storage_cents"]),
+                           "compute": usd(breakdown["compute_estimate_cents"]), "success_fee_max": usd(q.fee_cents)},
+            "label": "estimate",
             "next": "the user must approve this quote"}
 
 
@@ -302,11 +349,14 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("load_skill", "Load a playbook only when the situation in its one-line description is in front of you. Load each one once.", _obj(name={"type": "string"}), gate.Action.SEARCH, load_skill),
     Tool("inspect_candidate", "Check a candidate dataset: grade, findings, preview.",
          _obj(candidate_id={"type": "string"}, target={"type": "string"}), gate.Action.ANALYZE, inspect_candidate),
-    Tool("select_dataset", "Choose the dataset to use (user must approve). Deletes the other candidates.",
-         _obj(candidate_id={"type": "string"}, target={"type": "string"}), gate.Action.SELECT_DATASET, select_dataset),
+    Tool("select_dataset", "Choose the dataset to use (user must approve). Deletes the other candidates. Always fill target_meaning: "
+         "what the answer column means in plain words, for example 'whether the next payment was missed'.",
+         {"type": "object", "properties": {"candidate_id": {"type": "string"}, "target": {"type": "string"},
+                                           "target_meaning": {"type": "string"}}, "required": ["candidate_id", "target"]},
+         gate.Action.SELECT_DATASET, select_dataset),
     Tool("run_readiness", "Readiness grade and findings for the chosen dataset.", _obj(), gate.Action.ANALYZE, run_readiness),
     Tool("run_baseline", "Free test on held-out data; also measures timings for the quote.", _obj(), gate.Action.BASELINE, run_baseline_tool),
-    Tool("run_pilot", "Free small test on about 5-10% of the data, then forecast the full-run result against the user's target (0 to 1, e.g. 0.8).",
+    Tool("run_pilot", "Free small test on about 5-10% of the data, then forecast the full-run result against the target the USER named in their own words (0 to 1, e.g. 0.8). Never pick the target yourself: if they have not said it, ask.",
          {"type": "object", "properties": {"target": {"type": "number"}}, "required": ["target"]}, gate.Action.PILOT, run_pilot),
     Tool("create_quote", "One fixed price for the full run (estimated compute + success fee) and a hard cap. Only after an eligible forecast.", _obj(), gate.Action.CREATE_QUOTE, create_quote),
     Tool("request_payment", "Create the PayPal hold for the approved quote (nothing is charged yet).", _obj(), gate.Action.REQUEST_PAYMENT, request_payment),

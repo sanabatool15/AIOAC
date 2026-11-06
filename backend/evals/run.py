@@ -112,7 +112,7 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
                 turns.append({"status": r.status, "reason": r.reason, "text": r.text, "card": r.card and r.card.get("tool")})
                 if r.status in ("limit", "error", "awaiting_approval") or case.get("stop_after_first_reply") or project.status == "quoted":
                     break
-                message = followups.pop(0) if followups else "Yes, please go ahead with the next step."
+                message = followups.pop(0) if followups else "Yes, please go ahead with the next step. I need about 70 out of 100 right."
         except Exception as exc:  # a crash is a failed run, not a failed harness
             crashed = f"{type(exc).__name__}: {exc}"
 

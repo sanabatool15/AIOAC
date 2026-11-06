@@ -37,6 +37,8 @@ When a limit is hit, the agent stops and tells the user in plain words (`status:
 
 ### Guards on what the model says (built, cheap, not a security boundary)
 
+- The target accuracy is the user's choice (G1): `run_pilot` answers `need_target` unless the target matches a number in the user's own words (`services/agent/target.py`; synthetic approval text does not count). The prompt also says never to choose it. Wording rules in the prompt (G2): no markdown, no internal ids, "about N out of 100", dollars not cents. Tool results carry `*_out_of_100` and `in_dollars` fields so the model need not convert.
+
 - Arguments are checked against the tool's schema before anything runs. Unreadable JSON, missing or wrongly typed arguments, and unknown tools come back to the model as errors.
 - A final reply that claims a payment, training or settlement that the stored project state does not support is replaced with a plain correction and traced as `claim_blocked`. This is a keyword check and will miss rephrasings. The gate, not this check, is what stops spending.
 
