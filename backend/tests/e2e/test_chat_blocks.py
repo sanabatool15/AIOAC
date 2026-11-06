@@ -91,3 +91,23 @@ def test_select_dataset_card_unknown_candidate_is_null_detail(api, project):
     assert r["status"] == "awaiting_approval"
     assert r["card"]["detail"] == {"name": None, "source": None, "rows": None, "columns": None, "license": None, "target": "left", "target_meaning": None}
     assert r["card"]["what"]
+
+
+def test_approval_text_is_stored_for_the_model_but_not_shown(api, session, storage, project):
+    """The server writes 'Yes, I approve: ...' for the model after an Approve click. The screen must not show it."""
+    from app.services.agent import memory
+    from app.services.agent.target import APPROVAL_PREFIX
+    from app.services.data import datasets
+    from app.services.data.samples import churn_csv
+    c = datasets.add_candidate(session, storage, project, "Telco churn", "UCI", churn_csv(1500), license="cc-by-4.0")
+    chat(api, project.id, [call("select_dataset", candidate_id=c.id, target="left")])
+    app.dependency_overrides[get_llm_client] = lambda: FakeLLM([call("select_dataset", candidate_id=c.id, target="left"), LLMResponse(text="Done.")])
+    r = api.post(f"/projects/{project.id}/chat", json={"approve": ["select_dataset"]}).json()
+    assert r["status"] == "reply"
+    shown = api.get(f"/projects/{project.id}/messages").json()
+    assert not any(APPROVAL_PREFIX in m["text"] for m in shown)
+    assert [m["role"] for m in shown if m["kind"] != "card"].count("user") == 1  # only the person's own words
+    # the model still sees it
+    conv = memory.get_conversation(session, project.id)
+    sent, *_ = memory.history(session, conv)
+    assert any(APPROVAL_PREFIX in str(m.get("content")) for m in sent if m["role"] == "user")

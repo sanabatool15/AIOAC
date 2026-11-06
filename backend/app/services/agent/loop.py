@@ -114,13 +114,16 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
     # the card the user is answering now: if they approved it and the model does not make the call, the server makes it (see below)
     approved_card = memory.pending_card(ctx.session, conv) if ctx.approved else None
     ctx.log = log  # lets tools write their own events to the same run log
+    synthetic = False
     if not user_message and ctx.approved:
+        synthetic = True
         # The user pressed "approve" on a card and typed nothing. Without a user turn, models read the stored
         # "waiting for approval" result as still waiting and ask again. The gate trusts ctx.approved, not this text.
         user_message = f"{APPROVAL_PREFIX} {', '.join(a.replace('_', ' ') for a in sorted(ctx.approved))}. Please carry it out."
     if user_message:
         trace.add(pid, "user", {"text": user_message}, run.id)
-        memory.add_message(ctx.session, conv.id, "user", user_message, run_id=run.id)
+        # kind "approval": the model reads it in its history, the chat screen does not show it (routes/projects.py)
+        memory.add_message(ctx.session, conv.id, "user", user_message, run_id=run.id, kind="approval" if synthetic else "chat")
         log.emit("user_message", text=user_message)
     seen: dict[str, int] = {}
 
