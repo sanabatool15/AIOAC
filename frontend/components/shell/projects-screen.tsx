@@ -47,7 +47,7 @@ export function ProjectsScreen() {
             {data.map((p) => (
               <li key={p.id}>
                 <Link
-                  href={`/c/${p.id}`}
+                  href={`/projects/${p.id}`}
                   className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 hover:bg-surface"
                 >
                   <span className="min-w-0 truncate text-sm font-medium text-ink">{p.goal}</span>

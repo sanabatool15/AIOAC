@@ -3,7 +3,9 @@
 import {
   api,
   ApiError,
+  type BActivityItem,
   type BForecast,
+  type BHistory,
   type BOrder,
   type BProject,
   type BQuote,
@@ -68,6 +70,10 @@ export async function startChat(text: string): Promise<{ id: string }> {
 export const getProject = (id: string) => api<BProject>(`/projects/${id}`);
 export const listProjects = () =>
   api<{ id: string; goal: string; status: string; created_at: string }[]>("/projects");
+
+// ---- project detail (specs/api.md section D) ----
+export const getHistory = (id: string) => api<BHistory>(`/projects/${id}/history`);
+export const getActivity = (id: string) => api<BActivityItem[]>(`/projects/${id}/activity`);
 
 // ---- data, checks, free test ----
 export const uploadCsv = (id: string, name: string, csvText: string) =>

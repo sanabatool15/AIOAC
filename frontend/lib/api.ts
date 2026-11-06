@@ -119,6 +119,50 @@ export interface BReceipt {
   approve_url?: string | null;
 }
 
+// Screens on real data (specs/api.md section D).
+export interface BHistory {
+  versions: {
+    id: string;
+    parent_id: string | null;
+    rows: number;
+    columns: number;
+    target_column: string;
+    source: string;
+    license: string | null;
+    notes: string | null;
+    created_at: string;
+  }[];
+  runs: {
+    id: string;
+    status: string;
+    backend: string;
+    cost_cents: number;
+    started_at: string | null;
+    finished_at: string | null;
+    result: {
+      accuracy?: number;
+      simple_guess_accuracy?: number;
+      verification?: { value: number; target: number; passed: boolean };
+    } | null;
+  }[];
+  quotes: {
+    id: string;
+    estimate_cents: number;
+    low_cents: number;
+    high_cents: number;
+    cap_cents: number;
+    approved: boolean;
+    created_at: string;
+  }[];
+  payment: BReceipt | null;
+}
+
+export interface BActivityItem {
+  when: string;
+  kind: string;
+  text: string;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
