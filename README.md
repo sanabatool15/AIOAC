@@ -25,9 +25,7 @@ npm install
 npm run dev                  # http://localhost:3000
 ```
 
-Mock mode (default, `NEXT_PUBLIC_USE_MOCK_API=true`): all screens run on built-in sample data, no backend needed. Add `?mock=error|empty|slow` to a URL to see those states. Checks: `npm run typecheck`, `npm run lint`, `npm run build`; browser tests with `npx playwright install chromium && npm test`.
-
-Against the backend: start it as above (it listens on `http://localhost:8000`; `NEXT_PUBLIC_API_BASE_URL` points there) and set `NEXT_PUBLIC_USE_MOCK_API=false`. The screens are not wired to the real endpoints yet, so real mode currently shows an error. The API contract is `specs/api.md`; the plan and the list of mismatches are in `specs/frontend-integration.md`.
+The frontend has no mock mode: it always talks to the backend (`NEXT_PUBLIC_API_BASE_URL`, default `http://localhost:8000`; start the backend first). Checks: `npm run typecheck`, `npm run lint`, `npm run test:unit`, `npm run build`. Details: `frontend/README.md`. The API contract is `specs/api.md`; the plan is in `specs/frontend-integration.md` section 9.
 
 ## Test
 

@@ -198,8 +198,8 @@ Each step ships alone and ends with typecheck, lint, `test:unit`, build; browser
 | # | Step | Size | Test |
 |---|---|---|---|
 | 1 | Backend: approval card names the dataset (9.5) | small | pytest unit + e2e card test; api.md updated |
-| 2 | Delete dead routes, screens, `components/billing`, nav entries (9.1) while mock still exists; fix imports | medium | typecheck, lint, build; grep finds no import of deleted files |
-| 3 | Remove `USE_MOCK_API`, `mock-api.ts`, mock specs, shrink `types.ts`; auth-screen cleanup | large | typecheck, lint, unit, build; browser: login, signup, logout |
+| 2 | DONE 2026-11-06. Delete dead routes, screens, `components/billing`, nav entries (9.1) while mock still exists; fix imports | medium | typecheck, lint, build; grep finds no import of deleted files |
+| 3 | DONE 2026-11-06 (see 9.7). Remove `USE_MOCK_API`, `mock-api.ts`, mock specs, shrink `types.ts`; auth-screen cleanup | large | typecheck, lint, unit, build; browser: login, signup, logout |
 | 4 | Shell on real data: `AppShell`, `Sidebar` (replaces `real-sidebar`), `TopBar`, `UserMenu`, projects list, home | medium | unit for `statusLabel`; browser: sign up, create project, see list |
 | 5 | `ChatScreen` picks by status; describe step in the polished thread (chat, card with dataset box, CSV upload) | medium | unit (card view); browser: "I have no data" with FakeLLM, approve card |
 | 6 | Readiness, free test, target, forecast, not eligible views | medium | adapter unit tests from real JSON; browser: eligible and ineligible paths |
@@ -208,6 +208,13 @@ Each step ships alone and ends with typecheck, lint, `test:unit`, build; browser
 | 9 | Result (verified, missed), receipt, voided, failed, stopped, Improve | large | unit for money recap; browser: verified, missed, our failure with exact cents |
 | 10 | Delete `components/real/*`, write 4 to 5 real-mode Playwright specs, update README and docs | medium | full frontend gate + backend `pytest` + demo check + secret scan |
 | 11 | Optional, owner decides: try-one-record (`POST /projects/{id}/predict`) | medium | backend unit + one browser check |
+
+### 9.7 State after steps 2 and 3 (2026-11-06)
+
+- Deleted: 11 route pages (+ the flow layout), 21 shell components, `components/billing` (7 files), `lib/mock-api.ts`, `lib/billing-flow.ts`, `components/real/mock-notice.tsx`, `add-data-modal.tsx`, 31 mock Playwright specs + helper + 26 screenshots, 32 of 63 types in `lib/types.ts`. `USE_MOCK_API` is gone; `lib/config.ts` has `API_BASE_URL` and `DEMO_LOGIN`.
+- Routed now (7 pages): `/login`, `/signup`, `/`, `/c/[chatId]`, `/projects`, `/pay/return`, `/pay/cancel`. The demo path still runs on `components/real/*`; `real-sidebar` is the sidebar. `projects-screen` is a minimal real list; `top-bar` has no Share; `user-menu` (email + Log out) is rewritten but not mounted yet; `add-data-provider` is a no-op placeholder (CSV upload returns in step 5).
+- Not rewired and excluded from `tsconfig.json` and `eslint.config.mjs` (they still import deleted mock code): `agreement-chat`, `budget-card`, `budget-panel`, `result-chat`, `round2-chat`, `sidebar`, `training-chat`, `verified-chat`. They reference `./experiment-canvas`, `./tool-strip` and `./paypal-window`, which are deleted: drop those pieces when porting. `baseline-chat`, `ineligible-chat`, `composer`, `inline-chat`, `confirm-dialog` compile but are unrouted. They use the legacy view types left in `lib/types.ts`.
+- Playwright: config kept, `npm test` passes with no specs (`--pass-with-no-tests`); real-mode specs are step 10.
 
 ### 9.5 Backend changes
 
