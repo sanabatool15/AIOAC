@@ -1,10 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { toReceipt, toTraining, type ReceiptView } from "@/lib/adapters";
-import { ApiError, type BProject, type BReceipt, type BTraining } from "@/lib/api";
+import { type BProject, type BReceipt, type BTraining } from "@/lib/api";
 import * as real from "@/lib/api-real";
 import { ErrorLine, Panel, Row, useAction } from "@/components/shell/step-parts";
 import { TargetAction } from "@/components/shell/step-actions";
@@ -15,137 +14,6 @@ interface StepProps {
 }
 
 const FINAL_STATES = ["released", "voided", "expired", "declined"];
-
-// ---- paid: the server confirmed the hold, start the run ----
-export function PaidStep({ project, onChanged }: StepProps) {
-  const { busy, error, run } = useAction();
-  const started = useRef(false);
-  const start = () =>
-    run(async () => {
-      try {
-        await real.startTraining(project.id);
-      } catch (e) {
-        // 409 = already started (a reload or a second tab). Not an error for the user.
-        if (!(e instanceof ApiError && e.status === 409)) throw e;
-      }
-      await onChanged();
-    });
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    void start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return (
-    <Panel title="Payment confirmed" variant="green">
-      <p className="text-sm leading-5 text-ink-2">
-        PayPal confirmed the hold. Nothing is charged yet. Starting your training run…
-      </p>
-      {error && (
-        <Button size="md" disabled={busy} onClick={start}>
-          Try starting again
-        </Button>
-      )}
-      <ErrorLine message={error} />
-    </Panel>
-  );
-}
-
-// ---- training: poll, show progress, Stop ----
-export function TrainingStep({ project, onChanged }: StepProps) {
-  const [t, setT] = useState<BTraining | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  const { busy, error: stopError, run } = useAction();
-  const done = useRef(false);
-
-  useEffect(() => {
-    let alive = true;
-    async function tick() {
-      try {
-        const r = await real.getTraining(project.id);
-        if (!alive) return;
-        setT(r);
-        setError(null);
-        if (["done", "stopped", "failed"].includes(r.status) && !done.current) {
-          done.current = true;
-          await onChanged();
-        }
-      } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : "Could not check progress.");
-      }
-    }
-    void tick();
-    const id = setInterval(tick, 3000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id]);
-
-  const v = toTraining(t);
-  const starting = !v || v.status === "not_started";
-  return (
-    <Panel title="Training your model" variant="blue">
-      {starting ? (
-        <p className="text-sm text-ink-2">Getting ready to start…</p>
-      ) : (
-        <>
-          <p className="text-sm font-medium text-ink" aria-live="polite">
-            {v.stopRequested ? "Stopping…" : v.stage}
-          </p>
-          <ProgressBar value={v.progress} label="Training progress" track="blue" />
-          <dl className="flex flex-col gap-1.5">
-            <Row label="Time so far" value={v.elapsed} />
-            <Row label="Spent so far (estimate)" value={v.spend} />
-            <Row label="Compute limit (cap)" value={v.cap} />
-            {v.eta && <Row label="Time left (estimate)" value={v.eta} />}
-          </dl>
-        </>
-      )}
-      <ErrorLine message={error} />
-      {!confirming ? (
-        <div>
-          <Button
-            variant="outline"
-            size="md"
-            disabled={starting || v?.stopRequested || v?.status !== "running"}
-            onClick={() => setConfirming(true)}
-          >
-            Stop
-          </Button>
-        </div>
-      ) : (
-        <div role="alertdialog" aria-label="Stop the run" className="flex flex-col gap-2 rounded-lg border border-border bg-white p-3">
-          <p className="text-sm leading-5 text-ink-2">
-            If you stop now you pay for the compute used so far. There is no success fee, and the rest
-            of the PayPal hold is released.
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="destructive"
-              size="md"
-              disabled={busy}
-              onClick={() =>
-                run(async () => {
-                  await real.stopTraining(project.id);
-                  setConfirming(false);
-                })
-              }
-            >
-              {busy ? "Stopping…" : "Yes, stop now"}
-            </Button>
-            <Button variant="outline" size="md" disabled={busy} onClick={() => setConfirming(false)}>
-              Keep going
-            </Button>
-          </div>
-          <ErrorLine message={stopError} />
-        </div>
-      )}
-    </Panel>
-  );
-}
 
 // ---- receipt ----
 function useReceipt(project: BProject) {

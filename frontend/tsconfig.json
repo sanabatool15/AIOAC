@@ -37,12 +37,8 @@
   ],
   "exclude": [
     "node_modules",
-    "components/shell/agreement-chat.tsx",
-    "components/shell/budget-card.tsx",
-    "components/shell/budget-panel.tsx",
     "components/shell/result-chat.tsx",
     "components/shell/round2-chat.tsx",
-    "components/shell/training-chat.tsx",
     "components/shell/verified-chat.tsx"
   ]
 }

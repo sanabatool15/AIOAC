@@ -1,4 +1,4 @@
-import { PayCancel } from "@/components/real/pay-return";
+import { PayCancel } from "@/components/shell/pay-return";
 
 // PayPal's cancel address (backend setting PAYPAL_CANCEL_URL).
 export default function PayCancelPage() {

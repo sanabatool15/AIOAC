@@ -10,6 +10,10 @@ import type {
 
 export type Maybe<T> = T | null | undefined;
 
+// The terms shown with every quote (payments.md section 2, step 4). Fixed text: the money rules are not the server's wording to change on screen.
+export const QUOTE_TERMS =
+  "You pay for compute either way. The success fee is charged only if the result is verified on test data we keep aside.";
+
 // cents -> "$0.56". Null-safe: a missing amount shows a dash, never "$NaN".
 export function dollars(cents: Maybe<number>): string {
   if (cents === null || cents === undefined || !Number.isFinite(cents)) return "—";
@@ -140,7 +144,7 @@ export function toQuote(q: Maybe<BQuote>): QuoteView | null {
     computeMax: dollars(q.compute_cap_cents),
     feeMax: dollars(q.success_fee_max_cents),
     target: percent(q.target),
-    terms: q.terms,
+    terms: QUOTE_TERMS,
   };
 }
 
@@ -159,7 +163,7 @@ export function quoteFromProject(p: Maybe<BProject>): QuoteView | null {
     computeMax: dollars(q.cap_cents - q.success_fee_max_cents),
     feeMax: dollars(q.success_fee_max_cents),
     target: percent(f?.target),
-    terms: "You pay compute either way. The success fee only if the target is verified.",
+    terms: QUOTE_TERMS,
   };
 }
 
