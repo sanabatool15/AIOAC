@@ -8,6 +8,7 @@ import { Field, Input } from "@/components/ui/input";
 import * as real from "@/lib/api-real";
 import { DEMO_LOGIN } from "@/lib/config";
 import { safeNext } from "@/lib/session";
+import { pathAfterAuth } from "@/lib/welcome";
 
 const { login, signup } = real;
 
@@ -52,7 +53,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
       await action();
       // Return to the page that sent us here; the path is checked to stay on this site.
       const next = safeNext(new URLSearchParams(window.location.search).get("next"));
-      router.push(next);
+      router.push(pathAfterAuth(mode, next));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setBusy(false);
