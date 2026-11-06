@@ -31,7 +31,7 @@ What has been built, what is stubbed, what has not been started, and what we lea
 | Login and multitenancy | Built 2026-11-06 (email and password, signed cookie, one org per signup, every project route owner-scoped, 404 for others). Not built: password reset, email check, invite to an org, rate limit shared across processes. Needs human review (secrets handling). Frontend wiring is separate. Crowdfunding was removed from the product (2026-10-26) |
 | Claude Code harness (rules, hooks) | Not started. PayPal plugin installed but needs a sandbox token |
 
-Tests (2026-11-06): backend `python -m pytest -q` all pass (counts in the last gate of this session: see section 13); frontend `npm run test:unit` 99 pass, `npm run test:e2e` 11 browser tests pass (6 files: auth, demo path, project pages, sharing, isolation, states). Integration tests only run with `RUN_REAL=1`. Run `pytest` in `backend/`.
+Tests (2026-11-06): backend `python -m pytest -q` 497 passed, 19 skipped (integration tests skip without `RUN_REAL=1`; includes the demo check `tests/e2e/test_payments_and_demo.py`); frontend `npm run test:unit` 99 pass, `npm run test:e2e` 11 browser tests pass (6 files: auth, demo path, project pages, sharing, isolation, states). Integration tests only run with `RUN_REAL=1`. Run `pytest` in `backend/`.
 
 Agent memory, logging and turn lock (2026-10-24): `conversations` and `messages` tables (delete any old local `aioac.db`), `services/agent/memory.py`, `services/agent/runlog.py`, `evals/show.py`, `evals/replay.py`. See `specs/agent/06` and `10`. Never run against a real model yet.
 
