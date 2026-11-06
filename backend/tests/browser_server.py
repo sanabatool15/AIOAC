@@ -29,7 +29,7 @@ SECRET_ENV = ("AZURE_OPENAI_API_KEY", "AZURE_OPENAI_BASE_URL", "AZURE_OPENAI_MOD
 # What the scripted model does: look for data, fetch it, then propose select_dataset (the user approves the card).
 FAKE_CASE = {"fake": {"behavior": "discover", "goal_summary": "predict which subscription customers will leave",
                       "queries": ["customer churn", "subscription cancel"], "target": "left",
-                      "final_text": "I chose that dataset. Next I will check it is ready to use."}}
+                      "final_text": "I chose **the churn dataset**. Next I will check it is ready, with `left` as the answer column."}}
 AGENT_STAGES = ["discover_datasets", "look_at_dataset", "fetch_dataset", "select_dataset"]
 
 
