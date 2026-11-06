@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import FastAPI
+
+from tests.helpers.auth import sign_in
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -72,7 +74,7 @@ def test_api_train_returns_at_once_then_progress_and_stop(session, storage, chos
         is_active = staticmethod(lambda rid: False)
 
     backend = StoppableBackend()
-    app = FastAPI()
+    app = sign_in(FastAPI())
     app.include_router(project_routes.router)
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[project_routes.get_runner] = lambda: Recording()
@@ -97,7 +99,7 @@ def test_api_train_returns_at_once_then_progress_and_stop(session, storage, chos
 
 
 def test_api_train_refused_without_payment(session, storage, chosen, provider):
-    app = FastAPI()
+    app = sign_in(FastAPI())
     app.include_router(project_routes.router)
     app.dependency_overrides[get_session] = lambda: session
     assert TestClient(app).post(f"/projects/{chosen.id}/train").status_code == 409
@@ -108,7 +110,7 @@ def test_enqueue_failure_voids_everything(session, storage, chosen, provider, pa
         def enqueue(self, rid):
             raise RuntimeError("inngest unreachable")
 
-    app = FastAPI()
+    app = sign_in(FastAPI())
     app.include_router(project_routes.router)
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[project_routes.get_runner] = lambda: Broken()
@@ -255,7 +257,7 @@ def test_inngest_function_is_served_by_fastapi():
     from app.integrations.jobs.inngest_runner import InngestJobRunner
 
     client = inngest.Inngest(app_id="aioac-test", is_production=False)  # dev mode: no keys, no network at import
-    app = FastAPI()
+    app = sign_in(FastAPI())
     InngestJobRunner(client).serve(app, execute=lambda rid: None)
     assert any(getattr(r, "path", "") == "/api/inngest" for r in app.routes)
 

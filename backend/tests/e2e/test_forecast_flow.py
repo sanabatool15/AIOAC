@@ -1,5 +1,7 @@
 """The pilot, forecast and quote endpoints, the Improve round, and that the check runs once per run."""
 from fastapi import FastAPI
+
+from tests.helpers.auth import sign_in
 from fastapi.testclient import TestClient
 
 from app.db import get_session
@@ -16,7 +18,7 @@ from tests.helpers.builders import held
 
 
 def client(session, storage, provider):
-    app = FastAPI()
+    app = sign_in(FastAPI())
     app.include_router(forecast_routes.router)
     app.include_router(quote_routes.router)
     app.dependency_overrides[get_session] = lambda: session

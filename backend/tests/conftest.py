@@ -29,6 +29,7 @@ if not REAL_MODE:
         "LLM_PROVIDER": "openrouter",
         "OPENROUTER_API_KEY": "", "AZURE_OPENAI_API_KEY": "", "AZURE_OPENAI_BASE_URL": "", "AZURE_OPENAI_MODEL": "",
         "HF_TOKEN": "", "PAYPAL_CLIENT_ID": "", "PAYPAL_CLIENT_SECRET": "", "PAYPAL_WEBHOOK_ID": "",
+        "SECRET_KEY": "test-only-secret-key-not-for-real-use-0123456789", "DEMO_LOGIN_ENABLED": "false",
         "INNGEST_EVENT_KEY": "", "INNGEST_SIGNING_KEY": "", "SAGEMAKER_BUCKET": "", "SAGEMAKER_ROLE_ARN": "",
     })
     os.environ["AIOAC_TEST_ISOLATED"] = "1"
@@ -39,11 +40,22 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base
-from app.db.tables import Project
+from app.db.tables import Organization, Project, User
 from doubles.payments import MockPaymentProvider
 from app.integrations.storage.local import LocalStorage
 from app.services.data.samples import churn_csv
 from app.services.data import datasets
+
+
+def make_user(s, email="default@example.test") -> User:
+    """A user in its own organization (the test double of signing up; no password is checked)."""
+    org = Organization(name=f"{email} (personal)")
+    s.add(org)
+    s.flush()
+    u = User(email=email, password_hash="not-a-real-hash", org_id=org.id)
+    s.add(u)
+    s.commit()
+    return u
 
 
 @pytest.fixture
@@ -52,6 +64,29 @@ def session():
     Base.metadata.create_all(e)
     with sessionmaker(e, expire_on_commit=False)() as s:
         yield s
+
+
+@pytest.fixture
+def user(session):
+    """The default signed-in user of API tests that use the `session` fixture."""
+    return make_user(session)
+
+
+@pytest.fixture(autouse=True)
+def _signed_in(request):
+    """Existing API tests run as `user` without a cookie: current_user is overridden for them. Tests that exercise
+    real login (tests/e2e/test_tenant_isolation.py, test_auth.py) set `pytestmark = pytest.mark.real_auth` to opt out."""
+    if "real_auth" in request.keywords or "session" not in request.fixturenames:
+        yield
+        return
+    from app.deps import current_user
+    from app.main import app
+    u = request.getfixturevalue("user")
+    from tests.helpers import auth
+    auth.DEFAULT["user"] = u
+    app.dependency_overrides[current_user] = lambda: u
+    yield
+    app.dependency_overrides.pop(current_user, None)
 
 
 @pytest.fixture
@@ -65,8 +100,8 @@ def provider():
 
 
 @pytest.fixture
-def project(session):
-    p = Project(goal="predict which customers leave")
+def project(session, user):
+    p = Project(goal="predict which customers leave", user_id=user.id, org_id=user.org_id)
     session.add(p)
     session.commit()
     return p
