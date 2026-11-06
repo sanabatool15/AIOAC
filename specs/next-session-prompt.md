@@ -1,10 +1,10 @@
 # Next session: one real UI, fully wired to the backend
 
-How to use: start a new session on branch `claude/pensive-knuth-qmehyo` and say: "Read specs/next-session-prompt.md and do it." The owner speaks Roman Urdu: reply to the owner in Roman Urdu only, short and honest. Tell the owner BEFORE any real Azure, PayPal or AWS use.
+How to use: start a new session (it gets its own branch made from `main`, which has this file and all the work described below) and say: "Read specs/next-session-prompt.md and do it." The owner speaks Roman Urdu: reply to the owner in Roman Urdu only, short and honest. Tell the owner BEFORE any real Azure, PayPal or AWS use.
 
 ## Where things stand (2026-11-06)
 
-- `main` is at 8ed60f2. The branch is 2 commits ahead (real-mode chat, 57db718). Backend: about 460 tests pass. Demo check: `pytest tests/e2e/test_payments_and_demo.py`.
+- `main` holds everything below, including the real-mode chat (57db718). Backend: about 460 tests pass. Demo check: `pytest tests/e2e/test_payments_and_demo.py`.
 - Backend built: login with orgs and owner-scoped routes (404 for others), free path routes (select, readiness, baseline, pilot, quote, approve), PayPal hold/capture/void, background training (inline runner), SageMaker backend, agent with blocks, messages history, `python -m app.db.init --check/--upgrade`.
 - Real runs done: PayPal sandbox lifecycle (2026-11-02), SageMaker jobs (scikit-learn 1.9-0), Azure `gpt-5.4` evals 22/22, one real chat on 2026-11-06 (agent found UCI datasets and produced a select card). Never run: PayPal webhook, the whole browser cycle (login to receipt) with real PayPal, Inngest.
 - Supabase: schema reset and recreated by the owner, RLS enabled on all tables. It is reachable only from the owner's laptop (this container blocks Postgres ports). The owner runs everything locally on Windows with PowerShell, using `uv`.
