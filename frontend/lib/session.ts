@@ -1,7 +1,3 @@
-import { USE_MOCK_API } from "./config";
-
-// Mock session (stands in for the httpOnly cookie the FastAPI backend will set).
-const KEY = "aioac.session";
 const listeners = new Set<() => void>();
 
 export function subscribeSession(cb: () => void) {
@@ -13,7 +9,7 @@ export function subscribeSession(cb: () => void) {
   };
 }
 
-// ---- Real mode: the signed-in state comes from GET /auth/me (the httpOnly cookie is the truth). Memory only. ----
+// The signed-in state comes from GET /auth/me (the httpOnly cookie is the truth). Memory only.
 export interface SessionUser {
   id: string;
   email: string;
@@ -70,41 +66,5 @@ export function safeNext(raw: string | null | undefined): string {
 }
 
 export function getSessionSnapshot(): "unknown" | "in" | "out" {
-  if (!USE_MOCK_API) return real.status;
-  try {
-    return localStorage.getItem(KEY) === "1" ? "in" : "out";
-  } catch {
-    return "out";
-  }
-}
-
-export function setSession(on: boolean) {
-  try {
-    if (on) localStorage.setItem(KEY, "1");
-    else localStorage.removeItem(KEY);
-  } catch {
-    /* storage blocked: session lasts only for this page */
-  }
-  listeners.forEach((l) => l());
-}
-
-// Mock "first run" flag: set at sign-up, cleared once the first chat starts (screen 35).
-const FIRST_KEY = "aioac.firstrun";
-
-export function getFirstRunSnapshot(): boolean {
-  try {
-    return localStorage.getItem(FIRST_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function setFirstRun(on: boolean) {
-  try {
-    if (on) localStorage.setItem(FIRST_KEY, "1");
-    else localStorage.removeItem(FIRST_KEY);
-  } catch {
-    /* storage blocked */
-  }
-  listeners.forEach((l) => l());
+  return real.status;
 }

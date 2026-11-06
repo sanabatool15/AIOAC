@@ -1,16 +1,12 @@
 "use client";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-} from "react";
-import { AddDataModal, type AddDataTab } from "./add-data-modal";
+import { createContext, useContext, useMemo, useState } from "react";
+
+export type AddDataTab = "upload";
 
 interface AddDataApi {
+  /** Open the CSV upload. TODO (plan step 5): the describe step supplies the real upload dialog. */
   open: (tab?: AddDataTab) => void;
-  /** Bumps after data is added, so lists (sidebar) can refetch. */
+  /** Bumps after data is added, so lists can refetch. */
   version: number;
 }
 
@@ -22,23 +18,9 @@ export function useAddData() {
   return ctx;
 }
 
-// One modal for the whole app: composer attach and sidebar data sources both open it.
+// One place for "add data" for the whole app. The mock dialog (links, integrations) was deleted; CSV upload only returns in plan step 5.
 export function AddDataProvider({ children }: { children: React.ReactNode }) {
-  const [tab, setTab] = useState<AddDataTab | null>(null);
-  const [version, setVersion] = useState(0);
-  const open = useCallback((t: AddDataTab = "upload") => setTab(t), []);
-  const api = useMemo(() => ({ open, version }), [open, version]);
-
-  return (
-    <AddDataContext.Provider value={api}>
-      {children}
-      {tab && (
-        <AddDataModal
-          initialTab={tab}
-          onClose={() => setTab(null)}
-          onAdded={() => setVersion((v) => v + 1)}
-        />
-      )}
-    </AddDataContext.Provider>
-  );
+  const [version] = useState(0);
+  const api = useMemo(() => ({ open: () => {}, version }), [version]);
+  return <AddDataContext.Provider value={api}>{children}</AddDataContext.Provider>;
 }

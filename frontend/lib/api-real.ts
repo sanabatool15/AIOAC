@@ -1,5 +1,5 @@
 // Real-backend calls for the demo path. One function per endpoint the screens use (specs/api.md section A).
-// Selected by USE_MOCK_API in the screens; mock mode never loads these.
+// The only data path of the app: calls to the FastAPI backend (login, projects, payments).
 import {
   api,
   ApiError,

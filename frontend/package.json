@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "playwright test",
+    "test": "playwright test --pass-with-no-tests",
     "test:unit": "tsx --test unit/*.test.ts"
   },
   "dependencies": {

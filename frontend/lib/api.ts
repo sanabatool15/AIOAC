@@ -1,5 +1,4 @@
 // Small typed fetch client for the FastAPI backend (contract: specs/api.md section A).
-// Used only when NEXT_PUBLIC_USE_MOCK_API=false. Relative imports on purpose, so unit tests can load it.
 import { API_BASE_URL } from "./config";
 import { clearRealUser, redirectToLogin } from "./session";
 

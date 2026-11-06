@@ -31,8 +31,6 @@ export function InlineChatFrame({
       className="flex h-full min-w-0 flex-1 flex-col bg-bg"
     >
       <TopBar
-        shareStyle="chip"
-        projectName={projectName}
         left={
           <h1 className="whitespace-pre text-sm font-normal leading-[normal] text-muted">{`${projectName}  /  Chat`}</h1>
         }

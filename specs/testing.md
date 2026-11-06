@@ -25,6 +25,9 @@ Four test folders under `backend/tests/`. Only `integration/` touches outside se
 
 Commands (from `backend/`): `pytest` (unit, contract, e2e; real skips), `pytest tests/e2e/test_payments_and_demo.py` (demo check), `RUN_REAL=1 pytest tests/integration -v -s`.
 
+### Browser launcher (test-only, for Playwright)
+`cd backend && python -m tests.browser_server --port 8765 [--frontend http://localhost:3000]` starts the REAL app (`app.main`) on a throwaway SQLite file and temp storage, with a throwaway `SECRET_KEY`, CORS for the frontend origin, the scripted `ReactiveFake` model (discovery, fetch, then a `select_dataset` approval card; readiness, baseline, pilot and quote are driven by the routes), the offline dataset source, `MockPaymentProvider` and local training in a background thread. The mock hold's `approve_url` is `<frontend>/pay/return?token=<order id>`, so the return page can call `POST /payments/{id}/authorize`. It clears all real keys from the environment and refuses to start if `DATABASE_URL` is Postgres. It is not the app and `app/` never imports it; the real UI uses the real model. Proof it works: `tests/e2e/test_browser_server.py` (signup to train through an HTTP client).
+
 ### Agent evaluations
 A small fixed set of goals and datasets. For each we record what the agent searched, what it chose, and whether the result was sensible. Run these repeatedly, because agents vary between runs. The goal is a pass rate we can watch, not a single green tick.
 

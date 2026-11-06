@@ -1,7 +1,10 @@
-// Shared types. Mirror the FastAPI schema; swap for the generated client later.
+// View types of the polished screens that are not rewired yet (plan steps 4 to 9 replace them with views from lib/adapters.ts).
+// Backend shapes live in lib/api.ts; do not add new types here.
 
 export type StepStatus = "done" | "running" | "pending";
+
 export type ToolId = "tools" | "browser" | "research" | "training" | "payment";
+
 export type ToolState = "idle" | "running" | "done" | "error";
 
 export interface Step {
@@ -196,18 +199,6 @@ export interface ResultRun {
   ways: string[]; // screen 30 thread card
 }
 
-// Screen 27: what the view-only share link opens. Results only; never data files, keys or chat.
-export interface PublicResult {
-  shareId: string;
-  title: string;
-  byline: string;
-  badge: string;
-  verification: Pick<VerifiedRun, "metrics" | "heading" | "testSetNote">;
-  money: NonNullable<VerifiedRun["recap"]>;
-  checks: { id: string; label: string }[];
-  privacyNote: string;
-}
-
 export type TierId = "safe" | "recommended" | "ambitious";
 
 export interface AgreementTier {
@@ -231,49 +222,12 @@ export interface AgreementTarget {
   maxUsd: number;
 }
 
-export interface Agreement {
-  id: string;
-  chatId: string;
-  target: AgreementTarget;
-  state: "draft" | "awaiting_approval" | "held" | "cancelled";
-}
-
 export interface Budget {
   progress?: number; // optional bar under the headline (0-100)
   headline?: string; // replaces the amount line when nothing is held (e.g. "Free baseline · $0")
   heldUsd: number;
   usedUsd: number;
   label: string;
-}
-
-export interface ProjectSummary {
-  id: string;
-  name: string;
-  chats: { id: string; title: string }[];
-  dataFiles?: number;
-  models?: number;
-  status?: "running" | "done";
-  subtitle?: string;
-  members?: number; // people on the project, including you
-}
-
-export interface DataSource {
-  id: string;
-  name: string;
-  status: string;
-}
-
-export interface ApiKeyRow {
-  id: string;
-  name: string;
-  enabled: boolean;
-}
-
-export interface Shell {
-  user: { name: string; email: string; plan: string; usage: string };
-  projects: ProjectSummary[];
-  sources: DataSource[];
-  keys: ApiKeyRow[];
 }
 
 // Screen 9: agent researching while the experiment trains (chat column).
@@ -286,16 +240,6 @@ export interface ResearchRun {
     state: "done" | "run" | "pending";
     meta?: string;
   }[];
-  tools: Record<ToolId, ToolState>;
-}
-
-// GET /jobs/{id}/browser: what the agent's browser is showing (Live view tab).
-export interface LiveView {
-  url: string;
-  pageTitle: string;
-  lineWidths: number[]; // skeleton text lines, px
-  highlight: string;
-  notes: string[];
   tools: Record<ToolId, ToolState>;
 }
 
@@ -316,38 +260,6 @@ export interface BudgetBreakdown {
   policy: string;
 }
 
-// Screen 16: share dialog (invite people + view-only result link).
-export type ShareRole = "editor" | "viewer";
-export interface ShareMember {
-  id: string;
-  name: string; // email, or "David (you)"
-  role: "owner" | ShareRole;
-  status?: "invite sent";
-}
-export interface ShareState {
-  projectName: string;
-  members: ShareMember[];
-  link: { enabled: boolean; url: string };
-}
-
-// Screen 17: Settings > API keys. The full value is never in the list; only the last 4 characters.
-export type KeyProvider = "huggingface" | "kaggle" | "openrouter" | "other";
-export interface ApiKey {
-  id: string;
-  name: string;
-  provider: KeyProvider;
-  enabled: boolean;
-  last4: string;
-  projects: "all" | string[]; // project names the key can reach
-}
-
-// Screen 17b: key details drawer (GET /keys/{id}).
-export interface KeyDetail extends ApiKey {
-  createdLabel: string; // "Oct 20, 2026"
-  lastUsedLabel: string; // "2 min ago by Churn prediction"
-  access: { project: string; usedLabel: string; allowed: boolean }[];
-}
-
 // Screen 28: the free check says the guarantee is not available as-is, with ways to fix it.
 export interface IneligibleOption {
   id: "sample" | "target" | "upgrade";
@@ -355,6 +267,7 @@ export interface IneligibleOption {
   detail: string;
   recommended?: boolean;
 }
+
 export interface IneligibleCheck {
   checkedLabel: string;
   reasons: string[];
@@ -379,133 +292,4 @@ export interface ModelUse {
   apiLines: string[];
   keyOn: boolean;
   usage: string;
-}
-export interface BatchResult {
-  fileName: string;
-  rows: number;
-  flagged: number;
-}
-
-// Screen 34: project page (runs and model versions).
-export interface ProjectRun {
-  id: string;
-  round: string;
-  date: string;
-  target: string;
-  result: string;
-  cost: string;
-  status: "running" | "missed" | "met" | "done";
-}
-export interface ModelVersion {
-  id: string;
-  name: string;
-  metrics: string;
-  best?: boolean;
-}
-export interface ProjectDetail {
-  id: string;
-  name: string;
-  subtitle: string;
-  badge?: string;
-  openChatId: string;
-  runs: ProjectRun[];
-  versions: ModelVersion[];
-  chats: { id: string; title: string }[];
-  downloadNote: string;
-}
-
-// Screen 21: usage and plan overview (GET /account/usage)
-export interface UsageMeter {
-  id: string;
-  label: string;
-  used: number;
-  limit: number;
-  text: string; // "2 of 3", "184 MB of 500 MB"
-}
-export interface UsageActivity {
-  id: string;
-  date: string;
-  type: string;
-  description: string;
-  amount: string;
-  status: "captured" | "voided" | "held";
-}
-export interface UsagePlan {
-  plan: { name: string; badge: string; blurb: string };
-  meters: UsageMeter[];
-  card: { label: string; expires: string; isDefault: boolean } | null;
-  heldUsd: number;
-  heldNote: string;
-  activity: UsageActivity[];
-}
-
-// Screens 22-25: billing wizard (plan -> payment -> review -> done)
-export type PlanId = "starter" | "pro" | "team";
-export type BillingCycle = "monthly" | "yearly";
-export interface PlanOffer {
-  id: PlanId;
-  name: string;
-  blurb: string;
-  monthlyUsd: number; // list price per month
-  features: string[];
-  badge?: string;
-}
-export interface PayPlanInput {
-  plan: PlanId;
-  cycle: BillingCycle;
-  method: "paypal" | "card";
-  cardLast4?: string; // never the full number
-  cardBrand?: string;
-}
-export interface PlanReceipt {
-  invoice: string;
-  date: string;
-  planLabel: string; // "Pro, monthly"
-  paidWith: string;
-  totalUsd: number;
-  email: string;
-  renewal: string;
-}
-
-// Screens 26 + 33: billing and invoices (GET /account/billing)
-export type BillingStatus =
-  "paid" | "captured" | "voided" | "released" | "free";
-export interface BillingRow {
-  id: string;
-  date: string;
-  type: "plan" | "job";
-  typeLabel: string;
-  description: string;
-  amount: string;
-  status: BillingStatus;
-}
-export interface ReceiptDetail {
-  title: string;
-  subtitle: string;
-  rows: [label: string, value: string][];
-  strong: string; // label of the emphasised row
-}
-export interface BillingData {
-  rows: BillingRow[];
-  details: Record<string, ReceiptDetail>;
-  selectedId: string;
-}
-
-// Screen 33: payment methods tab (GET /account/payment-methods)
-export interface PaymentMethod {
-  id: string;
-  title: string;
-  detail: string;
-  isDefault: boolean;
-  expiresSoon?: boolean;
-}
-export interface BillingDetails {
-  name: string;
-  email: string;
-  country: string;
-  taxId: string;
-}
-export interface PaymentMethodsData {
-  methods: PaymentMethod[];
-  details: BillingDetails;
 }

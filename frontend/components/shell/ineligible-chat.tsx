@@ -61,7 +61,6 @@ function EligibilityCard({ check }: { check: IneligibleCheck }) {
   const [picked, setPicked] = useState<IneligibleOption["id"]>(recommended.id);
 
   function proceed() {
-    if (picked === "upgrade") return router.push("/billing/plan");
     toast(
       picked === "sample"
         ? "Using a 500 MB sample. Review the agreement next."
@@ -145,13 +144,6 @@ function EligibilityCard({ check }: { check: IneligibleCheck }) {
         <div className="flex flex-wrap gap-2">
           <Button size="md" onClick={proceed}>
             Continue with sample
-          </Button>
-          <Button
-            variant="outline"
-            size="action"
-            onClick={() => router.push("/billing/plan")}
-          >
-            Upgrade plan
           </Button>
           <Button
             variant="outline"
