@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { pendingCard } from "@/lib/chat";
 import { ChatController } from "@/lib/chat-controller";
@@ -24,12 +24,13 @@ export function useProjectChat(projectId: string, goal: string, status: string, 
 export type ProjectChat = ReturnType<typeof useProjectChat>;
 
 // Shown while a /chat call runs. A local timer only: it makes no network calls.
-function Thinking({ findingData }: { findingData: boolean }) {
-  const [seconds, setSeconds] = useState(0);
+function Thinking({ findingData, readingGoal, since }: { findingData: boolean; readingGoal: boolean; since: number | null }) {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setSeconds((n) => n + 1), 1000);
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+  const seconds = since === null ? 0 : Math.max(0, Math.floor((now - since) / 1000));
   return (
     <p role="status" aria-live="polite" className="flex items-center gap-2 pl-9 text-sm text-muted">
       <span aria-hidden className="flex gap-1">
@@ -37,7 +38,7 @@ function Thinking({ findingData }: { findingData: boolean }) {
           <span key={i} className="size-1.5 rounded-full bg-brand motion-safe:animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
         ))}
       </span>
-      {thinkingMessage(seconds, findingData)}
+      {thinkingMessage(seconds, findingData, readingGoal)}
     </p>
   );
 }
@@ -54,25 +55,34 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
         m.role === "user" ? (
           <UserBubble key={m.id} text={m.text} />
         ) : (
-          <AgentRow key={m.id} text={m.card ? "" : m.text}>
+          <Fragment key={m.id}>
+          <AgentRow text={m.card ? "" : m.text}>
             {m.card && (
               <ApprovalCard
                 card={m.card}
-                pending={waiting?.id === m.id && !state.declined}
+                pending={waiting?.id === m.id && !chat.isDeclined(m.id)}
+                declined={chat.isDeclined(m.id)}
                 busy={state.busy}
                 onApprove={() => void chat.approve(m.card!)}
-                onDecline={() => chat.decline()}
+                onDecline={() => chat.decline(m.id)}
               />
             )}
             {m.blocks.map((b, i) => (
               <ChatBlockView key={i} b={b} />
             ))}
           </AgentRow>
+          {m.card && chat.isDeclined(m.id) && (
+            <p className="pl-9 text-sm text-muted">No problem. Tell me what you would like instead, or upload your own file.</p>
+          )}
+          </Fragment>
         ),
       )}
-      {state.busy && state.items !== null && <Thinking findingData={projectStatus === "described"} />}
-      {state.declined && (
-        <p className="pl-9 text-sm text-muted">No problem. Tell me what you would like instead, or upload your own file.</p>
+      {state.busy && state.items !== null && (
+        <Thinking
+          findingData={projectStatus === "described"}
+          readingGoal={state.items.length === 1 && state.items[0].role === "user"}
+          since={state.busySince}
+        />
       )}
       {error && (
         <div role="alert" className="flex flex-wrap items-center gap-3 pl-9 text-sm text-danger">

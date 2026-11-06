@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/api";
 import { bootChat } from "../lib/chat";
+import { loadDeclined, type KV } from "../lib/declined";
 import { ChatController, type ChatDeps } from "../lib/chat-controller";
 
 // Shapes follow specs/api.md A2 and backend/tests/e2e/test_chat_blocks.py (the select_dataset card with `detail`).
@@ -25,7 +26,11 @@ const storedUser = { id: "m1", role: "user" as const, text: "predict churn", kin
 const storedCard = { id: "m2", role: "assistant" as const, text: card.what, kind: "card", card, blocks: [] };
 
 type Body = { message?: string; approve?: string[] };
-function make(opts: { stored?: unknown[]; replies?: (object | Error)[] } = {}) {
+const memoryStore = (): KV & { data: Map<string, string> } => {
+  const data = new Map<string, string>();
+  return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) };
+};
+function make(opts: { stored?: unknown[]; replies?: (object | Error)[]; store?: KV | null; gate?: Promise<void> } = {}) {
   const posts: Body[] = [];
   const gets: string[] = [];
   const replies = [...(opts.replies ?? [])];
@@ -42,23 +47,24 @@ function make(opts: { stored?: unknown[]; replies?: (object | Error)[] } = {}) {
   };
   const deps: ChatDeps = {
     // Same boot as the app, but on the fake network calls (tests the real first-visit rule).
-    boot: (id, goal, sendGoal) => {
+    boot: (id, goal, sendGoal, onGoalSent) => {
       const realFetch = globalThis.fetch;
       globalThis.fetch = (async (url: string, init: RequestInit) => {
         if (String(url).endsWith("/messages")) return json(await get(id));
+        await opts.gate;
         posts.push(JSON.parse(String(init.body)));
         const r = replies.shift();
         if (r instanceof Error) return json({ detail: r.message }, (r as ApiError).status ?? 500);
         return json(r ?? replyText);
       }) as typeof fetch;
-      return bootChat(id, goal, sendGoal).finally(() => {
+      return bootChat(id, goal, sendGoal, onGoalSent).finally(() => {
         globalThis.fetch = realFetch;
       });
     },
     getMessages: get,
     postChat: post,
   };
-  const c = new ChatController("p1", "predict churn", () => void changed++, deps);
+  const c = new ChatController("p1", "predict churn", () => void changed++, deps, opts.store === undefined ? memoryStore() : opts.store);
   return { c, posts, gets, changed: () => changed };
 }
 const json = (b: unknown, status = 200) =>
@@ -108,12 +114,11 @@ test("empty text sends nothing", async () => {
 test("Approve sends approve:[tool] and no message; Not now sends nothing", async () => {
   const t = make({ stored: [storedUser, storedCard], replies: [replyText] });
   await t.c.open("described");
-  t.c.decline();
-  assert.equal(t.c.getState().declined, true);
+  t.c.decline(t.c.getState().items![1].id);
+  assert.equal(t.c.isDeclined(t.c.getState().items![1].id), true);
   assert.equal(t.posts.length, 0);
   await t.c.approve(card);
   assert.deepEqual(t.posts, [{ approve: ["select_dataset"] }]);
-  assert.equal(t.c.getState().declined, false);
 });
 
 test("a reply is never followed by another model call", async () => {
@@ -161,4 +166,85 @@ test("a server error says nothing was charged", async () => {
   await t.c.open("described");
   await t.c.send("hi");
   assert.match(t.c.getState().error!.text, /Nothing was charged/);
+});
+
+test("the first reply (the goal sent on boot) shows the user's goal, busy and a timer from the first second", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const t = make({ replies: [replyText], gate });
+  const opening = t.c.open("described");
+  await new Promise((r) => setTimeout(r, 20)); // the goal POST is now in flight
+  const s = t.c.getState();
+  assert.equal(s.busy, true);
+  assert.ok(s.busySince !== null && Date.now() - s.busySince < 1000);
+  assert.deepEqual(s.items?.map((i) => [i.role, i.text]), [["user", "predict churn"]]); // the screen can show the indicator
+  release();
+  await opening;
+  const done = t.c.getState();
+  assert.equal(done.busy, false);
+  assert.equal(done.busySince, null);
+  assert.equal(done.items?.length, 2);
+});
+
+test("history loading alone does not claim the assistant is thinking about the goal", async () => {
+  const t = make({ stored: [storedUser, storedCard] });
+  await t.c.open("described");
+  assert.equal(t.c.getState().busySince, null);
+});
+
+test("a normal send also starts the timer", async () => {
+  const t = make({ stored: [storedUser], replies: [replyText] });
+  await t.c.open("data_chosen");
+  const sending = t.c.send("hi");
+  assert.ok(t.c.getState().busySince !== null);
+  await sending;
+  assert.equal(t.c.getState().busySince, null);
+});
+
+test("Not now is remembered per project and survives a reload (new controller, same storage)", async () => {
+  const store = memoryStore();
+  const a = make({ stored: [storedUser, storedCard], store });
+  await a.c.open("described");
+  const cardId = a.c.getState().items![1].id;
+  a.c.decline(cardId);
+  assert.equal(a.posts.length, 0);
+  assert.equal(loadDeclined("p1", store).length, 1);
+  const b = make({ stored: [storedUser, storedCard], store }); // a reload
+  await b.c.open("described");
+  assert.equal(b.c.isDeclined(b.c.getState().items![1].id), true);
+  assert.equal(b.posts.length, 0);
+  const other = make({ stored: [storedUser, storedCard], store: memoryStore() }); // another browser/project: asks again
+  await other.c.open("described");
+  assert.equal(other.c.isDeclined(other.c.getState().items![1].id), false);
+});
+
+test("a declined card from a fresh reply is still declined after reload (temporary id vs stored id)", async () => {
+  const store = memoryStore();
+  const a = make({ replies: [replyCard], store });
+  await a.c.open("described"); // goal sent, card comes back with a local id
+  const local = a.c.getState().items!.find((i) => i.card)!;
+  a.c.decline(local.id);
+  const b = make({ stored: [storedUser, storedCard], store });
+  await b.c.open("described");
+  assert.equal(b.c.isDeclined(storedCard.id), true);
+});
+
+test("asking again about the same dataset gives a new card that is not declined", async () => {
+  const store = memoryStore();
+  const t = make({ stored: [storedUser, storedCard], replies: [replyCard], store });
+  await t.c.open("described");
+  t.c.decline(storedCard.id);
+  await t.c.send("show me that one again");
+  const cards = t.c.getState().items!.filter((i) => i.card);
+  assert.equal(cards.length, 2);
+  assert.equal(t.c.isDeclined(cards[0].id), true);
+  assert.equal(t.c.isDeclined(cards[1].id), false);
+});
+
+test("without working storage everything still runs", async () => {
+  const broken: KV = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+  const t = make({ stored: [storedUser, storedCard], store: broken });
+  await t.c.open("described");
+  t.c.decline(storedCard.id);
+  assert.equal(t.c.isDeclined(storedCard.id), true); // lasts until reload
 });

@@ -104,7 +104,6 @@ export function parseMarkdown(src: string): Block[] {
   const blocks: Block[] = [];
   let para: string[] = [];
   let list: { kind: "ul" | "ol"; start: number; items: Inline[][] } | null = null;
-  let gap = false; // a blank line came after the last list item: the list may still go on
   const endPara = () => {
     if (para.length) blocks.push({ t: "p", c: withBreaks(para) });
     para = [];
@@ -112,12 +111,11 @@ export function parseMarkdown(src: string): Block[] {
   const endList = () => {
     if (list) blocks.push(list.kind === "ol" ? { t: "ol", start: list.start, items: list.items } : { t: "ul", items: list.items });
     list = null;
-    gap = false;
   };
   for (const line of lines) {
     if (!line.trim()) {
       endPara();
-      gap = true; // the list (if any) is closed later, only if the next line is not another item of it
+      // A blank line does not close a list: it is closed when a line that is not an item of it comes.
       continue;
     }
     const ul = UL.exec(line);
@@ -131,13 +129,11 @@ export function parseMarkdown(src: string): Block[] {
       // split in two still counts on (the browser numbers the items of one <ol> itself).
       list ??= { kind, start: ol ? Number(ol[1]) : 1, items: [] };
       list.items.push(parseInline((ul ? hit[1] : ol![2]).trim()));
-      gap = false;
       continue;
     }
     // Indented text under an item belongs to that item.
     if (list && /^\s{2,}\S/.test(line) && !HEAD.test(line)) {
       list.items[list.items.length - 1].push({ t: "br" }, ...parseInline(line.trim()));
-      gap = false;
       continue;
     }
     const h = HEAD.exec(line);

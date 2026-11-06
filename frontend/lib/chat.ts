@@ -150,7 +150,7 @@ export interface Boot {
 // Two calls for the same project at the same time (React strict mode, a quick remount) share one promise.
 const booting = new Map<string, Promise<Boot>>();
 // `sendGoal` is false on later steps: an empty history there is not a reason to talk to the model.
-export function bootChat(projectId: string, goal: string, sendGoal = true): Promise<Boot> {
+export function bootChat(projectId: string, goal: string, sendGoal = true, onGoalSent?: (goal: ChatItem) => void): Promise<Boot> {
   const running = booting.get(projectId);
   if (running) return running;
   const p = (async (): Promise<Boot> => {
@@ -163,6 +163,7 @@ export function bootChat(projectId: string, goal: string, sendGoal = true): Prom
     if (stored.length > 0) return { items: stored.map(fromStored), error: null };
     if (!sendGoal) return { items: [], error: null };
     const first = userItem(goal);
+    onGoalSent?.(first); // the screen can show the goal and the thinking indicator while the first reply is on its way
     try {
       const r = await postChat(projectId, { message: goal });
       return { items: [first, ...itemsFromReply(r)], error: null };

@@ -17,3 +17,10 @@ test("bad input falls back to the first message", () => {
   assert.equal(thinkingMessage(NaN, true), "The assistant is working…");
   assert.equal(thinkingMessage(-3, true), "The assistant is working…");
 });
+
+test("the first reply says it is reading the goal, then rotates like the others", () => {
+  assert.equal(thinkingMessage(0, true, true), "Reading your goal…");
+  assert.equal(thinkingMessage(3, true, true), "Reading your goal…");
+  assert.match(thinkingMessage(6, true, true), /open datasets/);
+  assert.match(thinkingMessage(45, true, true), /up to a minute/);
+});

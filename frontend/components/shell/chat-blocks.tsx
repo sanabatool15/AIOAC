@@ -86,12 +86,14 @@ function Fact({ label, value, note }: { label: string; value: string; note?: str
 export function ApprovalCard({
   card,
   pending,
+  declined = false,
   busy,
   onApprove,
   onDecline,
 }: {
   card: ChatCard;
   pending: boolean;
+  declined?: boolean; // the user chose "Not now": a calm note instead of the buttons
   busy: boolean;
   onApprove: () => void;
   onDecline: () => void;
@@ -100,7 +102,7 @@ export function ApprovalCard({
   const title = cardTitle(card);
   return (
     <Card variant="amber" aria-label="Approval needed" className="gap-3 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{pending ? "Needs your OK" : "Asked for your OK"}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{declined ? "You chose not to use this one" : pending ? "Needs your OK" : "Asked for your OK"}</p>
       <h3 className="text-base font-semibold text-ink">{title}</h3>
       {title !== card.what && <p className="text-sm leading-5 text-ink-2">{card.what}</p>}
       {facts.length > 0 && (
@@ -110,8 +112,10 @@ export function ApprovalCard({
           ))}
         </dl>
       )}
-      <p className="text-sm text-muted">This only picks the data to work with. Nothing is charged.</p>
-      {pending && (
+      <p className="text-sm text-muted">
+        {declined ? "Nothing was chosen and nothing was charged." : "This only picks the data to work with. Nothing is charged."}
+      </p>
+      {pending && !declined && (
         <div className="flex gap-2">
           <Button size="md" disabled={busy} onClick={onApprove}>
             Approve
