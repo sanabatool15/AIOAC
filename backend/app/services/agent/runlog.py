@@ -22,7 +22,7 @@ LEVELS = {"DEBUG": 10, "INFO": 20, "WARN": 30, "ERROR": 40}
 # ---------------------------------------------------------------- redaction
 
 _SECRET_PATTERNS = [
-    (re.compile(r"sk-[A-Za-z0-9_\-]{16,}"), "[redacted key]"),
+    (re.compile(r"(?<![A-Za-z0-9_\-])sk-[A-Za-z0-9_\-]{16,}"), "[redacted key]"),
     (re.compile(r"Bearer\s+\S+", re.I), "Bearer [redacted]"),
     (re.compile(r"eyJ[A-Za-z0-9_\-]{20,}"), "[redacted token]"),
     (re.compile(r"AKIA[0-9A-Z]{16}"), "[redacted aws key]"),

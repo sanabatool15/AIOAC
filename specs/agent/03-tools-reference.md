@@ -64,7 +64,7 @@ Common rules (BUILT):
 ## select_dataset
 - Purpose: choose the dataset. Deletes the other candidates. `SELECT_DATASET`, **level 1**.
 - Offered in: `described`.
-- Input: `{candidate_id, target}`.
+- Input: `{candidate_id, target, target_meaning?}`. `target_meaning` is optional plain words ("whether the next payment was missed"); it goes into the card (`detail.target_meaning`, and `what`). A candidate made by `fetch_dataset` keeps the discovery title as its name (the source id stays in `source_url`).
 - Gate: without `ctx.approved` containing `select_dataset`, raises `NeedsApproval`. The turn ends with the card.
 - Output: `{rows, target, other_candidates:"deleted"}`.
 - DB changes: new `DatasetVersion` (`datasets/<project>/v1.csv`), other candidates set `discarded` and their files deleted, `project.chosen_dataset_version_id`, status -> `data_chosen`.
@@ -88,13 +88,13 @@ Common rules (BUILT):
 ## run_pilot
 - Purpose: free pilot on about 5-10% of the data (never the locked rows), then a forecast of the full-run result against the user's target (a number from 0 to 1, for example 0.8). Gate `PILOT`, level 0.
 - Offered in: `baseline_done`.
-- Input: `{target}`. Output: the forecast with confidence, band and eligibility, plus a reason when not eligible. All values are estimates.
+- Input: `{target}`. **Guard (code, `services/agent/target.py`):** the target must match a number in the user's OWN words ('80 out of 100', '80%', '8 out of 10', '0.8'); the text the server writes for a pressed Approve ("Yes, I approve: ...") does not count. Otherwise the result is `{need_target: true, baseline_percent, hint}` and the model asks the user. Output otherwise: the forecast (also `*_out_of_100` fields) with confidence, band and eligibility, plus a reason when not eligible. All values are estimates.
 - If confidence is below 0.60 the run is not sold ("Not eligible"). The agent then explains the data issues in plain words, asks the lowest result the user would accept, offers a suggested target, and may re-run the pilot. The "change of engineering approach" step is to be designed (`payments.md` section 2a).
 
 ## create_quote
 - Purpose: compute estimate, range, cap (estimate includes the 5% success fee, which is charged only if the result is verified). Refused unless the forecast is eligible. Gate `CREATE_QUOTE`, level 0 (it only prepares the approval screen).
 - Offered in: `baseline_done`, `quoted`, `awaiting_payment` (so an expired quote can be replaced; refused if a live hold exists for the current quote).
-- Input: none. Output: `{quote_id, estimate_cents, range_cents:[lo,hi], cap_cents, label:"estimate", next}`.
+- Input: none. Output: `{quote_id, estimate_cents, range_cents:[lo,hi], cap_cents, success_fee_cents, breakdown:{compute_estimate_cents, compute_cap_cents, storage_cents, platform_fee_cents, success_fee_estimate_cents, success_fee_max_cents}, in_dollars:{...strings like "$0.56"}, label:"estimate", next}`. The breakdown is read from the stored quote; no number is recomputed.
 - DB changes: new `Quote` (expires after `quote_ttl_minutes`), status -> `quoted`. Calling again in `quoted` makes another quote.
 - Failure: `{error}` (no baseline, too expensive, or any exception).
 

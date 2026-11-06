@@ -89,5 +89,5 @@ def test_select_dataset_card_names_the_dataset(api, session, storage, project):
 def test_select_dataset_card_unknown_candidate_is_null_detail(api, project):
     r = chat(api, project.id, [call("select_dataset", candidate_id="nope", target="left")])
     assert r["status"] == "awaiting_approval"
-    assert r["card"]["detail"] == {"name": None, "source": None, "rows": None, "columns": None, "license": None, "target": "left"}
+    assert r["card"]["detail"] == {"name": None, "source": None, "rows": None, "columns": None, "license": None, "target": "left", "target_meaning": None}
     assert r["card"]["what"]

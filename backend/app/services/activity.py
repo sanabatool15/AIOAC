@@ -18,6 +18,7 @@ from ..repositories import quotes as quotes_repo
 from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
 from .agent.runlog import scrub
+from .agent.target import APPROVAL_PREFIX
 
 ACTION_WORDS = {"select_dataset": "choose the dataset", "request_payment": "ask for the payment hold",
                 "start_training": "start training", "create_quote": "create a price estimate", "pilot": "run the free pilot",
@@ -46,10 +47,11 @@ def _tool_line(name: str, args: dict, result: dict) -> tuple[str, str] | None:
         q = ", ".join(_s(x, 40) for x in q[:3]) if isinstance(q, list) else _s(q)
         return "search", f"Searched open datasets for {q}" if q else "Searched open datasets"
     if name == "look_at_dataset":
-        label = _s(result.get("name") or args.get("dataset_id") or "a dataset", 60)
-        return "look", f'Looked at "{label}" ({_rows(result.get("rows"))})'
+        title = result.get("title") or result.get("name")  # never the raw id ("uci:144"): the user knows datasets by title
+        return "look", f'Looked at "{_s(title, 60)}" ({_rows(result.get("rows"))})' if title else f"Looked at a dataset ({_rows(result.get('rows'))})"
     if name == "fetch_dataset":
-        return "download", f"Downloaded a dataset ({_rows(result.get('rows'))})"
+        title = result.get("title")
+        return "download", f'Downloaded "{_s(title, 60)}" ({_rows(result.get("rows"))})' if title else f"Downloaded a dataset ({_rows(result.get('rows'))})"
     if name == "inspect_candidate":
         return "check", "Checked the columns of a dataset"
     if name == "select_dataset":
@@ -151,7 +153,8 @@ def activity(session: Session, project: Project) -> list[dict]:
         line: tuple[str, str] | None = None
         step: str | None = None
         if st.kind == "user":
-            line = ("you", f'You said: "{_s(c.get("text", ""), 100)}"')
+            if not str(c.get("text", "")).lstrip().startswith(APPROVAL_PREFIX):  # the server's own text for a pressed Approve button
+                line = ("you", f'You said: "{_s(c.get("text", ""), 100)}"')
         elif st.kind == "assistant":
             line = ("reply", "The assistant replied")
         elif st.kind == "tool_call":

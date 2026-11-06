@@ -16,6 +16,7 @@ from ...repositories.traces import TraceRepository
 from .. import gate
 from . import blocks as blocks_mod, context, guards, memory
 from .runlog import RunLog, summarize_result
+from .target import APPROVAL_PREFIX
 from .tools import TOOLS, ToolContext, select_dataset_card
 
 GENERIC_TOOL_ERROR = "That tool failed unexpectedly. Do not retry the same call; tell the user plainly that this step could not be done right now."
@@ -116,7 +117,7 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
     if not user_message and ctx.approved:
         # The user pressed "approve" on a card and typed nothing. Without a user turn, models read the stored
         # "waiting for approval" result as still waiting and ask again. The gate trusts ctx.approved, not this text.
-        user_message = f"Yes, I approve: {', '.join(a.replace('_', ' ') for a in sorted(ctx.approved))}. Please carry it out."
+        user_message = f"{APPROVAL_PREFIX} {', '.join(a.replace('_', ' ') for a in sorted(ctx.approved))}. Please carry it out."
     if user_message:
         trace.add(pid, "user", {"text": user_message}, run.id)
         memory.add_message(ctx.session, conv.id, "user", user_message, run_id=run.id)

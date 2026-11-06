@@ -19,6 +19,9 @@ The answer column holds what the user wants to predict. `inspect_candidate` and 
 6. If the only candidate has hundreds of different numbers (a price, an amount), say this tool predicts categories
    such as yes/no, not exact numbers, and offer another dataset. This product starts with yes/no and category questions.
 
+## Tell the user what it means
+When you propose `select_dataset`, fill `target_meaning` with what the answer column means in plain words ("whether the next payment was missed"), so the approval card reads clearly.
+
 ## Do not
 - Do not choose an ID, name, date or free-text column.
 - Do not choose a column that is only known after the fact (see `data-leakage`).
