@@ -16,7 +16,7 @@ from ...repositories.traces import TraceRepository
 from .. import gate
 from . import blocks as blocks_mod, context, guards, memory
 from .runlog import RunLog, summarize_result
-from .tools import TOOLS, ToolContext
+from .tools import TOOLS, ToolContext, select_dataset_card
 
 GENERIC_TOOL_ERROR = "That tool failed unexpectedly. Do not retry the same call; tell the user plainly that this step could not be done right now."
 logger = logging.getLogger("aioac.agent")
@@ -265,6 +265,8 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
                         result = tool.fn(ctx, call.args)
                 except gate.NeedsApproval as need:
                     card = {**need.card, "tool": call.name, "args": call.args}
+                    if call.name == "select_dataset":
+                        card.update(select_dataset_card(ctx, call.args))
                     log.emit("gate", "WARN", action=tool.action.value, level_num=level_num, allowed=False, reason="needs user approval")
                     log.emit("approval_card", "WARN", tool=call.name, args=call.args, what=need.card.get("what"))
                     memory.add_message(ctx.session, conv.id, "tool", json.dumps({"waiting_for_user": "approval", **card}, default=str),

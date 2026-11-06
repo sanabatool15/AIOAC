@@ -67,3 +67,27 @@ def test_pay_block_in_a_chat_turn(api, session, chosen):
     r = chat(api, chosen.id, [call("request_payment"), LLMResponse(text="Please approve the hold in PayPal.")])
     (b,) = [b for b in r["blocks"] if b["type"] == "pay"]
     assert b["payment_id"] and b["approve_url"] and b["hold_cents"] == q.cap_cents
+
+
+def test_select_dataset_card_names_the_dataset(api, session, storage, project):
+    """F9: the approval card says which dataset and which column, in plain words."""
+    from app.services.data import datasets
+    from app.services.data.samples import churn_csv
+    c = datasets.add_candidate(session, storage, project, "Credit card default", "UCI", churn_csv(1500), license="cc-by-4.0")
+    r = chat(api, project.id, [call("select_dataset", candidate_id=c.id, target="left")])
+    assert r["status"] == "awaiting_approval"
+    card = r["card"]
+    assert card["tool"] == "select_dataset" and card["level"] == 1 and card["args"]["candidate_id"] == c.id
+    assert card["what"] == 'Use "Credit card default" (UCI, 1,500 rows) and predict the column "left"'
+    d = card["detail"]
+    assert d["name"] == "Credit card default" and d["source"] == "UCI" and d["rows"] == 1500
+    assert d["license"] == "cc-by-4.0" and d["target"] == "left" and d["columns"] > 1
+    stored = [m for m in api.get(f"/projects/{project.id}/messages").json() if m["kind"] == "card"]
+    assert stored[-1]["card"]["detail"] == d and stored[-1]["text"] == card["what"]
+
+
+def test_select_dataset_card_unknown_candidate_is_null_detail(api, project):
+    r = chat(api, project.id, [call("select_dataset", candidate_id="nope", target="left")])
+    assert r["status"] == "awaiting_approval"
+    assert r["card"]["detail"] == {"name": None, "source": None, "rows": None, "columns": None, "license": None, "target": "left"}
+    assert r["card"]["what"]

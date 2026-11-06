@@ -214,6 +214,31 @@ def select_dataset(ctx, a):
     return {"rows": v.rows, "target": v.target_column, "other_candidates": "deleted"}
 
 
+def select_dataset_card(ctx, a) -> dict:
+    """Plain-language parts of the approval card for select_dataset: which dataset, from where, how big, which column.
+    Read-only. Anything unknown is None, and then `what` is left out so the gate's generic text stays."""
+    cand = datasets_repo.get_candidate(ctx.session, str(a.get("candidate_id", "")))
+    if cand is not None and cand.project_id != ctx.project.id:
+        cand = None
+    target = a.get("target") if isinstance(a.get("target"), str) and a.get("target") else None
+    detail = {"name": None, "source": None, "rows": None, "columns": None, "license": None, "target": target}
+    if cand is None:
+        return {"detail": detail}
+    columns = None
+    if cand.storage_key:
+        try:
+            columns = len(pd.read_csv(io.BytesIO(ctx.storage.get(cand.storage_key)), nrows=0).columns)
+        except Exception:
+            columns = None
+    detail.update(name=cand.name, source=cand.source, rows=cand.rows, columns=columns, license=cand.license)
+    source = "sample data" if cand.source == "bundled" else cand.source
+    size = f"{source}, {cand.rows:,} rows" if cand.rows is not None else source
+    what = f'Use "{cand.name}" ({size})'
+    if target:
+        what += f' and predict the column "{target}"'
+    return {"what": what, "detail": detail}
+
+
 def run_readiness(ctx, a):
     r = analysis.readiness(ctx.session, ctx.storage, ctx.project)
     return {"grade": r.grade, "findings": r.findings}
