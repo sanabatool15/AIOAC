@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .db import Base, SessionLocal, engine, tables  # noqa: F401  (importing tables registers them)
 from .integrations.factory import get_job_runner, get_payment_provider
-from .routes import forecast, health, payments, projects, quotes, webhooks
+from .routes import auth, forecast, health, payments, projects, quotes, webhooks
 from .services import payments as payments_service
 from .services import training
 
@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AIOAC", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-for r in (health.router, projects.router, forecast.router, quotes.router, payments.router, webhooks.router):
+for r in (health.router, auth.router, projects.router, forecast.router, quotes.router, payments.router, webhooks.router):
     app.include_router(r)
 
 if settings.job_runner == "inngest":
