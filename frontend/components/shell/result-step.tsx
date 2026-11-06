@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Tag } from "@/components/ui/tag";
 import type { BProject, BReceipt, BTraining } from "@/lib/api";
 import * as real from "@/lib/api-real";
-import { needsSettleRetry, OUR_FAILURE_TEXT, toRecap, toResultView } from "@/lib/result-view";
+import { needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "@/lib/result-view";
 import { cn } from "@/lib/utils";
 import { TargetAction } from "./step-actions";
 import { ErrorLine, Row, useAction } from "./step-parts";
@@ -139,14 +139,7 @@ export function ResultStep({ project, onChanged }: StepProps) {
         <p className="text-sm leading-5 text-ink-2">{v.body}</p>
         <p className="text-xs text-muted">One check on data the model never saw. A measured result for this data, not a promise for new data.</p>
       </Card>
-      <MoneyRecap
-        receipt={receipt}
-        note={
-          v.kind === "verified"
-            ? "Compute plus the success fee were charged. The rest of the hold was released."
-            : "You pay for compute either way. The success fee is charged only if the result is verified."
-        }
-      />
+      <MoneyRecap receipt={receipt} note={recapNote(v.kind, toRecap(receipt))} />
       <ReceiptCard receipt={receipt} />
       <RetrySettle project={project} receipt={receipt} refresh={refresh} onChanged={onChanged} />
       {v.kind === "missed" && (

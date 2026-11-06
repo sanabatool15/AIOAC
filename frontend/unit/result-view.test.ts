@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { toTraining } from "../lib/adapters";
 import type { BReceipt, BTraining } from "../lib/api";
-import { needsSettleRetry, OUR_FAILURE_TEXT, toRecap, toResultView } from "../lib/result-view";
+import { needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "../lib/result-view";
 import {
   receiptMissed,
   receiptPendingSettle,
@@ -24,7 +24,6 @@ test("verified: passed is true, shows value and target out of 100, compute plus 
   assert.equal(v.target, 80);
   assert.match(v.body, /84 out of 100/);
   assert.match(v.body, /80 out of 100/);
-  assert.match(v.body, /success fee/);
 });
 
 test("missed: compute only, no success fee, never 'pay $0'", () => {
@@ -65,4 +64,11 @@ test("stopped and failed training answers map to their own flags", () => {
 
 test("our-failure text is the agreed wording", () => {
   assert.equal(OUR_FAILURE_TEXT, "Something went wrong on our side. You pay $0. The whole hold was released.");
+});
+
+test("recap note never claims a charge that did not happen", () => {
+  const zero = toRecap(R({ ...receiptMissed, compute_captured_cents: 0, total_charged_cents: 0, released_cents: 56 }));
+  assert.match(recapNote("verified", zero), /Nothing was charged/);
+  assert.match(recapNote("verified", toRecap(R(receiptVerified))), /Compute plus the success fee/);
+  assert.match(recapNote("missed", toRecap(R(receiptMissed))), /compute only, no success fee/);
 });

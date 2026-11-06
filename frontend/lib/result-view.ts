@@ -36,7 +36,7 @@ export function toResultView(t: BTraining | null | undefined): ResultView {
       value,
       target,
       title: "Target reached",
-      body: `${checked}against your target of ${target} out of 100. You paid for compute plus the success fee, because the result was verified.`,
+      body: `${checked}against your target of ${target} out of 100.`,
     };
   }
   return {
@@ -81,3 +81,11 @@ export function needsSettleRetry(r: Pick<BReceipt, "state"> | null | undefined):
 }
 
 export const OUR_FAILURE_TEXT = "Something went wrong on our side. You pay $0. The whole hold was released.";
+
+// The sentence under the money recap. Built from the numbers, so it never claims a charge that did not happen.
+export function recapNote(kind: ResultKind, r: Pick<Recap, "chargedCents"> | null): string {
+  if (!r) return "";
+  if (r.chargedCents === 0) return "Nothing was charged for this run, so the whole hold was released.";
+  if (kind === "verified") return "Compute plus the success fee were charged, because the result was verified. The rest of the hold was released.";
+  return "You paid for compute only, no success fee. The rest of the hold was released.";
+}
