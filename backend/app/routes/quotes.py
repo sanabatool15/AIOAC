@@ -2,8 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..db import Session, get_session
-from ..db.tables import Quote
-from ..repositories import projects as projects_repo
+from ..db.tables import Project, Quote
+from ..deps import owned_project
 from ..services import gate, lifecycle
 from ..services.cost import quotes
 from ..services.cost.cost import QuoteTooExpensive
@@ -20,12 +20,9 @@ def quote_view(q: Quote) -> dict:
             "terms": "You pay compute either way. The success fee only if the target is verified."}
 
 
-@router.post("/agreements/{aid}/quote")
-def create_quote(aid: str, s: Session = Depends(get_session)):
+@router.post("/agreements/{pid}/quote")
+def create_quote(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     """One fixed price for the full run: estimated compute + a small success fee, and a hard cap. Not for ineligible forecasts."""
-    p = projects_repo.get(s, aid)
-    if p is None:
-        raise HTTPException(404, "not found")
     gate.authorize(s, p, gate.Action.CREATE_QUOTE)
     try:
         q = quotes.create_quote(s, p)

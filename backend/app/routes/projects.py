@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..db import Session, get_session
 from ..integrations.factory import get_job_runner
-from ..deps import get_ctx_factory, get_llm_client
-from ..db.tables import Project
+from ..deps import current_user, get_ctx_factory, get_llm_client, owned_project
+from ..db.tables import Project, User
 from ..ports import ProviderError
 from ..integrations.factory import get_storage
 from ..repositories import analysis as analysis_repo
@@ -28,13 +28,6 @@ from ..services.agent.runlog import DbSink, RunLog
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _project(s: Session, pid: str) -> Project:
-    p = projects_repo.get(s, pid)
-    if p is None:
-        raise HTTPException(404, "project not found")
-    return p
-
-
 class ProjectIn(BaseModel):
     goal: str
 
@@ -50,19 +43,18 @@ class UploadIn(BaseModel):
 
 
 @router.post("")
-def create(body: ProjectIn, s: Session = Depends(get_session)):
-    p = projects_repo.create(s, body.goal)
+def create(body: ProjectIn, s: Session = Depends(get_session), user: User = Depends(current_user)):
+    p = projects_repo.create(s, body.goal, user_id=user.id, org_id=user.org_id)
     return {"id": p.id, "status": p.status}
 
 
 @router.get("")
-def list_projects(s: Session = Depends(get_session)):
-    return [{"id": p.id, "goal": p.goal, "status": p.status, "created_at": p.created_at} for p in projects_repo.list_all(s)]
+def list_projects(s: Session = Depends(get_session), user: User = Depends(current_user)):
+    return [{"id": p.id, "goal": p.goal, "status": p.status, "created_at": p.created_at} for p in projects_repo.list_owned(s, user.id, user.org_id)]
 
 
 @router.get("/{pid}")
-def read(pid: str, s: Session = Depends(get_session)):
-    p = _project(s, pid)
+def read(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     q = gate.latest_quote(s, pid)
     version = datasets_repo.get_version(s, p.chosen_dataset_version_id) if p.chosen_dataset_version_id else None
     report = analysis_repo.latest_insight_report(s, version.id) if version else None
@@ -83,9 +75,8 @@ def read(pid: str, s: Session = Depends(get_session)):
 
 
 @router.get("/{pid}/messages")
-def messages(pid: str, s: Session = Depends(get_session)):
+def messages(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     """Chat history for the screen: what the user said, what the assistant said, and approval cards. Tool results and skills are left out."""
-    _project(s, pid)
     out = []
     for m in conversations_repo.project_messages(s, pid):
         if m.kind == "card":
@@ -100,8 +91,7 @@ def messages(pid: str, s: Session = Depends(get_session)):
 
 
 @router.post("/{pid}/chat")
-def chat(pid: str, body: ChatIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory), llm=Depends(get_llm_client)):
-    p = _project(s, pid)
+def chat(pid: str, *, p: Project = Depends(owned_project), body: ChatIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory), llm=Depends(get_llm_client)):
     try:
         r = run_agent(make(p, body.approve), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
     except TurnInProgress as e:
@@ -110,8 +100,7 @@ def chat(pid: str, body: ChatIn, s: Session = Depends(get_session), make=Depends
 
 
 @router.post("/{pid}/data")
-def upload(pid: str, body: UploadIn, s: Session = Depends(get_session)):
-    p = _project(s, pid)
+def upload(pid: str, *, p: Project = Depends(owned_project), body: UploadIn, s: Session = Depends(get_session)):
     try:
         c = datasets.add_candidate(s, get_storage(), p, body.name, "upload", body.csv_text.encode())
     except datasets.DatasetError as e:
@@ -124,9 +113,8 @@ class SelectIn(BaseModel):
 
 
 @router.post("/{pid}/data/{candidate_id}/select")
-def select_data(pid: str, candidate_id: str, body: SelectIn | None = None, s: Session = Depends(get_session)):
+def select_data(pid: str, *, p: Project = Depends(owned_project), candidate_id: str, body: SelectIn | None = None, s: Session = Depends(get_session)):
     """The user's click is the approval. Same service as the agent's select_dataset tool."""
-    p = _project(s, pid)
     if p.status != "described":
         raise HTTPException(409, "a dataset was already chosen for this project")
     storage = get_storage()
@@ -142,8 +130,7 @@ def select_data(pid: str, candidate_id: str, body: SelectIn | None = None, s: Se
 
 
 @router.post("/{pid}/readiness")
-def readiness(pid: str, s: Session = Depends(get_session)):
-    p = _project(s, pid)
+def readiness(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     if p.status == "described":
         raise HTTPException(409, "choose a dataset first")
     if p.status != "data_chosen":
@@ -153,8 +140,7 @@ def readiness(pid: str, s: Session = Depends(get_session)):
 
 
 @router.post("/{pid}/baseline")
-def baseline(pid: str, s: Session = Depends(get_session)):
-    p = _project(s, pid)
+def baseline(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     if p.status in ("described", "data_chosen"):
         raise HTTPException(409, "choose a dataset first" if p.status == "described" else "run the readiness check first")
     if p.status != "readiness_done":
@@ -164,8 +150,7 @@ def baseline(pid: str, s: Session = Depends(get_session)):
 
 
 @router.get("/{pid}/payment")
-def project_payment(pid: str, s: Session = Depends(get_session)):
-    _project(s, pid)
+def project_payment(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     q = gate.latest_quote(s, pid)
     pay = payments_repo.for_quote(s, q.id) if q else None
     if pay is None:
@@ -174,8 +159,7 @@ def project_payment(pid: str, s: Session = Depends(get_session)):
 
 
 @router.post("/{pid}/quote/approve")
-def approve_quote(pid: str, s: Session = Depends(get_session)):
-    p = _project(s, pid)
+def approve_quote(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     q = gate.latest_quote(s, pid)
     if q is None:
         raise HTTPException(400, "no quote yet")
@@ -196,9 +180,8 @@ def get_runner():
 
 
 @router.post("/{pid}/train")
-def train(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory), runner=Depends(get_runner)):
+def train(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session), make=Depends(get_ctx_factory), runner=Depends(get_runner)):
     """Starts training in the background and returns at once. Poll GET /projects/{id}/training."""
-    p = _project(s, pid)
     ctx = make(p)
     try:
         run = training.start_and_enqueue(s, p, ctx.backend, ctx.provider, runner)
@@ -212,8 +195,7 @@ def train(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_fact
 
 
 @router.get("/{pid}/training")
-def training_progress(pid: str, s: Session = Depends(get_session)):
-    _project(s, pid)
+def training_progress(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     run = training.active_run(s, pid)
     if run is None:
         return {"status": "not_started"}
@@ -221,8 +203,7 @@ def training_progress(pid: str, s: Session = Depends(get_session)):
 
 
 @router.post("/{pid}/training/stop")
-def training_stop(pid: str, s: Session = Depends(get_session)):
-    p = _project(s, pid)
+def training_stop(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     try:
         run = training.request_stop(s, p)
     except training.NoActiveRun as e:
@@ -231,9 +212,8 @@ def training_stop(pid: str, s: Session = Depends(get_session)):
 
 
 @router.post("/{pid}/settle/retry")
-def retry_settle(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
+def retry_settle(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
     """Try again to finish the payment steps after PayPal failed part-way. Safe to call repeatedly."""
-    p = _project(s, pid)
     try:
         state = training.retry_settle(s, make(p).provider, p)
     except payments.PaymentError as e:
@@ -244,9 +224,8 @@ def retry_settle(pid: str, s: Session = Depends(get_session), make=Depends(get_c
 
 
 @router.post("/{pid}/cancel")
-def cancel(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
+def cancel(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
     """Change your mind after the hold and before training starts. The whole hold is released; you pay nothing."""
-    p = _project(s, pid)
     try:
         pay = payments.cancel(s, make(p).provider, p)
     except payments.PaymentError as e:
@@ -257,6 +236,5 @@ def cancel(pid: str, s: Session = Depends(get_session), make=Depends(get_ctx_fac
 
 
 @router.get("/{pid}/trace")
-def trace(pid: str, s: Session = Depends(get_session)):
-    _project(s, pid)
+def trace(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
     return [{"seq": t.seq, "kind": t.kind, "content": t.content} for t in TraceRepository(s).steps(pid)]

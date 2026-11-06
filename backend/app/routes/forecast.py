@@ -5,21 +5,13 @@ from pydantic import BaseModel, Field
 from ..config import settings
 from ..db import Session, get_session
 from ..db.tables import Forecast, Project
-from ..deps import get_ctx_factory
+from ..deps import get_ctx_factory, owned_project
 from ..repositories import forecasts as forecasts_repo
-from ..repositories import projects as projects_repo
 from ..repositories.traces import TraceRepository
 from ..services import gate, lifecycle
 from ..services.data import pilot
 
 router = APIRouter(tags=["forecast"])
-
-
-def _project(s: Session, pid: str) -> Project:
-    p = projects_repo.get(s, pid)
-    if p is None:
-        raise HTTPException(404, "not found")
-    return p
 
 
 class PilotIn(BaseModel):
@@ -44,10 +36,9 @@ _PILOT_BLOCKED = {
 }
 
 
-@router.post("/chats/{cid}/pilot")
-def run_pilot(cid: str, body: PilotIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
+@router.post("/chats/{pid}/pilot")
+def run_pilot(pid: str, *, p: Project = Depends(owned_project), body: PilotIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
     """Free. Small test on about 5-10% of the data, then the forecast. After a MISSED run this is the Improve round."""
-    p = _project(s, cid)
     gate.authorize(s, p, gate.Action.PILOT)
     if p.status == "done":
         try:
@@ -64,10 +55,9 @@ def run_pilot(cid: str, body: PilotIn, s: Session = Depends(get_session), make=D
     return forecast_view(f)
 
 
-@router.get("/jobs/{jid}/forecast")
-def read_forecast(jid: str, s: Session = Depends(get_session)):
-    _project(s, jid)
-    f = forecasts_repo.latest_for_project(s, jid)
+@router.get("/jobs/{pid}/forecast")
+def read_forecast(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
+    f = forecasts_repo.latest_for_project(s, pid)
     if f is None:
         raise HTTPException(404, "no pilot has been run yet")
     return forecast_view(f)

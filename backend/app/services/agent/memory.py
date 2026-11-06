@@ -38,7 +38,7 @@ def get_conversation(session: Session, project_id: str, source: str = "app", met
     """The explicit conversation, else the project's newest active one, else a new one."""
     if conversation_id:
         conv = conversations.get(session, conversation_id)
-        if conv is not None:
+        if conv is not None and conv.project_id == project_id:  # never another project's conversation
             return conv
     conv = conversations.newest_active(session, project_id)
     if conv is None:

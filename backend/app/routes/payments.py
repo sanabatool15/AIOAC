@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..config import settings
 from ..db import Session, get_session
+from ..db.tables import User
+from ..deps import current_user
 from ..integrations.factory import get_payment_provider
 from ..ports import ProviderError
 from ..repositories import payments as payments_repo
@@ -16,10 +18,10 @@ class OrderIn(BaseModel):
 
 
 @router.post("/orders")
-def create_order(body: OrderIn, s: Session = Depends(get_session)):
-    project = projects_repo.get(s, body.project_id)
+def create_order(body: OrderIn, s: Session = Depends(get_session), user: User = Depends(current_user)):
+    project = projects_repo.get_owned(s, body.project_id, user.id, user.org_id)
     if project is None:
-        raise HTTPException(404)
+        raise HTTPException(404, "project not found")
     try:
         pay, url = payments.create_order(s, get_payment_provider(), settings.payment_provider, project)
     except gate.NotReady as e:
@@ -35,11 +37,11 @@ def create_order(body: OrderIn, s: Session = Depends(get_session)):
 
 
 @router.post("/{payment_id}/authorize")
-def authorize(payment_id: str, s: Session = Depends(get_session)):
+def authorize(payment_id: str, s: Session = Depends(get_session), user: User = Depends(current_user)):
     """The browser says the buyer approved the hold. Only the server's own check with PayPal makes it count."""
-    pay = payments_repo.get(s, payment_id)
+    pay = payments_repo.get_owned(s, payment_id, user.id, user.org_id)
     if pay is None:
-        raise HTTPException(404)
+        raise HTTPException(404, "payment not found")
     try:
         ok = payments.confirm_hold(s, get_payment_provider(), pay)
     except payments.PaymentError as e:
@@ -58,8 +60,8 @@ def receipt(pay) -> dict:
 
 
 @router.get("/{payment_id}")
-def read(payment_id: str, s: Session = Depends(get_session)):
-    pay = payments_repo.get(s, payment_id)
+def read(payment_id: str, s: Session = Depends(get_session), user: User = Depends(current_user)):
+    pay = payments_repo.get_owned(s, payment_id, user.id, user.org_id)
     if pay is None:
-        raise HTTPException(404)
+        raise HTTPException(404, "payment not found")
     return receipt(pay)
