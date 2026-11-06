@@ -133,3 +133,43 @@ test("?tab= picks a tab and falls back to Overview", () => {
   assert.equal(tabFromQuery("nonsense"), "Overview");
   assert.equal(tabFromQuery(undefined), "Overview");
 });
+
+import { llmCostText, toBilling, toUsage } from "../lib/screens";
+import type { BAccountPayment, BUsage } from "../lib/api";
+
+test("usage from the real body: counts, dollars, tokens, no AI cost when zero", () => {
+  const v = toUsage(sx.usage as unknown as BUsage);
+  assert.ok(v);
+  const t = Object.fromEntries(v.tiles.map((x) => [x.label, x.value]));
+  assert.equal(t["Projects"], "1");
+  assert.equal(t["Training runs"], "1");
+  assert.equal(t["Compute charged"], "$0.00");
+  assert.equal(t["Released back to you"], "$0.56");
+  assert.equal(t["AI assistant tokens"], "0");
+  assert.equal(v.llmCost, null);
+  assert.equal(v.tiles.find((x) => x.label === "AI assistant tokens")?.note, undefined);
+  assert.equal(v.activity.length, 3);
+  assert.equal(toUsage(null), null);
+});
+
+test("AI cost shows only above zero, as an estimate", () => {
+  assert.equal(llmCostText(0), null);
+  assert.equal(llmCostText(null), null);
+  assert.equal(llmCostText(1234), "$0.0012");
+  assert.equal(llmCostText(250_000), "$0.25");
+  const u = { ...(sx.usage as unknown as BUsage), llm_tokens: 12345, llm_cost_micros: 1234 };
+  const tile = toUsage(u)?.tiles.find((x) => x.label === "AI assistant tokens");
+  assert.equal(tile?.value, "12,345");
+  assert.equal(tile?.note, "Estimated cost $0.0012");
+});
+
+test("billing rows from the real body link to the project and use plain states", () => {
+  const rows = toBilling(sx.payments as unknown as BAccountPayment[]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].projectId, sx.pid);
+  assert.equal(rows[0].goal, "Which subscription customers will leave?");
+  assert.equal(rows[0].state, "Nothing charged, hold released");
+  assert.deepEqual([rows[0].held, rows[0].compute, rows[0].fee, rows[0].released, rows[0].total], ["$0.56", "$0.00", "$0.00", "$0.56", "$0.00"]);
+  assert.deepEqual(toBilling([]), []);
+  assert.deepEqual(toBilling(null), []);
+});

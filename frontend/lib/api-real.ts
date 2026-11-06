@@ -4,7 +4,9 @@ import {
   api,
   ApiError,
   detailMessage,
+  type BAccountPayment,
   type BActivityItem,
+  type BUsage,
   type BForecast,
   type BBatch,
   type BHistory,
@@ -79,6 +81,10 @@ export const listProjects = () =>
 // ---- project detail (specs/api.md section D) ----
 export const getHistory = (id: string) => api<BHistory>(`/projects/${id}/history`);
 export const getActivity = (id: string) => api<BActivityItem[]>(`/projects/${id}/activity`);
+
+// ---- account totals (specs/api.md section D) ----
+export const getUsage = () => api<BUsage>("/account/usage");
+export const getAccountPayments = () => api<BAccountPayment[]>("/account/payments");
 
 // ---- the trained model (free: no gate, no money) ----
 export const getModel = (id: string) => api<BModel>(`/projects/${id}/model`);

@@ -1,7 +1,7 @@
 // Pure view rules for the restored screens (project detail, model, usage, billing history, sharing, welcome).
 // Inputs are raw backend bodies (specs/api.md section D); money goes through adapters.dollars. No React, no fetch.
 import { dollars, outOf100 } from "./adapters";
-import type { BActivityItem, BHistory, BModelColumn, BPredict } from "./api";
+import type { BAccountPayment, BActivityItem, BHistory, BModelColumn, BPredict, BUsage } from "./api";
 
 // "2026-11-06T17:13:05.3" -> "Nov 6, 17:13". The server sends UTC; a value with no zone is read as UTC.
 // `timeZone` is for tests; screens leave it out and show the viewer's own time.
@@ -235,4 +235,66 @@ export type TabId = (typeof TABS)[number];
 // ?tab=model on /projects/{id} opens the Model tab. Anything else opens Overview.
 export function tabFromQuery(raw: string | undefined): TabId {
   return TABS.find((t) => t.toLowerCase() === raw?.toLowerCase()) ?? "Overview";
+}
+
+// ---------------------------------------------------------------- account: usage and billing history
+
+export interface UsageView {
+  tiles: { label: string; value: string; note?: string }[];
+  llmCost: string | null; // shown only when the model service reported a cost
+  activity: ActivityView[];
+}
+
+// AI model cost is in millionths of a dollar. Shown only when above zero, and always called an estimate.
+export function llmCostText(micros: number | null | undefined): string | null {
+  if (!micros || micros <= 0) return null;
+  return `$${(micros / 1_000_000).toFixed(micros >= 10_000 ? 2 : 4)}`;
+}
+
+export function toUsage(u: BUsage | null | undefined): UsageView | null {
+  if (!u) return null;
+  const llmCost = llmCostText(u.llm_cost_micros);
+  return {
+    tiles: [
+      { label: "Projects", value: u.projects.toLocaleString("en-US") },
+      { label: "Training runs", value: u.training_runs.toLocaleString("en-US") },
+      { label: "Compute charged", value: dollars(u.compute_charged_cents), note: "PayPal sandbox, test money" },
+      { label: "Success fees charged", value: dollars(u.success_fees_cents), note: "Only when a result was verified" },
+      { label: "Released back to you", value: dollars(u.released_cents), note: "Holds not used" },
+      {
+        label: "AI assistant tokens",
+        value: u.llm_tokens.toLocaleString("en-US"),
+        note: llmCost ? `Estimated cost ${llmCost}` : undefined,
+      },
+    ],
+    llmCost,
+    activity: toActivity(u.recent_activity),
+  };
+}
+
+export interface BillingRow {
+  id: string;
+  projectId: string;
+  goal: string;
+  state: string;
+  held: string;
+  compute: string;
+  fee: string;
+  released: string;
+  total: string;
+  when: string;
+}
+export function toBilling(list: BAccountPayment[] | null | undefined): BillingRow[] {
+  return (list ?? []).map((p) => ({
+    id: p.payment_id,
+    projectId: p.project_id,
+    goal: p.goal,
+    state: paymentStateLabel(p.state, p.total_charged_cents),
+    held: dollars(p.hold_cents),
+    compute: dollars(p.compute_captured_cents),
+    fee: dollars(p.fee_captured_cents),
+    released: dollars(p.released_cents),
+    total: dollars(p.total_charged_cents),
+    when: formatWhen(p.created_at),
+  }));
 }

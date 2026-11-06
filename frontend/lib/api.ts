@@ -197,6 +197,22 @@ export interface BBatch {
   csv_text: string;
 }
 
+export interface BUsage {
+  projects: number;
+  training_runs: number;
+  compute_charged_cents: number;
+  success_fees_cents: number;
+  released_cents: number;
+  llm_tokens: number;
+  llm_cost_micros: number;
+  recent_activity: BActivityItem[];
+}
+export interface BAccountPayment extends BReceipt {
+  project_id: string;
+  goal: string;
+  created_at: string;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
