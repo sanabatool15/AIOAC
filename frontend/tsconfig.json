@@ -36,9 +36,6 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "components/shell/result-chat.tsx",
-    "components/shell/round2-chat.tsx",
-    "components/shell/verified-chat.tsx"
+    "node_modules"
   ]
 }

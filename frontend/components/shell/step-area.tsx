@@ -1,13 +1,13 @@
 "use client";
-import { ResultStep, StoppedStep, UnknownStep, VoidedStep } from "@/components/real/steps-run";
 import type { BProject } from "@/lib/api";
 import type { DemoScreen } from "@/lib/status";
 import { PayStep, QuoteStep } from "./quote-step";
+import { ResultStep, StoppedStep, UnknownStep, VoidedStep } from "./result-step";
 import { PaidStep, TrainingStep } from "./training-step";
 import { FreeTestAction, ReadinessAction, TargetAction } from "./step-actions";
 import { DatasetCard, EligibilityCard, History, ReadinessCard } from "./step-cards";
 
-// What the project page shows under the chat for the current status. Steps 7 to 9 of the plan replace the pieces from components/real.
+// What the project page shows under the chat for the current status.
 export function StepArea({ screen, project, onChanged }: { screen: DemoScreen; project: BProject; onChanged: () => void | Promise<void> }) {
   const props = { project, onChanged };
   switch (screen) {

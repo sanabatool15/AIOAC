@@ -243,3 +243,24 @@ export const receiptMissed = {
   total_charged_cents: 40,
   approve_url: null,
 } as const;
+
+// Verified run (backend/tests/e2e/test_payments_and_demo.py: target met, compute + fee captured, rest released).
+export const trainingDoneVerified = {
+  ...trainingDoneMissed,
+  result: {
+    accuracy: 0.84,
+    simple_guess_accuracy: 0.7,
+    runtime_seconds: 88,
+    verification: { value: 0.84, target: 0.8, passed: true },
+  },
+} as const;
+export const receiptVerified = {
+  ...receiptMissed,
+  compute_captured_cents: 40,
+  fee_captured_cents: 2,
+  released_cents: 14,
+  total_charged_cents: 42,
+} as const;
+export const receiptPendingSettle = { ...receiptMissed, state: "compute_captured", released_cents: 0, total_charged_cents: 40 } as const;
+export const trainingStopped = { ...trainingDoneMissed, status: "stopped", result: { stopped_by_user: true } } as const;
+export const trainingFailed = { ...trainingDoneMissed, status: "failed", result: { error: "training failed" } } as const;
