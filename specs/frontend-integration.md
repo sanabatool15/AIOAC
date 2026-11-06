@@ -124,7 +124,7 @@ Code: `lib/api.ts` (fetch client, `ApiError`), `lib/api-real.ts` (one function p
 
 Wired 2026-11-06 (F1): chat on the describe step (history, agent replies, dataset approval card, blocks; one `/chat` call per user action, no polling or auto-retry). Not wired (still mock): chat on later steps,  try-one-record, CSV predictions, model download, sharing, usage, keys, plans, forgot password (see breakpoints F rows). Paid steps were not run against real PayPal.
 
-## 9. One polished UI on the real backend (plan 2026-11-06)
+## 9. One polished UI on the real backend (COMPLETE 2026-11-06, steps 1 to 10 done; step 11 try-one-record also built, section 10)
 
 Goal: keep ONE UI, the polished one (`components/shell`), driven only by the real backend. Plan only, no code changed yet. Read-only audit of the frontend on 2026-11-06.
 
@@ -206,8 +206,8 @@ Each step ships alone and ends with typecheck, lint, `test:unit`, build; browser
 | 7 | DONE 2026-11-06. Quote, pay, `/pay/return`, `/pay/cancel` | medium | unit for hold lines; browser on mock payment double: hold, return, train starts |
 | 8 | DONE 2026-11-06. Train, Stop, budget card and panel | medium | unit for progress/ETA view; browser: progress, Stop |
 | 9 | DONE 2026-11-06. Result (verified, missed), receipt, voided, failed, stopped, Improve | large | unit for money recap; browser: verified, missed, our failure with exact cents |
-| 10 | Delete `components/real/*`, write 4 to 5 real-mode Playwright specs, update README and docs | medium | full frontend gate + backend `pytest` + demo check + secret scan |
-| 11 | Optional, owner decides: try-one-record (`POST /projects/{id}/predict`) | medium | backend unit + one browser check |
+| 10 | DONE 2026-11-06. Delete `components/real/*`, write real-mode Playwright specs, update README and docs | medium | full frontend gate + backend `pytest` + demo check + secret scan |
+| 11 | DONE 2026-11-06 (section 10). Try-one-record (`POST /projects/{id}/predict`) | medium | backend unit + one browser check |
 
 ### 9.7 State after steps 2 to 9 (2026-11-06)
 
@@ -221,7 +221,7 @@ Each step ships alone and ends with typecheck, lint, `test:unit`, build; browser
 - Playwright: config kept, `npm test` passes with no specs; real-mode specs are step 10.
 - **Steps 7 to 9 (2026-11-06):** `components/real/` is gone and the old polished pieces `agreement-chat`, `budget-card`, `budget-panel`, `training-chat`, `verified-chat`, `result-chat`, `round2-chat` were deleted; `tsconfig.json` and `eslint.config.mjs` have no exclude lists any more. New in `components/shell/`: `quote-step.tsx` (quote card with the fixed terms text, "Approve and pay" = quote/approve, then POST /payments/orders, then the PayPal link; waiting-for-PayPal card with Open PayPal, Check my approval, Cancel with plain confirm = POST /cancel), `pay-return.tsx` (`/pay/return` and `/pay/cancel`), `training-step.tsx` (paid starter, progress, honest Stop confirm), `result-step.tsx` (verified or missed, money recap, receipt, settle retry button, stopped, voided or failed, Improve = free pilot). Pure logic with unit tests: `lib/pay-flow.ts` (authorize, poll, POST /train exactly once), `lib/training-poll.ts` (poll only while the project is `training`, `not_started` is normal, stop 409 text), `lib/result-view.ts` (verified vs missed from `verification.passed`, recap from receipt cents, recap note built from the real numbers, settle retry rule). `adapters.QUOTE_TERMS` is the fixed terms text. Void with no run behind it is shown as a cancel ("Nothing was charged"); with a run it is "Something went wrong on our side. You pay $0. The whole hold was released."
 - Checked in the browser with `python -m tests.browser_server` (mock PayPal, local training) and system Chrome: signup, goal, approve dataset, data check, free test, target, quote, Approve and pay, mock return page, run, verified result and receipt (local training costs 0, so the recap says nothing was charged). Stop, missed, Improve, settle retry, stopped, failed and voided were checked with Playwright route interception using the JSON shapes of api.md. Not run against real PayPal or SageMaker (owner, F2).
-- Left for step 10: unused legacy types in `lib/types.ts` and `lib/hooks.ts`, committed real-mode Playwright specs, README, secret scan.
+- Step 10 (2026-11-06): `lib/types.ts` and the unused ui pieces (`badge`, `chip`, `status-icon`, `switch`), `usePersistedState`, `EmptyThread`, `getReceipt` and `public/images` were deleted; real-mode Playwright specs added (see below); README rewritten with Windows steps.
 
 
 ### 9.5 Backend changes
@@ -259,3 +259,7 @@ Browser check (test launcher, system Chrome): signup shows Welcome; a full run t
 Notes: the Activity feed comes from the agent's stored trace, so steps done with buttons (data check, free test) do not appear in it; only agent turns and gate decisions do. Local training charges $0, so the receipts show a full release.
 
 Intentionally not restored (no backend, or not part of the product): plans and the upgrade wizard (`/billing/*`), payment methods, invoices and PDFs, API keys and the key snippet, integrations, the live view tab, the experiment chart, inviting people by email, model versions delete.
+
+### Browser tests (2026-11-06)
+
+`frontend/tests/*.spec.ts`, run by `npm run test:e2e`. `playwright.config.ts` starts two servers (reused if already up): the TEST launcher `backend/tests/browser_server.py` on port 8765 (scripted model, mock PayPal, local training, throwaway SQLite; it never reads real keys) and the frontend (`npm run build && npm run start -- -p 3100`, built with `NEXT_PUBLIC_API_BASE_URL=http://localhost:8765`). Specs: `auth` (sign up shows Welcome, log in does not, log out, redirect to /login), `demo-path` (goal to receipt), `project-pages` (tabs, activity feed from stored rows, one record, CSV, Usage, Billing history), `sharing` (public page with no cookies, revoke), `isolation` (user B gets "project not found"), `states` (Stop, stopped, missed, failed, cancelled via route interception with api.md JSON). Not covered: real PayPal, real model, real SageMaker.

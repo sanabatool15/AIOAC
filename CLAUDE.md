@@ -55,7 +55,8 @@ Details and tree: @specs/architecture.md. Dependency direction: routes -> servic
 ## Commands
 Run from `backend/` after `pip install -e '.[dev]'`:
 - Run backend: `uvicorn app.main:app --reload`
-- Run frontend: `cd frontend && npm install && npm run dev` (http://localhost:3000, mock data by default; see `frontend/.env.example`)
+- Run frontend: `cd frontend && npm install && npm run dev` (http://localhost:3000; there is no mock mode, start the backend first; see `frontend/.env.example`)
+- Browser tests: `cd frontend && npm run test:e2e` (builds the frontend, starts the TEST launcher `backend/tests/browser_server.py` with scripted model and mock PayPal, never real keys; unset real `DATABASE_URL` and keys in your shell anyway). `npm test` = unit tests
 - All offline tests: `pytest` (unit, contract, e2e; real tests skip)
 - Demo check: `pytest tests/e2e/test_payments_and_demo.py` (full flow on the mock payment double, no network)
 - Real services (sandbox PayPal, AWS read-only, LLM, DB, live datasets; needs a real `.env`): `RUN_REAL=1 pytest tests/integration -v -s`
