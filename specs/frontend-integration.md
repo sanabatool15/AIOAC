@@ -122,4 +122,4 @@ Wired (real mode):
 
 Code: `lib/api.ts` (fetch client, `ApiError`), `lib/api-real.ts` (one function per endpoint), `lib/adapters.ts` (all unit conversions), `lib/status.ts`, `components/real/`. Tests: `npm run test:unit`.
 
-Not wired (still mock): chat history and agent replies (F1), dataset discovery, try-one-record, CSV predictions, model download, sharing, usage, keys, plans, forgot password (see breakpoints F rows). Paid steps were not run against real PayPal.
+Wired 2026-11-06 (F1): chat on the describe step (history, agent replies, dataset approval card, blocks; one `/chat` call per user action, no polling or auto-retry). Not wired (still mock): chat on later steps,  try-one-record, CSV predictions, model download, sharing, usage, keys, plans, forgot password (see breakpoints F rows). Paid steps were not run against real PayPal.
