@@ -11,7 +11,7 @@ test("another user cannot open my project in the UI (not found, nothing leaked)"
 
   await b.goto(`/c/${id}`);
   await expect(b.getByText(/project not found/i)).toBeVisible();
-  await expect(b.locator("body")).not.toContainText("scikit-learn/churn-prediction");
+  await expect(b.locator("body")).not.toContainText("Telco customer churn");
 
   await b.goto(`/projects/${id}`);
   await expect(b.getByText(/project not found/i)).toBeVisible();

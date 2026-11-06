@@ -36,7 +36,7 @@ export async function runDemoPath(page: Page): Promise<string> {
   // The approval card names the dataset before anything is chosen.
   const card = page.getByRole("button", { name: "Approve", exact: true });
   await expect(card).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("scikit-learn/churn-prediction").first()).toBeVisible();
+  await expect(page.getByText("Telco customer churn").first()).toBeVisible();
   await expect(page.getByText("Hugging Face").first()).toBeVisible();
   await card.click();
 

@@ -12,7 +12,7 @@ test("approval card shows the dataset title and facts; assistant markdown render
   // Card: title is the dataset name, then a facts grid (no bare ids).
   const card = page.getByLabel("Approval needed");
   await expect(card).toBeVisible({ timeout: 30_000 });
-  await expect(card.getByRole("heading", { name: "scikit-learn/churn-prediction" })).toBeVisible();
+  await expect(card.getByRole("heading", { name: "Telco customer churn" })).toBeVisible();
   const facts = card.locator("dl");
   for (const label of ["Source", "Rows", "Columns", "Answer column", "License"]) {
     await expect(facts.locator("dt", { hasText: label })).toBeVisible();
