@@ -203,13 +203,13 @@ Each step ships alone and ends with typecheck, lint, `test:unit`, build; browser
 | 4 | DONE 2026-11-06. Shell on real data: `AppShell`, `Sidebar` (replaces `real-sidebar`), `TopBar`, `UserMenu`, projects list, home | medium | unit for `statusLabel`; browser: sign up, create project, see list |
 | 5 | DONE 2026-11-06. `ChatScreen` picks by status; describe step in the polished thread (chat, card with dataset box, CSV upload) | medium | unit (card view); browser: "I have no data" with FakeLLM, approve card |
 | 6 | DONE 2026-11-06. Readiness, free test, target, forecast, not eligible views | medium | adapter unit tests from real JSON; browser: eligible and ineligible paths |
-| 7 | Quote, pay, `/pay/return`, `/pay/cancel` | medium | unit for hold lines; browser on mock payment double: hold, return, train starts |
-| 8 | Train, Stop, budget card and panel | medium | unit for progress/ETA view; browser: progress, Stop |
-| 9 | Result (verified, missed), receipt, voided, failed, stopped, Improve | large | unit for money recap; browser: verified, missed, our failure with exact cents |
+| 7 | DONE 2026-11-06. Quote, pay, `/pay/return`, `/pay/cancel` | medium | unit for hold lines; browser on mock payment double: hold, return, train starts |
+| 8 | DONE 2026-11-06. Train, Stop, budget card and panel | medium | unit for progress/ETA view; browser: progress, Stop |
+| 9 | DONE 2026-11-06. Result (verified, missed), receipt, voided, failed, stopped, Improve | large | unit for money recap; browser: verified, missed, our failure with exact cents |
 | 10 | Delete `components/real/*`, write 4 to 5 real-mode Playwright specs, update README and docs | medium | full frontend gate + backend `pytest` + demo check + secret scan |
 | 11 | Optional, owner decides: try-one-record (`POST /projects/{id}/predict`) | medium | backend unit + one browser check |
 
-### 9.7 State after steps 2 to 6 (2026-11-06)
+### 9.7 State after steps 2 to 9 (2026-11-06)
 
 - Routed (7 pages): `/login`, `/signup`, `/`, `/c/[chatId]`, `/projects`, `/pay/return`, `/pay/cancel`. Deleted earlier: mock routes, `components/billing`, `lib/mock-api.ts`, `USE_MOCK_API`.
 - **Shell (step 4):** `shell/sidebar.tsx` (new project, `GET /projects` with `statusLabel()`, `UserMenu` with email and Log out; refreshes on route change and on the `aioac:projects-changed` event the project page fires when a status changes), `home-screen.tsx` (polished composer, creates the project, then `/c/{id}`), `projects-screen.tsx`, `composer.tsx` (attach only when a screen passes `onAttach`; no web-search button). `real-sidebar` and `real-home` deleted.
@@ -219,6 +219,10 @@ Each step ships alone and ends with typecheck, lint, `test:unit`, build; browser
 - Not yet ported and still excluded from `tsconfig.json` and `eslint.config.mjs`: `agreement-chat`, `budget-card`, `budget-panel`, `result-chat`, `round2-chat`, `training-chat`, `verified-chat` (steps 7 to 9). They still import deleted pieces (`experiment-canvas`, `tool-strip`, `paypal-window`): drop those when porting. Unused legacy types remain in `lib/types.ts` (cleanup in step 10).
 - Browser checked with `python -m tests.browser_server` (scripted model, mock payments) and Playwright on system Chrome: signup, goal, first reply, dataset card names the dataset, reload keeps the history with no second `/chat`, Approve, data check, free test, pilot (eligible and not eligible), quote, chat visible on every step.
 - Playwright: config kept, `npm test` passes with no specs; real-mode specs are step 10.
+- **Steps 7 to 9 (2026-11-06):** `components/real/` is gone and the old polished pieces `agreement-chat`, `budget-card`, `budget-panel`, `training-chat`, `verified-chat`, `result-chat`, `round2-chat` were deleted; `tsconfig.json` and `eslint.config.mjs` have no exclude lists any more. New in `components/shell/`: `quote-step.tsx` (quote card with the fixed terms text, "Approve and pay" = quote/approve, then POST /payments/orders, then the PayPal link; waiting-for-PayPal card with Open PayPal, Check my approval, Cancel with plain confirm = POST /cancel), `pay-return.tsx` (`/pay/return` and `/pay/cancel`), `training-step.tsx` (paid starter, progress, honest Stop confirm), `result-step.tsx` (verified or missed, money recap, receipt, settle retry button, stopped, voided or failed, Improve = free pilot). Pure logic with unit tests: `lib/pay-flow.ts` (authorize, poll, POST /train exactly once), `lib/training-poll.ts` (poll only while the project is `training`, `not_started` is normal, stop 409 text), `lib/result-view.ts` (verified vs missed from `verification.passed`, recap from receipt cents, recap note built from the real numbers, settle retry rule). `adapters.QUOTE_TERMS` is the fixed terms text. Void with no run behind it is shown as a cancel ("Nothing was charged"); with a run it is "Something went wrong on our side. You pay $0. The whole hold was released."
+- Checked in the browser with `python -m tests.browser_server` (mock PayPal, local training) and system Chrome: signup, goal, approve dataset, data check, free test, target, quote, Approve and pay, mock return page, run, verified result and receipt (local training costs 0, so the recap says nothing was charged). Stop, missed, Improve, settle retry, stopped, failed and voided were checked with Playwright route interception using the JSON shapes of api.md. Not run against real PayPal or SageMaker (owner, F2).
+- Left for step 10: unused legacy types in `lib/types.ts` and `lib/hooks.ts`, committed real-mode Playwright specs, README, secret scan.
+
 
 ### 9.5 Backend changes
 
