@@ -20,3 +20,7 @@ def add(session: Session, **fields) -> Quote:
 def mark_approved(session: Session, quote: Quote, when: datetime) -> None:
     quote.approved_at = when
     session.commit()
+
+
+def all_for_project(session: Session, project_id: str) -> list[Quote]:
+    return list(session.scalars(select(Quote).where(Quote.project_id == project_id).order_by(Quote.created_at.desc(), Quote.id.desc())))

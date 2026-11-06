@@ -70,3 +70,12 @@ def known_storage_keys(session: Session) -> set[str]:
 
 def open_candidates_for_project(session: Session, project_id: str) -> list[DatasetCandidate]:
     return list(session.scalars(select(DatasetCandidate).where(DatasetCandidate.project_id == project_id, DatasetCandidate.status == "candidate")))
+
+
+def versions_for_project(session: Session, project_id: str) -> list[DatasetVersion]:
+    return list(session.scalars(select(DatasetVersion).where(DatasetVersion.project_id == project_id)
+                                .order_by(DatasetVersion.created_at, DatasetVersion.id)))
+
+
+def chosen_candidate(session: Session, project_id: str) -> DatasetCandidate | None:
+    return session.scalar(select(DatasetCandidate).where(DatasetCandidate.project_id == project_id, DatasetCandidate.status == "chosen"))
