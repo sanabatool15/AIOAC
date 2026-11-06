@@ -83,6 +83,10 @@ A project has many candidates, dataset versions, quotes and agent runs. A quote 
 4. Total captures for a hold never exceed the hold, and compute is never captured above the compute cap. A capture on a voided or fully captured hold is refused.
 5. Accumulated training cost can never exceed the quote's cap.
 
+## 4a. Upgrading an existing database
+
+There are no migrations. `python -m app.db.init --check` reports what an existing database lacks compared with the models (read-only, exit 1 if anything is missing). `--upgrade` (dry run) and `--upgrade --yes` add only missing tables, columns (nullable, or NOT NULL with a safe default) and indexes, in one transaction. It never drops, renames or alters an existing column. Changing or removing a column still means a new database. Code: `app/db/check.py`.
+
 ## 5. Not decided yet
 
 - How long traces and model files are kept.

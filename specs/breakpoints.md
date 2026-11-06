@@ -62,6 +62,7 @@ Small changes only, each with a test on the mock provider, each explained to the
 | D3 | Prices are placeholders; quotes are about 53 cents | `services/cost/prices.py` | Measure one real job and replace them | open |
 | D4 | The real LLM has never been run; the agent evals have no real pass rates | `backend/evals/` | One real run after the owner is told (see below) | done: real model gpt-5.4 (Azure) passed 22/22 eval runs (see `specs/integration-testing.md`) |
 | D5 | No authentication. Deferred on purpose | `routes/` | Email and password login, org per signup, owner-scoped routes; optional `POST /auth/demo` behind `DEMO_LOGIN_ENABLED` | done 2026-11-06 (api.md section C; frontend still to wire, send cookies) |
+| D6 | An existing Supabase database has tables from older schema versions (missing columns such as `users.password_hash`), because `create_all` never alters tables | `app/db/init.py`, `app/db/check.py` | `python -m app.db.init --check`, then `--upgrade --yes` | script built, owner must run --check then --upgrade --yes on Supabase |
 
 ## 5. Order of work
 

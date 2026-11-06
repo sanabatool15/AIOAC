@@ -59,6 +59,17 @@ SQLite is the default. To use Supabase: `pip install -e '.[postgres]'`, then in 
 
 To create the tables on a new Supabase database, once: `cd backend && python -m app.db.init` (reads `DATABASE_URL`, prints the dialect with the password hidden and the tables it created; it never drops anything).
 
+**A Supabase database made by an older version of the app** has old tables, and `init` does not alter existing tables, so newer columns (for example `users.password_hash`) are missing and login fails with "column does not exist". Check, then upgrade (PowerShell, from `backend/`):
+
+```
+python -m app.db.init --check              # read-only report of missing tables, columns and indexes; exit code 1 if any
+python -m app.db.init --upgrade            # dry run: prints the SQL, runs nothing
+python -m app.db.init --upgrade --yes      # runs it in one transaction
+python -m app.db.init --check              # should now say OK
+```
+
+The upgrade only adds missing tables, columns (nullable, or NOT NULL with a safe default) and indexes. It never drops or changes anything and never deletes rows. Users made before login get no password and must sign up again. If duplicate emails exist, the unique index on `users.email` is skipped and the script says so.
+
 ## Login (required)
 
 Every screen's API call needs a signed-in user; each project belongs to one user and one organization, and nobody else can see it (other users get 404). Set `SECRET_KEY` in `.env` to at least 32 random characters (`python -c "import secrets; print(secrets.token_urlsafe(48))"`), otherwise `/auth/*` and the project routes answer 503 "login is not set up" and `/health` shows `auth.configured: false`. Other settings: `JWT_TTL_MINUTES` (720), `COOKIE_SECURE` (true behind https), `COOKIE_SAMESITE` (lax; `none` needs secure), `DEMO_LOGIN_ENABLED` (false; true adds `POST /auth/demo` for the video). Delete any old `aioac.db` after pulling this change: the schema gained `organizations`, user passwords and project owners, and projects created before login have no owner and cannot be reached.

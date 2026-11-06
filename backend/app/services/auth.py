@@ -73,7 +73,7 @@ def verify_password(password: str, stored: str) -> bool:
         _, n, r, p, salt, digest = stored.split("$")
         expected = base64.b64decode(digest)
         got = hashlib.scrypt(password.encode(), salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p), dklen=len(expected))
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, AttributeError):  # AttributeError: NULL hash of a pre-login user
         return False
     return hmac.compare_digest(got, expected)
 
