@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { pendingCard } from "@/lib/chat";
@@ -25,10 +25,6 @@ export type ProjectChat = ReturnType<typeof useProjectChat>;
 
 export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStatus: string }) {
   const { chat, state } = pc;
-  const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    endRef.current?.scrollIntoView?.({ block: "nearest" });
-  }, [state.items, state.busy]);
   const waiting = state.items ? pendingCard(state.items, projectStatus) : null;
   const { error } = state;
 
@@ -78,7 +74,6 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
           )}
         </div>
       )}
-      <div ref={endRef} />
     </section>
   );
 }

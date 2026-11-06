@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { MessageSquare, Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { ErrorState, Skeleton } from "@/components/ui/state";
@@ -9,6 +10,9 @@ import { useAsync, useRealUser } from "@/lib/hooks";
 import { statusLabel } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "./user-menu";
+
+// The project page fires this when a status changes, so the list shows it without a reload.
+export const PROJECTS_CHANGED = "aioac:projects-changed";
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-xs font-medium leading-[17px] tracking-[0.2px] text-muted">{children}</p>;
@@ -20,6 +24,10 @@ export function Sidebar() {
   const pathname = usePathname();
   const user = useRealUser();
   const { data, error, loading, retry } = useAsync(listProjects, `${pathname}|${user?.id ?? ""}`);
+  useEffect(() => {
+    window.addEventListener(PROJECTS_CHANGED, retry);
+    return () => window.removeEventListener(PROJECTS_CHANGED, retry);
+  }, [retry]);
   const active = pathname.startsWith("/c/") ? pathname.slice(3).split("/")[0] : null;
 
   return (

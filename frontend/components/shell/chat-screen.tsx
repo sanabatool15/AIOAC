@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Skeleton } from "@/components/ui/state";
@@ -11,6 +11,7 @@ import { UploadPanel } from "./data-upload";
 import { InlineChatFrame } from "./inline-chat";
 import { Stepper } from "./step-parts";
 import { StepArea } from "./step-area";
+import { PROJECTS_CHANGED } from "./sidebar";
 
 // Route body for /c/[chatId]: the screen comes from the project status (lib/status.ts), loaded from the server on every
 // visit. The project chat is on every status; a chat reply that may change things makes the page read the project again.
@@ -21,7 +22,10 @@ export function ChatScreen({ chatId }: { chatId: string }) {
   const load = useCallback(async () => {
     try {
       const p = await getProject(chatId);
-      setProject(p);
+      setProject((prev) => {
+        if (prev && prev.status !== p.status) window.dispatchEvent(new Event(PROJECTS_CHANGED)); // the sidebar shows the new status
+        return p;
+      });
       setError(null);
       rememberProject(chatId);
     } catch (e) {
@@ -63,6 +67,12 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
   const screen = screenFor(project);
   const idx = stepIndex(screen);
   const onData = screen === "data";
+  const bottom = useRef<HTMLDivElement>(null);
+  const itemCount = pc.state.items?.length ?? 0;
+  // Keep the newest message and the current step in view (chat first, then what to do next).
+  useEffect(() => {
+    bottom.current?.scrollIntoView?.({ block: "end" });
+  }, [itemCount, pc.state.busy, project.status]);
 
   return (
     <InlineChatFrame
@@ -80,8 +90,8 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
           </Button>
         </p>
       )}
-      {!onData && <StepArea screen={screen} project={project} onChanged={reload} />}
       <ChatThread pc={pc} projectStatus={project.status} />
+      {!onData && <StepArea screen={screen} project={project} onChanged={reload} />}
       {onData && (
         <div className="flex flex-col gap-3">
           <Button
@@ -96,6 +106,7 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
           {uploadOpen && <UploadPanel projectId={project.id} onChanged={reload} />}
         </div>
       )}
+      <div ref={bottom} />
     </InlineChatFrame>
   );
 }
