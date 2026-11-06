@@ -8,6 +8,7 @@ interface ConfirmDialogProps {
   title: string;
   body: string;
   confirmLabel: string;
+  busyLabel?: string;
   onConfirm: () => Promise<void>;
   onCancel: () => void;
   /** Type-to-confirm: the user must type this exact text before the button enables. */
@@ -21,6 +22,7 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel,
+  busyLabel = "Deleting…",
   onConfirm,
   onCancel,
   requireText,
@@ -118,7 +120,7 @@ export function ConfirmDialog({
             onClick={confirm}
             disabled={!ready || busy}
           >
-            {busy ? "Deleting…" : confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </Button>
         </div>
       </div>

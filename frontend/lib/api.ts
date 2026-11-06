@@ -213,6 +213,21 @@ export interface BAccountPayment extends BReceipt {
   created_at: string;
 }
 
+export interface BShare {
+  enabled: boolean;
+  token: string | null;
+  created_at: string | null;
+}
+export interface BPublicResult {
+  goal: string;
+  status: string;
+  dataset: { name: string; rows: number; target: string } | null;
+  baseline: { accuracy: number; simple_guess_accuracy: number } | null;
+  verification: { value: number; target: number; passed: boolean } | null;
+  finished_at: string | null;
+  is_estimate_note: string;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -240,11 +255,13 @@ export async function api<T>(
   path: string,
   init: { method?: string; body?: unknown } = {},
 ): Promise<T> {
+  // /public/* needs no login: send no cookies and never send the browser to the login screen.
+  const isPublic = path.startsWith("/public/");
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       method: init.method ?? (init.body === undefined ? "GET" : "POST"),
-      credentials: "include",
+      credentials: isPublic ? "omit" : "include",
       headers: init.body === undefined ? undefined : { "Content-Type": "application/json" },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
@@ -259,7 +276,7 @@ export async function api<T>(
   }
   if (!res.ok) {
     // Signed out (or the cookie expired): forget the user and go to login. /auth/* answers are the screen's business.
-    if (res.status === 401 && !path.startsWith("/auth/")) {
+    if (res.status === 401 && !isPublic && !path.startsWith("/auth/")) {
       clearRealUser();
       redirectToLogin();
     }

@@ -85,3 +85,29 @@ test("createOrder surfaces a PayPal outage as a plain message", async () => {
   reply([{ status: 502, body: { detail: "The payment service could not be reached. Nothing was charged." } }]);
   await assert.rejects(() => createOrder("p1"), (e: unknown) => e instanceof ApiError && e.status === 502 && /Nothing was charged/.test(e.message));
 });
+
+test("public calls send no cookies and a 401 or 404 never redirects to login", async () => {
+  const calls: { url: string; credentials?: string }[] = [];
+  const redirects: string[] = [];
+  const g = globalThis as unknown as Record<string, unknown>;
+  const oldFetch = g.fetch;
+  g.window = { location: { pathname: "/s/x", search: "", assign: (u: string) => redirects.push(u) } };
+  g.fetch = async (url: string, init: RequestInit) => {
+    calls.push({ url, credentials: init.credentials });
+    return new Response(JSON.stringify({ detail: "result not found" }), { status: 404 });
+  };
+  try {
+    const { api } = await import("../lib/api");
+    await assert.rejects(() => api("/public/results/abc"), /result not found/);
+    assert.equal(calls[0].credentials, "omit");
+    assert.deepEqual(redirects, []);
+    g.fetch = async () => new Response("{}", { status: 401 });
+    await assert.rejects(() => api("/public/results/abc"));
+    assert.deepEqual(redirects, []);
+    await api("/projects").catch(() => {});
+    assert.equal(redirects.length, 1); // a normal call still goes to login on 401
+  } finally {
+    g.fetch = oldFetch;
+    delete g.window;
+  }
+});

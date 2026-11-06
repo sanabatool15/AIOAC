@@ -1,7 +1,7 @@
 // Pure view rules for the restored screens (project detail, model, usage, billing history, sharing, welcome).
 // Inputs are raw backend bodies (specs/api.md section D); money goes through adapters.dollars. No React, no fetch.
 import { dollars, outOf100 } from "./adapters";
-import type { BAccountPayment, BActivityItem, BHistory, BModelColumn, BPredict, BUsage } from "./api";
+import type { BPublicResult, BAccountPayment, BActivityItem, BHistory, BModelColumn, BPredict, BUsage } from "./api";
 
 // "2026-11-06T17:13:05.3" -> "Nov 6, 17:13". The server sends UTC; a value with no zone is read as UTC.
 // `timeZone` is for tests; screens leave it out and show the viewer's own time.
@@ -298,3 +298,37 @@ export function toBilling(list: BAccountPayment[] | null | undefined): BillingRo
     when: formatWhen(p.created_at),
   }));
 }
+
+// ---------------------------------------------------------------- sharing
+
+// The link a person copies. Built from the page's own origin, so it works on any host.
+export function shareLink(origin: string, token: string): string {
+  return `${origin.replace(/\/+$/, "")}/s/${token}`;
+}
+
+export interface PublicView {
+  goal: string;
+  dataset: string | null;
+  answerColumn: string | null;
+  freeTest: string | null;
+  verified: { value: string; target: string; passed: boolean } | null;
+  finished: string;
+  note: string;
+}
+// The public page shows results only. This reads exactly the keys the server sends and nothing else.
+export function toPublic(r: BPublicResult): PublicView {
+  return {
+    goal: r.goal,
+    dataset: r.dataset ? `${r.dataset.name} (${r.dataset.rows.toLocaleString("en-US")} rows)` : null,
+    answerColumn: r.dataset?.target ?? null,
+    freeTest: r.baseline
+      ? `about ${outOf100(r.baseline.accuracy)} right, a simple guess gets ${outOf100(r.baseline.simple_guess_accuracy)}`
+      : null,
+    verified: r.verification
+      ? { value: outOf100(r.verification.value), target: outOf100(r.verification.target), passed: r.verification.passed === true }
+      : null,
+    finished: formatWhen(r.finished_at),
+    note: r.is_estimate_note || "These numbers are estimates, not a promise about future results.",
+  };
+}
+export const PUBLIC_NOT_AVAILABLE = "This link is not available";

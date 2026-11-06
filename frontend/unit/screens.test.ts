@@ -173,3 +173,35 @@ test("billing rows from the real body link to the project and use plain states",
   assert.deepEqual(toBilling([]), []);
   assert.deepEqual(toBilling(null), []);
 });
+
+import { PUBLIC_NOT_AVAILABLE, shareLink, toPublic } from "../lib/screens";
+import type { BPublicResult } from "../lib/api";
+
+test("share link is built from the page origin", () => {
+  assert.equal(shareLink("http://localhost:3000", "abc"), "http://localhost:3000/s/abc");
+  assert.equal(shareLink("https://x.example/", "abc"), "https://x.example/s/abc");
+  assert.match(shareLink("http://h", sx.share.token), /^http:\/\/h\/s\/[A-Za-z0-9_-]{43}$/);
+  assert.equal(sx.share.url_path, `/s/${sx.share.token}`);
+});
+
+test("public view reads the real public body: out of 100, estimate note, nothing else", () => {
+  const v = toPublic(sx.public as unknown as BPublicResult);
+  assert.equal(v.goal, "Which subscription customers will leave?");
+  assert.equal(v.dataset, "scikit-learn/churn-prediction (1,500 rows)");
+  assert.equal(v.answerColumn, "left");
+  assert.equal(v.freeTest, "about 86 out of 100 right, a simple guess gets 70 out of 100");
+  assert.deepEqual(v.verified, { value: "85 out of 100", target: "70 out of 100", passed: true });
+  assert.match(v.note, /estimates/);
+  const text = JSON.stringify(v);
+  assert.doesNotMatch(text, /\$|@|payment|email|cents/i);
+  assert.deepEqual(Object.keys(v).sort(), ["answerColumn", "dataset", "finished", "freeTest", "goal", "note", "verified"]);
+});
+
+test("public view copes with a project that has not finished", () => {
+  const v = toPublic({ goal: "g", status: "described", dataset: null, baseline: null, verification: null, finished_at: null, is_estimate_note: "" });
+  assert.equal(v.dataset, null);
+  assert.equal(v.verified, null);
+  assert.equal(v.freeTest, null);
+  assert.match(v.note, /estimates/);
+  assert.equal(PUBLIC_NOT_AVAILABLE, "This link is not available");
+});

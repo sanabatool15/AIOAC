@@ -76,6 +76,7 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
 
   return (
     <InlineChatFrame
+      projectId={project.id}
       projectName={project.goal.length > 48 ? `${project.goal.slice(0, 48)}…` : project.goal}
       stepLabel={`Step ${idx + 1} of ${STEP_LABELS.length}: ${STEP_LABELS[idx]}`}
       wide

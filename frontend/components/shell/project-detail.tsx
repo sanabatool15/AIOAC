@@ -13,6 +13,7 @@ import { overviewLine, TABS, toActivity, toHistory, type TabId } from "@/lib/scr
 import { statusLabel } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { ModelTab } from "./model-tab";
+import { ShareButton } from "./share-dialog";
 import { Row } from "./step-parts";
 import { TopBar } from "./top-bar";
 
@@ -34,6 +35,7 @@ export function ProjectDetail({ projectId, initialTab = "Overview" }: { projectI
             {`  /  ${name}`}
           </h2>
         }
+        actions={<ShareButton projectId={projectId} />}
       />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-8">
         {loading && !data ? (

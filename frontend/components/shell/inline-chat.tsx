@@ -4,12 +4,14 @@ import { Tag } from "@/components/ui/tag";
 import { EmptyState } from "@/components/ui/state";
 import { cn } from "@/lib/utils";
 import { Composer } from "./composer";
+import { ShareButton } from "./share-dialog";
 import { TopBar } from "./top-bar";
 
 // Shared frame for the chat-first screens (4, 5, 6): top bar with step tag, a centered thread, the composer.
 // `wide` = 720px column (screens 5, 6); default 680px (screen 4).
 export function InlineChatFrame({
   projectName,
+  projectId,
   stepLabel,
   wide = false,
   width: widthProp,
@@ -18,6 +20,7 @@ export function InlineChatFrame({
   children,
 }: {
   projectName: string;
+  projectId?: string; // shows the Share button
   stepLabel?: string;
   wide?: boolean;
   width?: "narrow"; // 560px thread (screen 10, with the canvas open)
@@ -36,7 +39,14 @@ export function InlineChatFrame({
         left={
           <h1 className="whitespace-pre text-sm font-normal leading-[normal] text-muted">{`${projectName}  /  Chat`}</h1>
         }
-        actions={stepLabel ? <Tag variant="brand">{stepLabel}</Tag> : undefined}
+        actions={
+          stepLabel || projectId ? (
+            <>
+              {stepLabel && <Tag variant="brand">{stepLabel}</Tag>}
+              {projectId && <ShareButton projectId={projectId} />}
+            </>
+          ) : undefined
+        }
       />
       <div className="flex min-h-0 flex-1 justify-center overflow-y-auto pb-2.5 pt-[26px]">
         <div

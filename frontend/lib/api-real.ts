@@ -10,6 +10,8 @@ import {
   type BForecast,
   type BBatch,
   type BHistory,
+  type BPublicResult,
+  type BShare,
   type BModel,
   type BPredict,
   type BOrder,
@@ -85,6 +87,15 @@ export const getActivity = (id: string) => api<BActivityItem[]>(`/projects/${id}
 // ---- account totals (specs/api.md section D) ----
 export const getUsage = () => api<BUsage>("/account/usage");
 export const getAccountPayments = () => api<BAccountPayment[]>("/account/payments");
+
+// ---- sharing: the owner side needs login, the public page does not ----
+export const getShare = (id: string) => api<BShare>(`/projects/${id}/share`);
+export const createShare = (id: string) =>
+  api<{ token: string; url_path: string; created_at: string }>(`/projects/${id}/share`, { method: "POST" });
+export const revokeShare = (id: string) =>
+  api<{ enabled: boolean }>(`/projects/${id}/share`, { method: "DELETE" });
+export const getPublicResult = (token: string) =>
+  api<BPublicResult>(`/public/results/${encodeURIComponent(token)}`);
 
 // ---- the trained model (free: no gate, no money) ----
 export const getModel = (id: string) => api<BModel>(`/projects/${id}/model`);
