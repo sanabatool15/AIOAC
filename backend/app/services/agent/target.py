@@ -13,7 +13,7 @@ _RATIO = re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d+)?)\s*(?:out\s+of|/)\s*(10|100)(
 _DECIMAL = re.compile(r"(?<![\w.])0?\.\d{1,3}(?!\d)")
 
 QUESTION_HINT = ("Do not choose the target yourself. Ask the user ONE short question in plain words: how many out of 100 predictions "
-                 "do they need to be right? Mention what the free test got (baseline_percent). Run the pilot only after they answer.")
+                 "do they need to be right? Mention what the free test got (baseline_percent). Run the free small test only after they answer.")
 
 
 def own_texts(texts: list[str]) -> list[str]:

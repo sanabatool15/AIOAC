@@ -76,9 +76,18 @@ def test_create_quote_still_needs_an_eligible_forecast(session, storage, provide
 # ---------------------------------------------------------------- G2: wording rules
 def test_prompt_has_the_wording_rules_and_fits_the_budget(session, project):
     text = context.build_system(session, project)
-    for needle in ("No markdown", "uci:144", "out of 100", "never cents", "Never choose the target accuracy", "top 2", "platform fee"):
+    for needle in ("No markdown", "uci:144", "out of 100", "never cents", "Never choose the target accuracy", "top 2", "platform fee", "free small test", "the most you can be charged"):
         assert needle in text
     assert len(text) < 4000
+    assert "pilot" not in text.lower() and "hard cap" not in text.lower()
+
+
+def test_hints_and_state_use_plain_words(session, storage, provider, baselined):
+    from app.services.agent import target
+    assert "pilot" not in target.QUESTION_HINT.lower()
+    make_quote(session, baselined, approved=False)
+    state = context.state_block(session, baselined)
+    assert "pilot" not in state.lower() and "cap " not in state.lower()
 
 
 def test_state_block_uses_out_of_100_and_dollars(session, baselined):
@@ -112,7 +121,7 @@ def test_quote_result_and_block_carry_a_plain_breakdown(session, storage, provid
     assert set(bd) == {"compute_estimate_cents", "compute_cap_cents", "storage_cents", "platform_fee_cents",
                        "success_fee_estimate_cents", "success_fee_max_cents"}
     assert bd["platform_fee_cents"] and bd["success_fee_max_cents"] == res["success_fee_cents"]
-    assert res["in_dollars"]["cap"].startswith("$") and res["in_dollars"]["platform_fee"].startswith("$")
+    assert res["in_dollars"]["most_you_can_be_charged"].startswith("$") and res["in_dollars"]["platform_fee"].startswith("$")
     (block,) = blocks_from_result("create_quote", res, baselined)
     assert block["breakdown"] == bd and block["estimate_cents"] == res["estimate_cents"]
 

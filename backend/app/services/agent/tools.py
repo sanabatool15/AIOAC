@@ -313,7 +313,7 @@ def create_quote(ctx, a):
         return f"${(c or 0) / 100:,.2f}"
     return {"quote_id": q.id, "estimate_cents": q.estimate_cents, "range_cents": [q.low_cents, q.high_cents],
             "cap_cents": q.cap_cents, "success_fee_cents": q.fee_cents, "breakdown": breakdown,
-            "in_dollars": {"estimate": usd(q.estimate_cents), "range": f"{usd(q.low_cents)} to {usd(q.high_cents)}", "cap": usd(q.cap_cents),
+            "in_dollars": {"estimate": usd(q.estimate_cents), "range": f"{usd(q.low_cents)} to {usd(q.high_cents)}", "most_you_can_be_charged": usd(q.cap_cents),
                            "platform_fee": usd(breakdown["platform_fee_cents"]), "storage": usd(breakdown["storage_cents"]),
                            "compute": usd(breakdown["compute_estimate_cents"]), "success_fee_max": usd(q.fee_cents)},
             "label": "estimate",
@@ -358,7 +358,7 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("run_baseline", "Free test on held-out data; also measures timings for the quote.", _obj(), gate.Action.BASELINE, run_baseline_tool),
     Tool("run_pilot", "Free small test on about 5-10% of the data, then forecast the full-run result against the target the USER named in their own words (0 to 1, e.g. 0.8). Never pick the target yourself: if they have not said it, ask.",
          {"type": "object", "properties": {"target": {"type": "number"}}, "required": ["target"]}, gate.Action.PILOT, run_pilot),
-    Tool("create_quote", "One fixed price for the full run (estimated compute + success fee) and a hard cap. Only after an eligible forecast.", _obj(), gate.Action.CREATE_QUOTE, create_quote),
+    Tool("create_quote", "One fixed price for the full run (estimated compute + success fee) and the most the user can be charged. Only after an eligible forecast.", _obj(), gate.Action.CREATE_QUOTE, create_quote),
     Tool("request_payment", "Create the PayPal hold for the approved quote (nothing is charged yet).", _obj(), gate.Action.REQUEST_PAYMENT, request_payment),
     Tool("start_training", "Start paid training. Only works after the server confirmed the hold.", _obj(), gate.Action.START_TRAINING, start_training),
 ]}

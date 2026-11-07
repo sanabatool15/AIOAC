@@ -21,6 +21,7 @@ test("approval card shows the dataset title and facts; assistant markdown render
   await page.screenshot({ path: `${SHOTS}/card.png` });
 
   await card.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(page.getByText(/Yes, I approve/)).toHaveCount(0); // the server's own note to the model is never shown
 
   // The model's reply has **bold** and `code`: shown as formatting, with no markers.
   await expect(page.locator("strong", { hasText: "the churn dataset" })).toBeVisible({ timeout: 30_000 });
