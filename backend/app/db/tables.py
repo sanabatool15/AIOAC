@@ -195,6 +195,7 @@ class TrainingRun(Stamped, Base):
     stopped_at_cap: Mapped[bool] = mapped_column(Boolean, default=False)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dataset_version_id: Mapped[str | None] = mapped_column(String, nullable=True)  # the data this run trained on
 
 
 class Model(Stamped, Base):
@@ -204,6 +205,14 @@ class Model(Stamped, Base):
     storage_key: Mapped[str] = mapped_column(String)
     quality: Mapped[dict] = mapped_column(JSON)
     visibility: Mapped[str] = mapped_column(String, default="private")
+    # Versions (specs/model-versions-and-improve.md section 5). All nullable: old rows are read with a fallback.
+    version_no: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1..n per project
+    dataset_version_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    forecast_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    quote_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=False)  # at most one per project (set_current is atomic)
+    verified_value: Mapped[float | None] = mapped_column(Float, nullable=True)  # score on the locked rows
+    passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # verification met the target
 
 
 class Share(Base):

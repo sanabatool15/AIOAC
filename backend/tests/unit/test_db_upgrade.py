@@ -99,3 +99,22 @@ def test_postgres_statements_compile_without_connection():
 def test_null_password_hash_means_no_login():
     from app.services.auth import verify_password
     assert verify_password("whatever", None) is False
+
+
+def test_upgrade_adds_model_version_columns_and_keeps_old_rows(tmp_path, capsys):
+    """A models table from before model versions gains the new columns; the old row stays and reads is_current false."""
+    eng = create_engine(f"sqlite:///{tmp_path / 'v.db'}")
+    with eng.begin() as c:
+        c.execute(text("CREATE TABLE models (id VARCHAR PRIMARY KEY, org_id VARCHAR, created_at DATETIME, project_id VARCHAR, "
+                       "training_run_id VARCHAR, storage_key VARCHAR, quality JSON, visibility VARCHAR)"))
+        c.execute(text("CREATE TABLE training_runs (id VARCHAR PRIMARY KEY, project_id VARCHAR)"))
+        c.execute(text("INSERT INTO models (id, project_id, training_run_id, storage_key, quality, visibility) "
+                       "VALUES ('m1', 'p1', 'r1', 'k', '{}', 'private')"))
+    assert main(["--check"], eng) == 1
+    assert "MISSING COLUMN models.version_no" in capsys.readouterr().out
+    assert main(["--upgrade", "--yes"], eng) == 0
+    cols = {c["name"] for c in inspect(eng).get_columns("models")}
+    assert {"version_no", "dataset_version_id", "forecast_id", "quote_id", "is_current", "verified_value", "passed"} <= cols
+    assert "dataset_version_id" in {c["name"] for c in inspect(eng).get_columns("training_runs")}
+    with eng.connect() as c:
+        assert c.execute(text("SELECT id, version_no, is_current FROM models")).one() == ("m1", None, 0)

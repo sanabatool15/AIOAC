@@ -48,10 +48,11 @@ Fields: project, kind (`compute_capture`, `fee_capture`), positive amount charge
 Fields: event id (unique), type, raw content, received time.
 
 ### Training run
-Fields: project, backend, instance type, start and end times, accumulated cost, stopped-at-cap flag, result, status.
+Fields: project, backend, instance type, start and end times, accumulated cost, stopped-at-cap flag, result, status, `dataset_version_id` (nullable: the data the run trained on).
 
 ### Model
-Fields: project, training run, storage location, quality measures, visibility (private or public).
+Fields: project, training run, storage location, quality measures, visibility (private or public). Version fields (all nullable except `is_current`, added by `--upgrade`): `version_no` (1..n per project), `dataset_version_id`, `forecast_id`, `quote_id`, `is_current` (bool, default false), `verified_value` (score on the locked rows), `passed` (met the target).
+Rule: at most one model per project is current (`set_current` clears the others in one transaction). Training makes the new model current if it passed verification and the current one did not or is no better, or if no model passed and its verified value is the best; a newer worse model never replaces a better current one. Old rows have none of these set: they are read as version 1..n by creation time, the newest being current unless some row has `is_current` set. Nothing is back-filled.
 
 ### Agent run and agent step
 The trace of everything the agent did.
