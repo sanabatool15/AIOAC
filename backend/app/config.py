@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./aioac.db"
     database_pooled: bool | None = None  # None = auto (true for Supabase pooler on port 6543). See README.
     storage_dir: str = "./storage"
+    storage_backend: str = "local"        # local | s3. s3 uses the standard AWS credential chain (specs/training.md 2c)
+    storage_s3_bucket: str = ""           # empty = use SAGEMAKER_BUCKET
+    storage_s3_prefix: str = "app/"       # all app files live under this prefix; candidates/ below it may expire
     job_runner: str = "inline"  # inline | inngest
     inngest_event_key: str = ""
     inngest_signing_key: str = ""

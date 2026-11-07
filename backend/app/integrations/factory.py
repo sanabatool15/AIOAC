@@ -57,6 +57,11 @@ def get_llm(model: str | None = None) -> LLMClient:
 
 @lru_cache
 def get_storage() -> Storage:
+    if settings.storage_backend == "s3":
+        from .storage.s3 import S3Storage  # imported here so the local default needs no AWS setup
+
+        bucket = settings.storage_s3_bucket or settings.sagemaker_bucket
+        return S3Storage(bucket, settings.storage_s3_prefix, settings.sagemaker_region)
     return LocalStorage(settings.storage_dir)
 
 

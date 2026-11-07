@@ -54,6 +54,10 @@ Code: `integrations/aws/sagemaker.py`, `integrations/aws/train_script/train.py`,
 - **Cost accuracy:** `services/cost/report.cost_accuracy_report` gives the share of jobs whose actual cost fell inside the quoted range.
 - **Tool access:** the AWS plugins (`aws-core`, `sagemaker-ai`) are installed and can search documentation. They have no AWS credentials in this cloud session, so they cannot touch an account. The `terraform` plugin server failed to connect.
 
+## 2c. S3 app storage (built 2026-11-07, contract-tested on a fake client only, never run against AWS)
+
+`integrations/storage/s3.py` (`S3Storage`) implements the `Storage` interface. Enable with `STORAGE_BACKEND=s3`; bucket `STORAGE_S3_BUCKET` (empty = `SAGEMAKER_BUCKET`), prefix `STORAGE_S3_PREFIX` (default `app/`), region `SAGEMAKER_REGION`. Credentials come only from the standard AWS chain. Keys: `app/candidates/...` (temporary, 1-day expiry rule), `app/datasets/...` and `app/models/...` (kept). Uploads use SSE-S3; `path(key)` downloads to a private temp folder removed on close and at exit. Terraform: see `infra/terraform/README.md` (not validated, not applied). Default stays `local`.
+
 ## 3. Infrastructure as code
 
 Terraform describes the long-lived pieces:

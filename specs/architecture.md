@@ -45,6 +45,8 @@ Outside `backend/`: `infra/terraform/` (AWS bucket, roles, budget alert), `specs
 4. Add a contract test in `tests/contract/` on mocked HTTP or boto3. Add a small `tests/integration/` check if live access is cheap and safe.
 5. If tests need a stand-in, add it to `doubles/`, not to `app/`.
 
+Example: `integrations/storage/` has `local.py` (default) and `s3.py` (`STORAGE_BACKEND=s3`); `get_storage` in the factory picks one.
+
 ## Add a repository
 
 1. Create `repositories/<thing>.py` with functions that take a session. All SQL for that table goes here.

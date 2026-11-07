@@ -25,6 +25,7 @@ From `backend/`, with a real `.env` or exported variables:
 | `test_llm.py` | The configured LLM (Azure) answers a tiny prompt |
 | `test_database.py` | Database reachable, schema creatable (rolled back) |
 | `test_datasets_live.py` | Hugging Face search and the curated list |
+| `test_s3_storage_live.py` | Writes, reads and deletes one encrypted probe object through `S3Storage`. NEVER RUN YET (written without AWS access) |
 | `test_paypal_sandbox.py` | Hold order and the two-capture lifecycle on the sandbox |
 
 ## 3. Safety rules for these tests
