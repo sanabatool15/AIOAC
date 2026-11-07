@@ -74,6 +74,19 @@ def test_propose_then_apply_then_pilot_then_a_new_price(session, storage, messy,
     assert quotes_repo.latest_for_project(session, messy.id).dataset_version_id == body["version_id"]
 
 
+def test_the_project_read_hides_a_forecast_made_on_the_old_data_and_says_the_data_was_fixed(session, storage, messy, provider):
+    from app.routes import projects as project_routes
+    c = client(session, storage, provider)
+    c.app.include_router(project_routes.router)
+    assert c.post(f"/chats/{messy.id}/pilot", json={"target": 0.6}).json()["eligible"]
+    before = c.get(f"/projects/{messy.id}").json()
+    assert before["forecast"] and before["dataset"]["fixed"] is False and before["dataset"]["notes"] is None
+    c.post(f"/chats/{messy.id}/fix/apply", json={})
+    after = c.get(f"/projects/{messy.id}").json()
+    assert after["forecast"] is None and after["status"] == "baseline_done"   # run the free pilot again
+    assert after["dataset"]["fixed"] is True and after["dataset"]["notes"]
+
+
 def test_the_activity_feed_says_a_fix_was_applied_in_plain_words(session, storage, messy, provider):
     from app.services import activity
     client(session, storage, provider).post(f"/chats/{messy.id}/fix/apply", json={})

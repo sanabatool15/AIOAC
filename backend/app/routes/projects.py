@@ -60,6 +60,8 @@ def read(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(
     version = datasets_repo.get_version(s, p.chosen_dataset_version_id) if p.chosen_dataset_version_id else None
     report = analysis_repo.latest_insight_report(s, version.id) if version else None
     forecast = forecasts_repo.latest_for_project(s, pid)
+    if forecast and forecast.dataset_version_id and forecast.dataset_version_id != p.chosen_dataset_version_id:
+        forecast = None   # the data was changed (a guided fix) after this forecast: it says nothing about the new data, so run the free pilot again
     pay = payments_repo.for_quote(s, q.id) if q else None
     run = runs_repo.latest_for_project(s, pid)
     return {"id": p.id, "goal": p.goal, "status": p.status, "readiness_grade": p.readiness_grade,
@@ -68,7 +70,8 @@ def read(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(
                             "high_cents": q.high_cents, "cap_cents": q.cap_cents, "success_fee_max_cents": q.fee_cents,
                             "approved": q.approved_at is not None, "model_type": families.type_info(q.family)},
             "dataset": version and {"rows": version.rows, "columns": version.columns, "target": version.target_column,
-                                    "source": version.source, "license": version.license},
+                                    "source": version.source, "license": version.license,
+                                    "fixed": version.parent_id is not None, "notes": version.notes if version.parent_id else None},
             "readiness": report and {"grade": report.grade, "findings": report.findings},
             "forecast": forecast and forecast_view(forecast, previous_on_other_data(s, forecast)),
             "payment": pay and {"payment_id": pay.id, "state": pay.state, "approve_url": pay.approve_url, "hold_cents": pay.amount_cents},

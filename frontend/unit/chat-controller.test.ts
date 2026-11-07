@@ -74,7 +74,7 @@ test("a new project sends the goal once; opening twice does not send again", asy
   const t = make({ replies: [replyCard] });
   await Promise.all([t.c.open("described"), t.c.open("described")]);
   assert.deepEqual(t.posts, [{ message: "predict churn" }]);
-  assert.equal(t.c.getState().items?.[1].card?.detail?.name, "Credit card default");
+  assert.equal((t.c.getState().items?.[1].card?.detail as { name?: string } | undefined)?.name, "Credit card default");
   assert.equal(t.c.getState().busy, false);
 });
 

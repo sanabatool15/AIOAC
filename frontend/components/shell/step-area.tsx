@@ -30,7 +30,14 @@ export function StepArea({ screen, project, onChanged }: { screen: DemoScreen; p
       return (
         <>
           <History project={project} />
-          <TargetAction {...props} />
+          <TargetAction
+            {...props}
+            intro={
+              project.dataset?.fixed
+                ? "Your data was changed. Pick your target and run the free pilot again to see whether the estimate moved. It is an estimate, not a promise."
+                : undefined
+            }
+          />
         </>
       );
     case "ineligible":

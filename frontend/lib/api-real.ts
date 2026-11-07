@@ -7,6 +7,8 @@ import {
   type BAccountPayment,
   type BActivityItem,
   type BUsage,
+  type BFixProposal,
+  type BFixResult,
   type BForecast,
   type BBatch,
   type BHistory,
@@ -155,6 +157,10 @@ export const runBaseline = (id: string) =>
 // ---- pilot, forecast, quote ----
 export const runPilot = (id: string, target: number) =>
   api<BForecast>(`/chats/${id}/pilot`, { body: { target } });
+// A guided data fix. Propose is free and changes nothing; apply is the user's click.
+export const proposeFix = (id: string) => api<BFixProposal>(`/chats/${id}/fix/propose`, { method: "POST" });
+export const applyFix = (id: string, versionId: string) =>
+  api<BFixResult>(`/chats/${id}/fix/apply`, { body: { version_id: versionId } });
 export const createQuote = (id: string) =>
   api<BQuote>(`/agreements/${id}/quote`, { method: "POST" });
 const approveQuote = (id: string) =>

@@ -1,6 +1,7 @@
 // The ONE place that converts backend values to what screens show.
 // Backend: whole cents, rates 0 to 1, snake_case. Screens: dollars text, "N out of 100", camelCase.
 import type {
+  BFixProposal,
   BForecast,
   BModelType,
   BProject,
@@ -68,6 +69,19 @@ export interface ForecastView {
   issues: string[];
   suggestedTarget: number | null; // percent
   modelType: ModelTypeView | null;
+  before: { expected: number | null; confidence: number | null; target: number | null } | null; // forecast on the data before a fix
+}
+export interface FixView {
+  available: boolean;
+  versionId: string;
+  message: string;
+  rows: string; // "1,560 to 1,500"
+  columns: string; // "8 to 7"
+  rowsRemoved: number;
+  columnsDropped: string[];
+  steps: { what: string; why: string }[];
+  fixesLeft: number;
+  note: string;
 }
 export interface ModelTypeView {
   name: string; // plain words, e.g. "a forest of decision trees"
@@ -142,6 +156,27 @@ export function toForecast(f: Maybe<BForecast>): ForecastView | null {
     issues: f.issues ?? [],
     suggestedTarget: percent(f.suggested_target),
     modelType: toModelType(f.model_type),
+    before: f.before_fix
+      ? { expected: percent(f.before_fix.predicted_metric), confidence: percent(f.before_fix.confidence), target: percent(f.before_fix.target) }
+      : null,
+  };
+}
+
+const count = (n: number) => n.toLocaleString("en-US");
+
+export function toFix(p: Maybe<BFixProposal>): FixView | null {
+  if (!p) return null;
+  return {
+    available: p.available === true,
+    versionId: p.version_id,
+    message: p.message,
+    rows: `${count(p.rows_before)} to ${count(p.rows_after)}`,
+    columns: `${p.columns_before} to ${p.columns_after}`,
+    rowsRemoved: p.rows_removed,
+    columnsDropped: p.columns_dropped ?? [],
+    steps: (p.steps ?? []).map((s) => ({ what: s.what, why: s.why })),
+    fixesLeft: p.fixes_left ?? 0,
+    note: p.note,
   };
 }
 

@@ -33,6 +33,8 @@ export interface BProject {
     target: string;
     source: string;
     license: string | null;
+    fixed?: boolean; // a guided data fix made this version
+    notes?: string | null;
   } | null;
   readiness: {
     grade: string;
@@ -64,6 +66,44 @@ export interface BForecast {
   issues: string[];
   pilot?: unknown;
   model_type?: BModelType | null;
+  // The forecast made on the data BEFORE a guided fix; null when no fix was applied.
+  before_fix?: {
+    predicted_metric: number;
+    band_low: number;
+    band_high: number;
+    confidence: number;
+    target: number;
+    eligible: boolean;
+  } | null;
+}
+
+// A guided data fix: what it WOULD change (propose) and what it did (apply). specs/api.md section E.
+export interface BFixProposal {
+  available: boolean;
+  version_id: string;
+  message: string;
+  rows_before: number;
+  rows_after: number;
+  columns_before: number;
+  columns_after: number;
+  rows_removed: number;
+  columns_dropped: string[];
+  steps: { kind: string; what: string; why: string }[];
+  fixes_used: number;
+  fixes_left: number;
+  note: string;
+}
+export interface BFixResult {
+  version_id: string;
+  status: string;
+  rows_before: number;
+  rows_after: number;
+  columns_before: number;
+  columns_after: number;
+  rows_removed: number;
+  columns_dropped: string[];
+  fixes_left: number;
+  next: string;
 }
 
 export interface BQuote {
