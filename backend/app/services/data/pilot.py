@@ -70,7 +70,7 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
     version = datasets_repo.get_version(session, project.chosen_dataset_version_id) if project.chosen_dataset_version_id else None
     if version is None:
         raise ForecastError("choose a dataset first")
-    work_key, locked_key = verification.prepare_split(storage, version.id, version.storage_key, version.target_column)
+    work_key, locked_key = verification.split_for(session, storage, version)
     work = pd.read_csv(storage.path(work_key))
     locked_rows = len(pd.read_csv(storage.path(locked_key)))
     total_rows = len(work) + locked_rows

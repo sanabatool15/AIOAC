@@ -129,7 +129,7 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
 
     family = quote.family or families.DEFAULT_FAMILY   # the model type the quote priced (the gate checked it is still the one)
     try:
-        work_key, locked_key = verification.prepare_split(storage, version.id, version.storage_key, version.target_column)
+        work_key, locked_key = verification.split_for(session, storage, version)
         res = backend.run(storage.path(work_key), version.target_column, quote.compute_cap_cents,
                           on_progress=on_progress, should_stop=should_stop, job_key=run.id, family=family)
     except Exception as exc:
