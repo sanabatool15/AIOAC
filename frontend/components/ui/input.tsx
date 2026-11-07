@@ -21,7 +21,7 @@ export function Field({
   htmlFor,
   children,
 }: {
-  label: string;
+  label: React.ReactNode;
   htmlFor: string;
   children: React.ReactNode;
 }) {
