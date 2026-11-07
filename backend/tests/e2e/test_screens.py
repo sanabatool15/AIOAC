@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.db import get_session
 from app.db.tables import Project
-from app.deps import current_user
+from app.deps import current_user, get_label_llm
 from app.integrations.training_local.backend import LocalBackend
 from app.main import app
 from app.repositories.traces import TraceRepository
@@ -76,7 +76,7 @@ def test_model_describes_columns_classes_and_versions(api, trained):
     assert "customer_id" not in kinds and "left" not in kinds  # the row label and the answer are not inputs
     assert m["classes"]
     for c in kinds.values():
-        assert set(c) == {"name", "kind", "example", "choices"}
+        assert set(c) == {"name", "label", "kind", "example", "choices"}
     text_cols = [c for c in kinds.values() if c["kind"] == "text"]
     assert text_cols and all(c["choices"] for c in text_cols)
 
@@ -350,3 +350,70 @@ def test_activity_shows_exact_charges_and_a_skipped_fee(api, session, trained):
     assert "Charged $0.52 for the compute used" in texts
     assert "No success fee: the target was not verified" in texts
     assert "Released $0.04 of the hold; it was never charged" in texts
+
+
+# ------------------------------------------------------------------ 2b. plain-English column labels
+
+@pytest.fixture
+def label_llm():
+    """Install a scripted label model for the model route and remove it afterwards."""
+    from doubles.llm import FakeLLM
+    from app.services.data import column_labels
+
+    column_labels._failed_at.clear()
+
+    def install(script):
+        fake = FakeLLM(script)
+        app.dependency_overrides[get_label_llm] = lambda: fake
+        return fake
+
+    yield install
+    app.dependency_overrides.pop(get_label_llm, None)
+    column_labels._failed_at.clear()
+
+
+def _labels_reply(api, pid, **extra):
+    from app.ports import LLMResponse
+    names = [c["name"] for c in api.get(f"/projects/{pid}/model").json()["columns"]]
+    return LLMResponse(text=json.dumps({n: f"Plain {n}" for n in names} | extra))
+
+
+def test_model_columns_carry_labels_and_the_second_get_makes_no_new_call(api, trained, label_llm):
+    llm = label_llm([_labels_reply(api, trained.id, **{"not_a_column": "ignored"})])
+    first = api.get(f"/projects/{trained.id}/model").json()["columns"]
+    assert all(c["label"] == f"Plain {c['name']}" for c in first) and len(llm.calls) == 1
+    again = api.get(f"/projects/{trained.id}/model").json()["columns"]
+    assert again == first and len(llm.calls) == 1  # cached: no new call
+    prompt = json.dumps(llm.calls[0])
+    assert "untrusted" in prompt.lower() and "churn" in prompt  # the chosen dataset's title is sent as data
+
+
+def test_no_label_model_gives_null_labels_and_raw_names(api, trained):
+    app.dependency_overrides[get_label_llm] = lambda: None
+    try:
+        r = api.get(f"/projects/{trained.id}/model")
+    finally:
+        app.dependency_overrides.pop(get_label_llm, None)
+    assert r.status_code == 200 and all(c["label"] is None and c["name"] for c in r.json()["columns"])
+
+
+def test_a_failing_label_model_still_gives_200_with_raw_names(api, trained):
+    class Boom:
+        model = "boom"
+
+        def chat(self, messages, tools):
+            raise TimeoutError("slow")
+
+    app.dependency_overrides[get_label_llm] = lambda: Boom()
+    try:
+        r = api.get(f"/projects/{trained.id}/model")
+    finally:
+        app.dependency_overrides.pop(get_label_llm, None)
+    m = r.json()
+    assert r.status_code == 200 and m["usable"] and m["columns"] and all(c["label"] is None for c in m["columns"])
+
+
+def test_label_get_depends_on_nothing_when_unconfigured(monkeypatch):
+    from app import deps
+    monkeypatch.setattr(deps, "llm_configured", lambda: False)
+    assert deps.get_label_llm() is None

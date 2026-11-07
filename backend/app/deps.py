@@ -23,6 +23,17 @@ def get_llm_client():
     return get_llm()
 
 
+def get_label_llm():
+    """A small model for plain-English column labels, or None when no model is configured. Never an error:
+    labels are a nice-to-have, so the Model tab simply shows the raw column names without them."""
+    try:
+        if not llm_configured():
+            return None
+        return get_llm(settings.label_model.strip() or None, timeout=settings.label_timeout_s)
+    except Exception:
+        return None
+
+
 def current_user(request: Request, s: Session = Depends(get_session)) -> User:
     """The signed-in user, from the session cookie. 503 if login is not set up, 401 if there is no valid session."""
     if not auth.configured():

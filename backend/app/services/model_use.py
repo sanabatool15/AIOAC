@@ -14,9 +14,10 @@ import pandas as pd
 
 from ..db import Session
 from ..db.tables import Model, Project
-from ..ports import Storage
+from ..ports import LLMClient, Storage
 from ..repositories import datasets as datasets_repo
 from ..repositories import training_runs as runs_repo
+from .data import column_labels
 
 MAX_BATCH_ROWS = 5_000
 MAX_BATCH_BYTES = 5 * 1024 * 1024
@@ -100,7 +101,17 @@ def _choices(m: Loaded) -> dict[str, list[str]]:
     return {}
 
 
-def describe(session: Session, storage: Storage, project: Project) -> dict:
+def _labels(session: Session, llm: LLMClient | None, project: Project, version, m: Loaded,
+            examples: dict[str, object], choices: dict[str, list[str]]) -> dict[str, str]:
+    """Plain-English labels for the input columns (empty when unknown). Never raises; see services/data/column_labels."""
+    if version is None:
+        return {}
+    samples = {c: (choices.get(c) or [])[:5] or ([] if examples.get(c) is None else [examples[c]]) for c in m.columns}
+    cand = datasets_repo.chosen_candidate(session, project.id)
+    return column_labels.labels_for(session, llm, version, m.columns, samples, cand.name if cand else None)
+
+
+def describe(session: Session, storage: Storage, project: Project, label_llm: LLMClient | None = None) -> dict:
     try:
         row = current_model(session, project)
     except NoModel:
@@ -116,8 +127,9 @@ def describe(session: Session, storage: Storage, project: Project) -> dict:
     except ModelUnusable as exc:
         return {**base, "unusable_reason": str(exc)}
     examples, choices = _imputer_values(m), _choices(m)
-    cols = [{"name": c, "kind": "number" if c in m.num else "text", "example": examples.get(c), "choices": choices.get(c)}
-            for c in m.columns]
+    labels = _labels(session, label_llm, project, version, m, examples, choices)
+    cols = [{"name": c, "label": labels.get(c), "kind": "number" if c in m.num else "text", "example": examples.get(c),
+             "choices": choices.get(c)} for c in m.columns]
     classes = [x.item() if hasattr(x, "item") else x for x in getattr(m.pipeline, "classes_", [])]
     return {**base, "sklearn_version": m.trained_with, "size_bytes": m.size, "usable": True, "columns": cols, "classes": classes}
 
