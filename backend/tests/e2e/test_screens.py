@@ -39,7 +39,7 @@ def trained(session, storage, chosen, provider):
 
 def test_history_is_empty_but_well_formed_for_a_new_project(api, project):
     h = api.get(f"/projects/{project.id}/history").json()
-    assert h == {"versions": [], "runs": [], "quotes": [], "payment": None}
+    assert h == {"versions": [], "runs": [], "quotes": [], "payment": None, "payments": []}
 
 
 def test_history_lists_versions_runs_quotes_payment_and_never_storage_keys(api, trained):
@@ -48,7 +48,9 @@ def test_history_lists_versions_runs_quotes_payment_and_never_storage_keys(api, 
     assert set(v) == {"id", "parent_id", "rows", "columns", "target_column", "source", "license", "notes", "created_at"}
     assert v["target_column"] == "left" and v["rows"] > 0
     r = h["runs"][0]
-    assert set(r) == {"id", "status", "backend", "cost_cents", "started_at", "finished_at", "result"} and r["status"] == "done"
+    assert set(r) == {"id", "status", "backend", "cost_cents", "started_at", "finished_at", "result", "round", "version_no",
+                      "dataset_version_id"} and r["status"] == "done"
+    assert r["round"] == 1 and r["version_no"] == 1
     assert set(r["result"]["verification"]) == {"value", "target", "passed"} and "accuracy" in r["result"]
     assert set(h["quotes"][0]) == {"id", "estimate_cents", "low_cents", "high_cents", "cap_cents", "approved", "created_at"}
     assert h["quotes"][0]["approved"] is True
@@ -155,7 +157,7 @@ def test_download_is_an_attachment_with_the_version_it_needs(api, trained):
 
 def test_a_model_that_cannot_be_loaded_gives_a_plain_message(api, session, storage, trained):
     from app.repositories import training_runs as runs_repo
-    row = runs_repo.latest_model(session, trained.id)
+    row = runs_repo.current_model(session, trained.id)
     storage.put(row.storage_key, b"not a model")
     m = api.get(f"/projects/{trained.id}/model").json()
     assert m["available"] and m["usable"] is False and "scikit-learn" in m["unusable_reason"] and m["columns"] == []
@@ -191,7 +193,7 @@ def test_usage_and_receipts_count_only_my_projects(api, session, trained, user):
 
 # ------------------------------------------------------------------ 5. sharing
 
-PUBLIC_KEYS = {"goal", "status", "dataset", "baseline", "verification", "finished_at", "is_estimate_note"}
+PUBLIC_KEYS = {"goal", "status", "dataset", "baseline", "verification", "finished_at", "is_estimate_note", "version_no"}  # version_no added with model versions (deliberate)
 
 
 def test_share_create_is_idempotent_and_public_view_is_exactly_the_safe_keys(api, session, trained):
@@ -350,3 +352,133 @@ def test_activity_shows_exact_charges_and_a_skipped_fee(api, session, trained):
     assert "Charged $0.52 for the compute used" in texts
     assert "No success fee: the target was not verified" in texts
     assert "Released $0.04 of the hold; it was never charged" in texts
+
+# ------------------------------------------------------------------ 6. model versions
+
+from app.repositories import projects as projects_repo  # noqa: E402
+from app.repositories import training_runs as runs_repo  # noqa: E402
+from app.services import lifecycle, payments  # noqa: E402
+from app.services.cost import quotes  # noqa: E402
+from tests.helpers.builders import eligible_forecast, make_quote  # noqa: E402
+
+
+def _new_paid_run(session, storage, project, provider):
+    """New forecast, quote and hold on the same data, then a paid run (the project must be at baseline_done)."""
+    # quotes.create_quote refuses a new quote after a settled hold (see the report), so the next quote is built directly
+    fc = eligible_forecast(session, project)
+    q = make_quote(session, project)
+    q.forecast_id, q.breakdown = fc.id, {"target": 0.8}
+    session.commit()
+    lifecycle.transition(session, project, "quoted")
+    quotes.approve_quote(session, project, q)
+    pay, _ = payments.create_order(session, provider, "mock", project)
+    assert payments.confirm_hold(session, provider, pay)
+    return training.run_training(session, project, LocalBackend(), storage, provider)
+
+
+def _stored(storage, session, pid):
+    return {m.id: storage.get(m.storage_key) for m in runs_repo.models_for_project(session, pid)}
+
+
+@pytest.fixture
+def two_versions(session, storage, chosen, provider, verdict):
+    """Round 1 missed its target (score 0.55), round 2 reached it (0.9). Both saved a real, loadable model."""
+    verdict["value"] = 0.55
+    held(session, storage, chosen, provider)
+    assert training.run_training(session, chosen, LocalBackend(), storage, provider).status == "done"
+    lifecycle.reopen_for_improvement(session, chosen)  # the Improve round
+    verdict["value"] = 0.9
+    assert _new_paid_run(session, storage, chosen, provider).status == "done"
+    return chosen
+
+
+def test_two_runs_make_two_versions_and_the_better_one_is_in_use(api, two_versions):
+    v = api.get(f"/projects/{two_versions.id}/model/versions").json()
+    assert [x["version_no"] for x in v] == [2, 1]  # newest first
+    assert [x["is_current"] for x in v] == [True, False]
+    assert set(v[0]) == {"model_id", "version_no", "created_at", "is_current", "accuracy", "simple_guess_accuracy", "verified_value",
+                         "target", "passed", "dataset_version_id", "dataset_rows", "usable"}
+    assert v[0]["passed"] is True and v[1]["passed"] is False and v[0]["verified_value"] == 0.9 and v[1]["verified_value"] == 0.55
+    assert v[0]["dataset_version_id"] == v[1]["dataset_version_id"] and all(x["usable"] for x in v)
+    assert "models/" not in json.dumps(v)
+    m = api.get(f"/projects/{two_versions.id}/model").json()
+    assert m["model_id"] == v[0]["model_id"] and m["version_no"] == 2 and m["is_current"] is True
+
+
+def test_switching_the_version_changes_what_try_it_and_download_use(api, session, storage, two_versions):
+    pid = two_versions.id
+    v1, v2 = [x["model_id"] for x in reversed(api.get(f"/projects/{pid}/model/versions").json())]
+    r = api.post(f"/projects/{pid}/model/{v1}/use")
+    assert r.status_code == 200 and r.json() == {"model_id": v1, "version_no": 1, "is_current": True}
+    assert api.get(f"/projects/{pid}/model").json()["model_id"] == v1
+    assert [x["is_current"] for x in api.get(f"/projects/{pid}/model/versions").json()] == [False, True]
+    stored = _stored(storage, session, pid)
+    by_id = api.get(f"/projects/{pid}/model/download", params={"model_id": v2})
+    default = api.get(f"/projects/{pid}/model/download")
+    assert by_id.status_code == 200 and default.status_code == 200
+    assert by_id.content == stored[v2] and default.content == stored[v1]
+    rec = {c["name"]: c["example"] for c in api.get(f"/projects/{pid}/model").json()["columns"] if c["example"] is not None}
+    assert api.post(f"/projects/{pid}/predict", params={"model_id": v2}, json={"record": rec}).status_code == 200
+    assert api.get(f"/projects/{pid}/model", params={"model_id": v2}).json()["version_no"] == 2
+
+
+def test_unknown_model_id_is_404_everywhere(api, trained):
+    pid = trained.id
+    assert api.post(f"/projects/{pid}/model/nope/use").status_code == 404
+    assert api.get(f"/projects/{pid}/model/download", params={"model_id": "nope"}).status_code == 404
+    assert api.get(f"/projects/{pid}/model", params={"model_id": "nope"}).status_code == 404
+    assert api.post(f"/projects/{pid}/predict", params={"model_id": "nope"}, json={"record": {"a": 1}}).status_code == 404
+    assert api.post(f"/projects/{pid}/predict-batch", params={"model_id": "nope"}, json={"csv_text": "a\n1\n"}).status_code == 404
+
+
+def test_a_model_of_another_project_is_not_reachable_by_id(api, session, storage, trained, user):
+    other = projects_repo.create(session, "other goal", user.id, user.org_id)
+    storage.put("models/x.joblib", b"x")
+    foreign = runs_repo.add_model(session, other.id, "run-x", "models/x.joblib", {})
+    pid = trained.id
+    assert api.post(f"/projects/{pid}/model/{foreign.id}/use").status_code == 404
+    assert api.get(f"/projects/{pid}/model/download", params={"model_id": foreign.id}).status_code == 404
+
+
+def test_other_user_gets_404_on_versions_and_use(api, session, two_versions, user):
+    pid = two_versions.id
+    mine = api.get(f"/projects/{pid}/model/versions").json()[0]["model_id"]
+    other = make_user(session, "intruder@example.test")
+    app.dependency_overrides[current_user] = lambda: other
+    try:
+        assert api.get(f"/projects/{pid}/model/versions").status_code == 404
+        assert api.post(f"/projects/{pid}/model/{mine}/use").status_code == 404
+        assert api.get(f"/projects/{pid}/model/download", params={"model_id": mine}).status_code == 404
+    finally:
+        app.dependency_overrides[current_user] = lambda: user
+    assert api.get(f"/projects/{pid}/model/versions").status_code == 200
+
+
+def test_a_worse_new_model_does_not_replace_the_better_one(api, session, storage, two_versions, provider, verdict):
+    pid = two_versions.id
+    verdict["value"] = 0.3  # round 3 does worse than the version in use
+    projects_repo.set_status(session, two_versions, "baseline_done")  # a hit cannot be reopened by the Improve rule; move by hand
+    assert _new_paid_run(session, storage, two_versions, provider).status == "done"
+    v = api.get(f"/projects/{pid}/model/versions").json()
+    assert [(x["version_no"], x["is_current"]) for x in v] == [(3, False), (2, True), (1, False)]
+
+
+def test_history_lists_every_payment_and_labels_rounds(api, two_versions):
+    h = api.get(f"/projects/{two_versions.id}/history").json()
+    assert len(h["payments"]) == 2 and h["payment"]["payment_id"] == h["payments"][-1]["payment_id"]
+    assert {"payment_id", "state", "hold_cents", "total_charged_cents", "quote_id", "created_at"} <= set(h["payments"][0])
+    assert [(r["round"], r["version_no"]) for r in h["runs"]] == [(2, 2), (1, 1)]  # newest first
+    assert all(r["dataset_version_id"] for r in h["runs"])
+
+
+def test_share_shows_only_the_version_in_use_without_other_versions_or_cost(api, two_versions):
+    pid = two_versions.id
+    token = api.post(f"/projects/{pid}/share").json()["token"]
+    pub = api.get(f"/public/results/{token}").json()
+    assert set(pub) == PUBLIC_KEYS and pub["version_no"] == 2 and pub["verification"]["value"] == 0.9
+    v1 = [x["model_id"] for x in api.get(f"/projects/{pid}/model/versions").json() if x["version_no"] == 1][0]
+    api.post(f"/projects/{pid}/model/{v1}/use")
+    pub = api.get(f"/public/results/{token}").json()
+    assert pub["version_no"] == 1 and pub["verification"]["value"] == 0.55 and pub["verification"]["passed"] is False
+    text = json.dumps(pub)
+    assert "cents" not in text and "model_id" not in text and "payment" not in text
