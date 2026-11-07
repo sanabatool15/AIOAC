@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     azure_openai_base_url: str = ""  # https://RESOURCE.openai.azure.com/openai/v1/ (llm_provider=azure)
     azure_openai_api_key: str = ""
     azure_openai_model: str = ""  # the DEPLOYMENT name in Azure AI Foundry
+    label_model: str = ""              # model/deployment for plain-English column labels (Model tab). Empty = the default model above
+    label_timeout_s: float = 15.0      # one short call; any failure just means no labels
     hf_token: str = ""  # optional; public datasets work without it
     max_fetch_rows: int = 50_000
     max_fetch_bytes: int = 50_000_000
