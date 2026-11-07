@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from ..db import Session
 from ..db.tables import Project
 from ..repositories import analysis as analysis_repo
+from ..repositories import datasets as datasets_repo
 from ..repositories import forecasts as forecasts_repo
 from ..repositories import payments as payments_repo
 from ..repositories import quotes as quotes_repo
@@ -24,7 +25,7 @@ ACTION_WORDS = {"select_dataset": "choose the dataset", "request_payment": "ask 
                 "start_training": "start training", "create_quote": "create a price estimate", "pilot": "run the free pilot",
                 "baseline": "run the free test", "analyze": "check the data", "fetch": "download a dataset",
                 "search": "search for datasets", "discover": "search for datasets", "clean": "clean the data"}
-LEVEL_ONE_TWO = {"select_dataset", "request_payment", "start_training"}
+LEVEL_ONE_TWO = {"select_dataset", "clean", "request_payment", "start_training"}
 
 
 def _s(v, n=80) -> str:
@@ -64,6 +65,10 @@ def _tool_line(name: str, args: dict, result: dict) -> tuple[str, str] | None:
         return "test", text
     if name == "run_pilot":
         return "forecast", "Ran the free pilot on a small part of your data to forecast the full result"
+    if name == "propose_data_fix":
+        return "check", "Looked at what a data fix could change (nothing was changed)"
+    if name == "apply_data_fix":
+        return "datafix", "Changed your data after you approved it (the original is kept)"
     if name == "create_quote":
         return "quote", "Created a price estimate"
     if name == "request_payment":
@@ -74,7 +79,7 @@ def _tool_line(name: str, args: dict, result: dict) -> tuple[str, str] | None:
 
 
 # trace tool name -> the step a stored row also records
-TRACE_STEP = {"run_readiness": "readiness", "run_baseline": "baseline", "run_pilot": "pilot", "create_quote": "quote",
+TRACE_STEP = {"apply_data_fix": "datafix", "run_readiness": "readiness", "run_baseline": "baseline", "run_pilot": "pilot", "create_quote": "quote",
               "request_payment": "payment", "start_training": "training"}
 DUPLICATE_WINDOW = timedelta(minutes=2)
 
@@ -98,6 +103,9 @@ def _stored(session: Session, project: Project) -> list[tuple[datetime, str, str
         ok = "can be sold" if f.eligible else "is not eligible to run yet"
         out.append((f.created_at, "pilot", "forecast", f"Forecast ready: about {round(f.confidence * 100)}% chance of reaching "
                     f"{round(f.target * 100)} out of 100 right (an estimate); this run {ok}"))
+    for v in datasets_repo.versions_for_project(session, project.id):
+        if v.parent_id:
+            out.append((v.created_at, "datafix", "datafix", f"Changed your data after you approved it: {_s(v.notes or 'a data fix', 200)} (the original is kept)"))
     for q in quotes_repo.all_for_project(session, project.id):
         out.append((q.created_at, "quote", "quote", f"Price estimate ready: about {_usd(q.estimate_cents)} "
                     f"(an estimate; the most you can be charged is {_usd(q.cap_cents)})"))

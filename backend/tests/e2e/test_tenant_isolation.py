@@ -190,6 +190,7 @@ PROJECT_ROUTES = {
     ("POST", "/projects/{pid}/settle/retry"): None, ("POST", "/projects/{pid}/cancel"): None, ("GET", "/projects/{pid}/trace"): None,
     ("POST", "/chats/{pid}/pilot"): {"target": 0.8}, ("GET", "/jobs/{pid}/forecast"): None,
     ("POST", "/agreements/{pid}/quote"): None,
+    ("POST", "/chats/{pid}/fix/propose"): None, ("POST", "/chats/{pid}/fix/apply"): {},
     ("GET", "/projects/{pid}/history"): None, ("GET", "/projects/{pid}/activity"): None, ("GET", "/projects/{pid}/model"): None,
     ("POST", "/projects/{pid}/predict"): {"record": {"a": 1}}, ("POST", "/projects/{pid}/predict-batch"): {"csv_text": "a\n1\n"},
     ("GET", "/projects/{pid}/model/download"): None, ("GET", "/projects/{pid}/model/versions"): None,

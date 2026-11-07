@@ -18,11 +18,12 @@ from ..repositories import projects as projects_repo
 from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
 from ..services.data import analysis, datasets, families
-from .forecast import forecast_view
+from .forecast import forecast_view, previous_on_other_data
 from .payments import receipt
 from ..services import gate, lifecycle, payments, training
 from ..services.cost import quotes
 from ..services.agent.loop import TurnInProgress, run_agent
+from ..services.agent.tools import TOOLS
 from ..services.agent.runlog import DbSink, RunLog
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -69,7 +70,7 @@ def read(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(
             "dataset": version and {"rows": version.rows, "columns": version.columns, "target": version.target_column,
                                     "source": version.source, "license": version.license},
             "readiness": report and {"grade": report.grade, "findings": report.findings},
-            "forecast": forecast and forecast_view(forecast),
+            "forecast": forecast and forecast_view(forecast, previous_on_other_data(s, forecast)),
             "payment": pay and {"payment_id": pay.id, "state": pay.state, "approve_url": pay.approve_url, "hold_cents": pay.amount_cents},
             "run": run and {"run_id": run.id, "status": run.status}}
 
@@ -90,10 +91,15 @@ def messages(pid: str, *, p: Project = Depends(owned_project), s: Session = Depe
     return out
 
 
+def _approved_actions(names: list[str]) -> set[str]:
+    """The card carries a tool name; the gate speaks in action names (they differ for apply_data_fix: tool apply_data_fix, action clean)."""
+    return {TOOLS[n].action.value if n in TOOLS else n for n in names}
+
+
 @router.post("/{pid}/chat")
 def chat(pid: str, *, p: Project = Depends(owned_project), body: ChatIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory), llm=Depends(get_llm_client)):
     try:
-        r = run_agent(make(p, body.approve), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
+        r = run_agent(make(p, _approved_actions(body.approve)), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
     except TurnInProgress as e:
         raise HTTPException(409, str(e))
     return {"status": r.status, "text": r.text, "card": r.card, "blocks": r.blocks}

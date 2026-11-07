@@ -15,7 +15,7 @@ from ...integrations.jobs.inline import InlineJobRunner
 from ...integrations.datasets.registry import SourceRegistry, as_registry
 from ...ports import PaymentProvider, Storage, TrainingBackend
 from ..data.samples import CATALOG
-from ..data import analysis, datasets, discovery, families, pilot
+from ..data import analysis, datasets, discovery, families, fixes, pilot
 from ..cost import cost, quotes
 from .. import gate, payments, training
 from . import clarity, memory, skills, target as target_rule
@@ -279,6 +279,55 @@ def run_baseline_tool(ctx, a):
             "trust_level": ctx.project.trust_level}
 
 
+def _fix_view(prop: "fixes.FixProposal") -> dict:
+    return {"available": prop.available, "message": prop.message, "version_id": prop.version_id,
+            "rows_before": prop.rows_before, "rows_after": prop.rows_after, "rows_removed": prop.rows_removed,
+            "columns_before": prop.columns_before, "columns_after": prop.columns_after, "columns_dropped": prop.columns_dropped,
+            "steps": [{"what": s["what"], "why": s["why"]} for s in prop.steps], "fixes_left": prop.fixes_left, "note": prop.note}
+
+
+def propose_data_fix(ctx, a):
+    """Free and read-only: what a data fix would change. Nothing is changed until the user approves apply_data_fix."""
+    try:
+        prop = fixes.propose_fix(ctx.session, ctx.storage, ctx.project)
+    except fixes.FixError as exc:
+        return {"error": str(exc)}
+    out = _fix_view(prop)
+    out["next"] = ("tell the user plainly what would change and why; say we will test whether it changes the estimate and that it may not; "
+                   "if they want it call apply_data_fix") if prop.available else "tell the user plainly that there is nothing safe to change"
+    return out
+
+
+def apply_data_fix(ctx, a):
+    """Runs only after the user approved the card (level 1). Makes a new version of the data and re-runs the free steps."""
+    try:
+        child, prop = fixes.apply_fix(ctx.session, ctx.storage, ctx.project, expected_version_id=a.get("version_id") or None)
+    except fixes.FixError as exc:
+        return {"error": str(exc)}
+    out = _fix_view(prop)
+    out.update(version_id=child.id, fixes_left=max(0, prop.fixes_left - 1),
+               next="the data is changed and the free data check and free test were re-run; now run the free small test again with the user's target and explain "
+                    "whether the estimate moved, as an estimate, never as a promise")
+    return out
+
+
+def data_fix_card(ctx, a) -> dict:
+    """Plain-language parts of the approval card for apply_data_fix: rows removed, columns dropped, before and after. Read-only."""
+    try:
+        prop = fixes.propose_fix(ctx.session, ctx.storage, ctx.project)
+    except fixes.FixError:
+        return {}
+    if not prop.available:
+        return {}
+    change = prop.message[len("We can "):] if prop.message.startswith("We can ") else prop.message
+    what = (f"Change your data: {change.rstrip('.')} ({prop.rows_before:,} rows to {prop.rows_after:,}, "
+            f"{prop.columns_before} columns to {prop.columns_after}). The original stays saved.")
+    detail = {"rows_before": prop.rows_before, "rows_after": prop.rows_after, "rows_removed": prop.rows_removed,
+              "columns_before": prop.columns_before, "columns_after": prop.columns_after, "columns_dropped": prop.columns_dropped,
+              "steps": [s["what"] for s in prop.steps], "version_id": prop.version_id, "note": prop.note}
+    return {"what": what, "detail": detail, "args": {"version_id": prop.version_id}}
+
+
 def run_pilot(ctx, a):
     """The target is the user's choice: it must match a number in their own words (see target.py)."""
     if not target_rule.user_named(memory.user_texts(ctx.session, ctx.project), float(a["target"])):
@@ -357,6 +406,10 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
          gate.Action.SELECT_DATASET, select_dataset),
     Tool("run_readiness", "Readiness grade and findings for the chosen dataset.", _obj(), gate.Action.ANALYZE, run_readiness),
     Tool("run_baseline", "Free test on held-out data; also measures timings for the quote.", _obj(), gate.Action.BASELINE, run_baseline_tool),
+    Tool("propose_data_fix", "Free, changes nothing: what removing repeated rows or mostly empty columns would change. Use when the forecast is too low and the findings mention repeats or gaps. "
+         "Never say it will raise the estimate: say we will test whether it changes the estimate.", _obj(), gate.Action.ANALYZE, propose_data_fix),
+    Tool("apply_data_fix", "Apply the proposed data fix (the user must approve a card showing rows removed and columns dropped). Then run the free small test again.",
+         {"type": "object", "properties": {"version_id": {"type": "string"}}, "required": []}, gate.Action.CLEAN, apply_data_fix),
     Tool("run_pilot", "Free small test on about 5-10% of the data, then forecast the full-run result against the target the USER named in their own words (0 to 1, e.g. 0.8). Never pick the target yourself: if they have not said it, ask.",
          {"type": "object", "properties": {"target": {"type": "number"}}, "required": ["target"]}, gate.Action.PILOT, run_pilot),
     Tool("create_quote", "One fixed price for the full run (estimated compute + success fee) and the most the user can be charged. Only after an eligible forecast.", _obj(), gate.Action.CREATE_QUOTE, create_quote),

@@ -18,13 +18,25 @@ class PilotIn(BaseModel):
     target: float = Field(gt=0, lt=1, description="what the verified result should reach, e.g. 0.8 for 80 out of 100")
 
 
-def forecast_view(f: Forecast) -> dict:
+def previous_on_other_data(s: Session, f: Forecast) -> Forecast | None:
+    """The newest earlier forecast that looked at DIFFERENT data (before a guided fix), for a before and after view."""
+    items = forecasts_repo.all_for_project(s, f.project_id)   # oldest first
+    earlier = items[:[x.id for x in items].index(f.id)] if f.id in [x.id for x in items] else []
+    for old in reversed(earlier):
+        if old.dataset_version_id and old.dataset_version_id != f.dataset_version_id:
+            return old
+    return None
+
+
+def forecast_view(f: Forecast, before: Forecast | None = None) -> dict:
     return {"forecast_id": f.id, "metric": f.metric, "target": f.target, "is_estimate": True,
             "predicted_metric": f.predicted_metric, "band_low": f.band_low, "band_high": f.band_high,
             "confidence": f.confidence, "eligible": f.eligible, "reason": f.reason, "pilot": f.pilot,
             "min_confidence": settings.forecast_min_confidence,
             "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", []),
-            "model_type": families.type_info(f.family) if f.family else None}
+            "model_type": families.type_info(f.family) if f.family else None,
+            "before_fix": before and {"predicted_metric": before.predicted_metric, "band_low": before.band_low, "band_high": before.band_high,
+                                      "confidence": before.confidence, "target": before.target, "eligible": before.eligible}}
 
 
 _PILOT_BLOCKED = {
@@ -53,7 +65,7 @@ def run_pilot(pid: str, *, p: Project = Depends(owned_project), body: PilotIn, s
     except pilot.ForecastError as e:
         raise HTTPException(400, str(e))
     TraceRepository(s).add(p.id, "forecast", {"forecast_id": f.id, "confidence": f.confidence, "eligible": f.eligible})
-    return forecast_view(f)
+    return forecast_view(f, previous_on_other_data(s, f))
 
 
 @router.get("/jobs/{pid}/forecast")
@@ -61,4 +73,4 @@ def read_forecast(pid: str, *, p: Project = Depends(owned_project), s: Session =
     f = forecasts_repo.latest_for_project(s, pid)
     if f is None:
         raise HTTPException(404, "no pilot has been run yet")
-    return forecast_view(f)
+    return forecast_view(f, previous_on_other_data(s, f))
