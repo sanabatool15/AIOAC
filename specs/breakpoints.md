@@ -115,3 +115,15 @@ Real-LLM runs, real PayPal sandbox runs and any AWS run (step 4) cost money or u
 | H7 | "Not now" on an approval card was lost on reload | `lib/declined.ts`, `lib/chat-controller.ts` | Kept per project in localStorage (try/catch), calm card state plus follow-up line re-derived | fixed |
 | H8 | No thinking indicator during the automatic first reply | `lib/chat-controller.ts`, `project-chat.tsx` | Goal shown and timer started when the boot call is sent ("Reading your goal...") | fixed |
 | H9 | Agent said "pilot" and "cap" to the user | `services/agent/context.py`, `tools.py`, `target.py`, `cost-quote` skill | "free small test", "the most you can be charged" | fixed |
+
+## 7. Better results: model type and data fix (2026-11-07)
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| M0 | `create_quote` refused any new quote while the earlier hold was in a settled state (`released`), so the Improve round could not be priced | `services/cost/quotes.py` | Block only live (`held`) or half-settled holds; e2e test through the real routes | done (HUMAN REVIEW) |
+| M1 | The paid run always trained a forest, whatever the pilot kept; the cost was timed on the forest | `pilot.py`, `baseline.py`, `train.py`, `quotes.py` | `families.py` factory shared by all, quote pins family and data version, cost timed on the chosen family | done (HUMAN REVIEW: quotes, training start) |
+| M2 | A price could be paid for one dataset or model type and run as another | `services/gate.py` | `START_TRAINING` compares the quote's pins with the project | done (HUMAN REVIEW: gate) |
+| M3 | A cleaned child version would have drawn a new locked set | `services/data/verification.py` | Locked rows from the root version, children inherit | done (HUMAN REVIEW: verification) |
+| M4 | No way to improve the data; `Action.CLEAN` was level 0 | `fixes.py`, `gate.py`, routes, agent, UI | Two whitelisted fixes, level 1, limit of 3, before and after forecast | done (HUMAN REVIEW: gate) |
+| M5 | A fix that removes only repeated rows rarely changes the estimate (training already ignores repeats) | `fixes.py` | Said plainly in the proposal; shown honestly, not as a rescue | known limit |
+| M6 | The pilot's family choice and the cost timing use the work rows of the current version only; a forecast from before a fix is hidden on the project read | `routes/projects.py` | Intended | known limit |

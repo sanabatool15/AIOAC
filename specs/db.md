@@ -33,13 +33,13 @@ The free test.
 Fields: project, dataset version, result, comparison with a simple guess, sample sizes and timings used by the cost estimator.
 
 ### Quote
-Fields: project, estimate, low, high, cap (estimate, low, high and cap include the success fee), compute cap, success fee, forecast, breakdown, price config version, expiry, approved time.
+Fields: project, estimate, low, high, cap (estimate, low, high and cap include the success fee), compute cap, success fee, forecast, breakdown, price config version, expiry, approved time, `dataset_version_id` and `family` (nullable; the quote PINS the data version and the model type, and the gate refuses to train if either changed).
 
 ### Payment (a PayPal hold, table `payments`)
 Fields: project, quote, provider, provider order id, authorization id, hold amount, compute amount, fee amount, state (`none`, `held`, `compute_captured`, `fee_captured`, `fee_skipped`, `released`, `voided`, `expired`, `declined`), capture ids, captured and released amounts, verified flag (set only in `held`). Unused holds expire after 24 hours. See `payments.md`.
 
 ### Forecast
-Fields: project, target, confidence, band low, band high, predicted metric, eligible flag, reason, pilot details.
+Fields: project, target, confidence, band low, band high, predicted metric, eligible flag, reason, pilot details, `family` (the model type the pilot kept; nullable), `dataset_version_id` (the data the pilot looked at; nullable). `pilot` also holds `cost_samples` (fit times of the kept family).
 
 ### Ledger entry (append-only)
 Fields: project, kind (`compute_capture`, `fee_capture`), positive amount charged to the buyer, unique key, time. A void moves no money and is recorded on the hold, not in the ledger.
@@ -95,3 +95,7 @@ There are no migrations. `python -m app.db.init --check` reports what an existin
 
 - How long traces and model files are kept.
 - Whether cleaned versions are stored in full or as change lists.
+
+## 6. Added 2026-11-07 (nullable columns; `python -m app.db.init --upgrade --yes` adds them)
+
+`forecasts.family`, `forecasts.dataset_version_id`, `quotes.family`, `quotes.dataset_version_id`, `models.family`. A guided data fix adds a `dataset_versions` row with `parent_id` set and `notes` describing the change; the locked test rows always come from the root version (no new table or column for that: the split files `splits/<version id>/work.csv` and `locked.csv` of a child are derived from its parent's).

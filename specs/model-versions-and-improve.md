@@ -1,6 +1,6 @@
 # Design: better results (change model or data) and model versions
 
-Status: DESIGN ONLY, 2026-11-07. Nothing here is built. Open questions for the owner are at the end; no code until they are answered.
+Status: BUILT 2026-11-07 for options A and B-small and for model versions (see section 8 for what exists and what was decided). Option C (auto search) and an S3 `Storage` provider are not built.
 
 ## 1. Why
 
@@ -78,3 +78,24 @@ What breaks and must change: `model_use.current_model`, `describe`, `predict_one
 4. Maximum free approach trials per project?
 5. Is an S3 `Storage` provider in scope before 2026-11-12, or is local storage acceptable for the demo?
 6. How should the quote card name the model type in plain words without implying a better result?
+
+## 8. Built (2026-11-07) and owner decisions
+
+Owner decisions (final): a fix may remove rows or columns if it is best practice (whitelist only); the original locked test rows stay fixed even if the data shrinks (the locked set belongs to the ROOT dataset version, children inherit it); a second paid run pays full compute again with a new hold; the user may keep an older model in use; at most 3 free approach trials (applied fixes) per project; the quote card names the model type in plain words with the sentence that this is only the type that was tested, not a promise of a better result.
+
+Step 0 (finding): `quotes.create_quote` refused a new quote whenever the earlier quote's hold was in ANY state other than none, voided, expired or declined, so a `released` hold of a finished run blocked the Improve round. Fixed: only a live (`held`) or half-settled (`compute_captured`, `fee_captured`, `fee_skipped`) hold blocks. Tested through the real routes.
+
+A (model family follows the pilot) BUILT:
+- `services/data/families.py` is the one pipeline factory (linear, forest, boosted trees) used by the pilot, the free baseline, the local backend and the SageMaker script (copied verbatim as `aioac_core.families`; `SHARED_MODULES` and its test updated). The script has a `family` hyperparameter; only the forest saves a partial model on SIGTERM.
+- The pilot stores the kept family (`forecasts.family`), the data version it looked at (`forecasts.dataset_version_id`) and fit-time samples of THAT family (`pilot["cost_samples"]`). `create_quote` times the chosen family with them (falls back to the baseline timings for old forecasts).
+- The quote pins `family` and `dataset_version_id`; `training.execute_run` passes the pinned family to the backend; the saved model records `models.family`. The gate refuses `start_training` when the project's data version or the latest forecast's family differs from the quote.
+- UI: forecast card and price card show 'Model type' and the not-a-promise sentence (`model_type` in the forecast, quote and project views and in the chat quote block).
+
+B-small (one guided fix) BUILT:
+- `services/data/fixes.py`: whitelist of two fixes (`drop_duplicate_rows`, `drop_mostly_empty_columns`: missing in more than 50% of rows; the answer column is never dropped). `propose_fix` has no side effect; `apply_fix` makes a child `DatasetVersion` (`parent_id`, `notes`), moves `projects.chosen_dataset_version_id`, expires the old quote, sends the project back to `data_chosen` (`lifecycle.reopen_for_new_data`, only from `baseline_done` or `quoted`) and re-runs the free readiness check and free test, ending at `baseline_done` so the free pilot is run again. Honest note shown to the user: training already ignores repeated rows, so the duplicate fix mostly tidies the saved copy; the pilot is re-run to see whether the estimate moved.
+- Locked rows: `verification.split_for` walks `parent_id`; a child's locked rows are the root's locked rows (rows compared by content on the columns the child keeps), every other child row is work. No locked row can be in a child's work set; the work set may shrink. A root version is split exactly as before.
+- Gate: `Action.CLEAN` is level 1. The route `POST /chats/{id}/fix/apply` is the click; the agent's `apply_data_fix` shows an approval card (rows removed, columns dropped, before and after, built by the server).
+- Limit: `max_fixes_per_project` = 3 applied fixes, then a plain message.
+- Agent: `propose_data_fix` (free, read-only) and `apply_data_fix` (level 1), offered at `baseline_done` and `quoted`.
+- UI: 'Try a fix (free)' on the Not-eligible card, a confirm card, the approval card in chat, a before and after block when the pilot is re-run on the fixed data.
+- Not built: option C, fixes that add derived information, undo of a fix (the original version stays saved and the history shows both), an S3 `Storage` provider.
