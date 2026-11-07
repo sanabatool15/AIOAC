@@ -350,3 +350,23 @@ def test_activity_shows_exact_charges_and_a_skipped_fee(api, session, trained):
     assert "Charged $0.52 for the compute used" in texts
     assert "No success fee: the target was not verified" in texts
     assert "Released $0.04 of the hold; it was never charged" in texts
+
+
+def test_activity_shows_a_finished_step_while_the_turn_is_still_running(api, session, project):
+    """The chat polls /activity during a turn. The turn lock must not block it, and a step already saved must appear."""
+    from app.services.agent import loop
+    t = TraceRepository(session)
+    t.add(project.id, "user", {"text": "predict loan default"})
+    t.add(project.id, "tool_call", {"name": "discover_datasets", "args": {"queries": ["loan default"]}})
+    t.add(project.id, "tool_result", {"name": "discover_datasets", "result": {"candidates": [{"id": "uci:1", "name": "Credit card default"}]}})
+    t.add(project.id, "tool_call", {"name": "look_at_dataset", "args": {"dataset_id": "uci:1"}})  # still running, no result yet
+    loop._acquire(project.id)  # the turn is running
+    try:
+        feed = api.get(f"/projects/{project.id}/activity")
+    finally:
+        loop._release(project.id)
+    assert feed.status_code == 200
+    texts = [f["text"] for f in feed.json()]
+    assert 'Found 1 possible dataset: "Credit card default"' in texts
+    assert "Looking at a dataset…" in texts
+    assert "uci:" not in " ".join(texts)
