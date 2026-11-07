@@ -91,6 +91,14 @@ export interface ChatItem {
 export const getMessages = (projectId: string) =>
   api<StoredMessage[]>(`/projects/${projectId}/messages`);
 
+// What the assistant is doing, in plain sentences built by the server (specs/api.md D). Free: no model call.
+export interface ActivityLine {
+  when: string;
+  kind: string;
+  text: string;
+}
+export const getActivity = (projectId: string) => api<ActivityLine[]>(`/projects/${projectId}/activity`);
+
 // The only function that talks to the model. `approve` carries the card's tool name and nothing else.
 export const postChat = (projectId: string, body: { message?: string; approve?: string[] }) =>
   api<ChatReply>(`/projects/${projectId}/chat`, { body });
