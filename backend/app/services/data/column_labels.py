@@ -33,7 +33,7 @@ SYSTEM_PROMPT = (
     "Reply with ONLY one JSON object that maps each column name, exactly as given, to its label. No other text."
 )
 
-_MARKUP = re.compile(r"<[^>]*>|[`*_#\[\]{}|\\]|https?://\S+")
+_MARKUP = re.compile(r"<[^>]*>|[`*#\[\]{}|\\]|https?://\S+")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
@@ -101,8 +101,4 @@ def labels_for(session: Session, llm: LLMClient | None, version: DatasetVersion,
         repo.save(session, version.id, labels, getattr(llm, "model", None))
         return labels
     except Exception:
-        try:
-            session.rollback()
-        except Exception:
-            pass
         return {}
