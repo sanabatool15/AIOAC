@@ -67,7 +67,7 @@ export function PublicResultScreen({ token }: { token: string }) {
               {v.verified ? (
                 <Card variant={v.verified.passed ? "green" : "amber"} aria-label="Verified result" className="gap-2 p-5">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-muted">VERIFIED RESULT</p>
+                    <p className="text-xs font-semibold text-muted">VERIFIED RESULT{v.versionLabel ? ` · ${v.versionLabel.toUpperCase()}` : ""}</p>
                     <Tag variant={v.verified.passed ? "success" : "muted"}>{v.verified.passed ? "TARGET REACHED" : "TARGET NOT REACHED"}</Tag>
                   </div>
                   <div className="flex gap-3">

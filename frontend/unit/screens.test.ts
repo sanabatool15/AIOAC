@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatWhen, overviewLine, paymentStateLabel, runStatusLabel, toActivity, toHistory } from "../lib/screens";
-import type { BActivityItem, BHistory } from "../lib/api";
+import { compareLine, formatWhen, overviewLine, paymentStateLabel, runStatusLabel, toActivity, toHistory, toVersions } from "../lib/screens";
+import type { BActivityItem, BHistory, BModelVersion } from "../lib/api";
 import { sx } from "./fixtures-screens";
 
 const history = sx.history as unknown as BHistory;
@@ -42,7 +42,7 @@ test("history from the real body: dollars, out of 100, no raw ids as text", () =
 
 test("history of a new project is empty and well formed", () => {
   const v = toHistory({ versions: [], runs: [], quotes: [], payment: null });
-  assert.deepEqual(v, { versions: [], runs: [], quotes: [], payment: null });
+  assert.deepEqual(v, { versions: [], runs: [], quotes: [], payment: null, payments: [] });
   assert.deepEqual(toHistory(null).runs, []);
 });
 
@@ -194,7 +194,7 @@ test("public view reads the real public body: out of 100, estimate note, nothing
   assert.match(v.note, /estimates/);
   const text = JSON.stringify(v);
   assert.doesNotMatch(text, /\$|@|payment|email|cents/i);
-  assert.deepEqual(Object.keys(v).sort(), ["answerColumn", "dataset", "finished", "freeTest", "goal", "note", "verified"]);
+  assert.deepEqual(Object.keys(v).sort(), ["answerColumn", "dataset", "finished", "freeTest", "goal", "note", "verified", "versionLabel"]);
 });
 
 test("public view copes with a project that has not finished", () => {
@@ -204,4 +204,78 @@ test("public view copes with a project that has not finished", () => {
   assert.equal(v.freeTest, null);
   assert.match(v.note, /estimates/);
   assert.equal(PUBLIC_NOT_AVAILABLE, "This link is not available");
+});
+
+const ver = (n: number, value: number | null, extra: Partial<BModelVersion> = {}): BModelVersion => ({
+  model_id: `m${n}`,
+  version_no: n,
+  created_at: "2026-11-06T17:13:05",
+  is_current: false,
+  accuracy: 0.8,
+  simple_guess_accuracy: 0.7,
+  verified_value: value,
+  target: 0.8,
+  passed: value === null ? null : value >= 0.8,
+  dataset_version_id: "d1",
+  dataset_rows: 1500,
+  usable: true,
+  ...extra,
+});
+
+test("versions read in plain words: out of 100 on rows it never saw, an estimate, In use flag", () => {
+  const v = toVersions([ver(2, 0.9, { is_current: true }), ver(1, 0.55)]);
+  assert.equal(v[0].title, "Version 2");
+  assert.equal(v[0].result, "About 90 out of 100 right on rows it never saw (an estimate).");
+  assert.equal(v[0].inUse, true);
+  assert.equal(v[1].inUse, false);
+  assert.equal(v[1].reached, false);
+  assert.match(toVersions([ver(1, null)])[0].result, /No final check/);
+  assert.deepEqual(toVersions(null), []);
+});
+
+test("the compare line appears only for two versions on the same data and says it is an estimate", () => {
+  assert.equal(
+    compareLine([ver(2, 0.9), ver(1, 0.87)]),
+    "Version 2 is 3 points better than version 1 (an estimate from rows neither model saw).",
+  );
+  assert.match(compareLine([ver(2, 0.8), ver(1, 0.85)]) ?? "", /Version 2 is 5 points worse than version 1/);
+  assert.match(compareLine([ver(2, 0.85), ver(1, 0.85)]) ?? "", /about the same/);
+  assert.match(compareLine([ver(2, 0.86), ver(1, 0.85)]) ?? "", /1 point better/);
+  assert.equal(compareLine([ver(2, 0.9, { dataset_version_id: "d2" }), ver(1, 0.87)]), null); // different data: not comparable
+  assert.equal(compareLine([ver(2, 0.9, { dataset_version_id: null }), ver(1, 0.87, { dataset_version_id: null })]), null);
+  assert.equal(compareLine([ver(1, 0.87)]), null);
+  assert.equal(compareLine([ver(2, null), ver(1, 0.87)]), null);
+  assert.equal(compareLine([]), null);
+});
+
+test("history shows every payment and labels rounds and versions", () => {
+  const pay = (id: string) => ({ ...(history.payment as NonNullable<BHistory["payment"]>), payment_id: id });
+  const h = {
+    ...history,
+    payments: [pay("a"), pay("b")],
+    runs: [
+      { ...history.runs[0], id: "r2", round: 2, version_no: 2 },
+      { ...history.runs[0], id: "r1", round: 1, version_no: 1 },
+    ],
+  } as BHistory;
+  const v = toHistory(h);
+  assert.equal(v.payments.length, 2);
+  assert.equal(v.payments[1].held, "$0.56");
+  assert.deepEqual(v.runs.map((r) => [r.round, r.versionNo]), [[2, 2], [1, 1]]);
+});
+
+test("the public view names only the version in use", () => {
+  const r: BPublicResult = {
+    goal: "g",
+    status: "done",
+    dataset: null,
+    baseline: null,
+    verification: { value: 0.9, target: 0.8, passed: true },
+    version_no: 2,
+    finished_at: null,
+    is_estimate_note: "n",
+  };
+  assert.equal(toPublic(r).versionLabel, "Version 2");
+  assert.equal(toPublic({ ...r, version_no: null }).versionLabel, null);
+  assert.equal(toPublic({ ...r, version_no: undefined }).versionLabel, null);
 });

@@ -144,6 +144,9 @@ export interface BHistory {
       simple_guess_accuracy?: number;
       verification?: { value: number; target: number; passed: boolean };
     } | null;
+    round?: number; // 1 = the first attempt
+    version_no?: number | null; // the model version this run saved
+    dataset_version_id?: string | null;
   }[];
   quotes: {
     id: string;
@@ -155,6 +158,7 @@ export interface BHistory {
     created_at: string;
   }[];
   payment: BReceipt | null;
+  payments?: (BReceipt & { quote_id?: string | null; created_at?: string | null })[]; // every hold, oldest first
 }
 
 export interface BActivityItem {
@@ -173,6 +177,9 @@ export type BModel =
   | { available: false }
   | {
       available: true;
+      model_id?: string;
+      version_no?: number | null;
+      is_current?: boolean;
       trained_at: string;
       target: string;
       accuracy: number | null;
@@ -185,6 +192,21 @@ export type BModel =
       columns: BModelColumn[];
       classes: string[];
     };
+// One saved model of a project (GET /projects/{id}/model/versions, newest first).
+export interface BModelVersion {
+  model_id: string;
+  version_no: number;
+  created_at: string;
+  is_current: boolean;
+  accuracy: number | null;
+  simple_guess_accuracy: number | null;
+  verified_value: number | null; // 0 to 1, score on rows the model never saw (an estimate)
+  target: number | null;
+  passed: boolean | null;
+  dataset_version_id: string | null;
+  dataset_rows: number | null;
+  usable: boolean;
+}
 export interface BPredict {
   prediction: string | number;
   probabilities: Record<string, number> | null;
@@ -224,6 +246,7 @@ export interface BPublicResult {
   dataset: { name: string; rows: number; target: string } | null;
   baseline: { accuracy: number; simple_guess_accuracy: number } | null;
   verification: { value: number; target: number; passed: boolean } | null;
+  version_no?: number | null; // the version in use; no other version is ever shown
   finished_at: string | null;
   is_estimate_note: string;
 }

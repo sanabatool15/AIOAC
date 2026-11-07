@@ -13,6 +13,7 @@ import {
   type BPublicResult,
   type BShare,
   type BModel,
+  type BModelVersion,
   type BPredict,
   type BOrder,
   type BProject,
@@ -98,16 +99,21 @@ export const getPublicResult = (token: string) =>
   api<BPublicResult>(`/public/results/${encodeURIComponent(token)}`);
 
 // ---- the trained model (free: no gate, no money) ----
-export const getModel = (id: string) => api<BModel>(`/projects/${id}/model`);
-export const predictOne = (id: string, record: Record<string, string | number>) =>
-  api<BPredict>(`/projects/${id}/predict`, { body: { record } });
-export const predictBatch = (id: string, csvText: string) =>
-  api<BBatch>(`/projects/${id}/predict-batch`, { body: { csv_text: csvText } });
+// `modelId` picks a saved version; leave it out for the version in use.
+const withModel = (path: string, modelId?: string) => (modelId ? `${path}?model_id=${encodeURIComponent(modelId)}` : path);
+export const getModel = (id: string, modelId?: string) => api<BModel>(withModel(`/projects/${id}/model`, modelId));
+export const getModelVersions = (id: string) => api<BModelVersion[]>(`/projects/${id}/model/versions`);
+export const switchModelVersion = (id: string, modelId: string) =>
+  api<{ model_id: string; version_no: number; is_current: boolean }>(`/projects/${id}/model/${encodeURIComponent(modelId)}/use`, { method: "POST" });
+export const predictOne = (id: string, record: Record<string, string | number>, modelId?: string) =>
+  api<BPredict>(withModel(`/projects/${id}/predict`, modelId), { body: { record } });
+export const predictBatch = (id: string, csvText: string, modelId?: string) =>
+  api<BBatch>(withModel(`/projects/${id}/predict-batch`, modelId), { body: { csv_text: csvText } });
 // The saved model as a file. Returns the bytes and the scikit-learn version it needs (from X-Requires-Scikit-Learn).
-export async function downloadModel(id: string): Promise<{ blob: Blob; sklearn: string | null; filename: string }> {
+export async function downloadModel(id: string, modelId?: string): Promise<{ blob: Blob; sklearn: string | null; filename: string }> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/projects/${id}/model/download`, { credentials: "include" });
+    res = await fetch(`${API_BASE_URL}${withModel(`/projects/${id}/model/download`, modelId)}`, { credentials: "include" });
   } catch {
     throw new ApiError("We could not reach the server. Check that it is running, then try again.", 0);
   }

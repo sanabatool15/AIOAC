@@ -7,10 +7,10 @@ import { Field, Input } from "@/components/ui/input";
 import { ErrorState, Skeleton } from "@/components/ui/state";
 import { Tag } from "@/components/ui/tag";
 import { outOf100 } from "@/lib/adapters";
-import type { BBatch, BModel, BModelColumn } from "@/lib/api";
-import { downloadModel, getModel, predictBatch, predictOne } from "@/lib/api-real";
+import type { BBatch, BModel, BModelColumn, BModelVersion } from "@/lib/api";
+import { downloadModel, getModel, getModelVersions, predictBatch, predictOne, switchModelVersion } from "@/lib/api-real";
 import { useAsync } from "@/lib/hooks";
-import { batchProblem, buildRecord, cellText, fileSize, formatWhen, sklearnNote, toPrediction, type PredictionView } from "@/lib/screens";
+import { batchProblem, buildRecord, cellText, compareLine, fileSize, formatWhen, sklearnNote, toPrediction, toVersions, type PredictionView } from "@/lib/screens";
 import { ErrorLine, useAction } from "./step-parts";
 
 type Available = Extract<BModel, { available: true }>;
@@ -26,9 +26,13 @@ function saveFile(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// The Model tab: use the trained model (free, no payment). Everything comes from GET /model and the predict routes.
+// The Model tab: use the trained model (free, no payment). Everything comes from GET /model, GET /model/versions and the predict routes.
 export function ModelTab({ projectId }: { projectId: string }) {
-  const { data, error, loading, retry } = useAsync(() => getModel(projectId), projectId);
+  const [tryId, setTryId] = useState<string | undefined>(undefined); // undefined = the version in use
+  const [bump, setBump] = useState(0);
+  const model = useAsync(() => getModel(projectId, tryId), `${projectId}-${tryId ?? "current"}-${bump}`);
+  const vers = useAsync(() => getModelVersions(projectId).catch(() => [] as BModelVersion[]), `${projectId}-${bump}`);
+  const { data, error, loading, retry } = model;
   if (loading && !data) return <Skeleton className="h-40" />;
   if (error || !data) return <ErrorState message={error?.message ?? "The model could not be loaded."} onRetry={retry} />;
   if (!data.available) {
@@ -46,15 +50,114 @@ export function ModelTab({ projectId }: { projectId: string }) {
       </Card>
     );
   }
-  return <Available projectId={projectId} model={data} />;
+  const list = vers.data ?? [];
+  return (
+    <>
+      {list.length > 0 && (
+        <VersionsCard
+          projectId={projectId}
+          list={list}
+          onUsed={() => {
+            setTryId(undefined);
+            setBump((n) => n + 1);
+          }}
+        />
+      )}
+      <Available projectId={projectId} model={data} list={list} tryId={tryId} onPick={setTryId} />
+    </>
+  );
 }
 
-function Available({ projectId, model }: { projectId: string; model: Available }) {
+// Every saved version of the model, newest first. "Use this version" is free and changes which one is in use.
+function VersionsCard({ projectId, list, onUsed }: { projectId: string; list: BModelVersion[]; onUsed: () => void }) {
+  const views = toVersions(list);
+  const line = compareLine(list);
+  const { busy, error, run } = useAction();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  return (
+    <Card aria-label="Versions" className="gap-3 p-5">
+      <h2 className="text-base font-semibold text-ink">Versions</h2>
+      <p className="text-sm leading-5 text-ink-2">
+        Each paid run saves a new version. A newer version that scored worse does not replace a better one by itself. Switching is free.
+      </p>
+      {line && (
+        <p data-testid="compare-line" className="text-sm font-semibold text-ink">
+          {line}
+        </p>
+      )}
+      <ul className="flex flex-col gap-2">
+        {views.map((v) => (
+          <li key={v.id} aria-label={v.title} className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-ink">
+                {v.title} <span className="font-normal text-muted">· {v.when}</span>
+              </p>
+              <div className="flex items-center gap-2">
+                {v.reached !== null && <Tag variant={v.reached ? "success" : "muted"}>{v.reached ? "TARGET REACHED" : "TARGET NOT REACHED"}</Tag>}
+                {v.inUse && <Tag variant="success">In use</Tag>}
+              </div>
+            </div>
+            <p className="text-sm leading-5 text-ink-2">{v.result}</p>
+            <div className="flex gap-2">
+              {!v.inUse && (
+                <Button
+                  size="md"
+                  disabled={busy}
+                  onClick={() => {
+                    setBusyId(v.id);
+                    void run(async () => {
+                      await switchModelVersion(projectId, v.id);
+                      onUsed();
+                    });
+                  }}
+                >
+                  {busy && busyId === v.id ? "Switching…" : "Use this version"}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="md"
+                disabled={busy}
+                onClick={() => {
+                  setBusyId(v.id);
+                  void run(async () => {
+                    const f = await downloadModel(projectId, v.id);
+                    saveFile(f.blob, f.filename);
+                  });
+                }}
+              >
+                Download
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <ErrorLine message={error} />
+    </Card>
+  );
+}
+
+function Available({
+  projectId,
+  model,
+  list,
+  tryId,
+  onPick,
+}: {
+  projectId: string;
+  model: Available;
+  list: BModelVersion[];
+  tryId: string | undefined;
+  onPick: (id: string | undefined) => void;
+}) {
+  const current = list.find((v) => v.is_current);
   return (
     <>
       <Card variant="violet" aria-label="Your model" className="gap-2 p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-ink">Your trained model</h2>
+          <h2 className="text-base font-semibold text-ink">
+            {model.version_no ? `Version ${model.version_no} of your model` : "Your trained model"}
+          </h2>
           <Tag variant={model.usable ? "success" : "muted"}>{model.usable ? "READY TO USE" : "CANNOT RUN HERE"}</Tag>
         </div>
         <p className="text-sm leading-5 text-ink-2">
@@ -62,11 +165,28 @@ function Available({ projectId, model }: { projectId: string; model: Available }
           {outOf100(model.accuracy)} right, a simple guess: {outOf100(model.simple_guess_accuracy)}.
         </p>
         <p className="text-xs text-muted">{model.is_estimate_note}</p>
+        {list.length > 1 && (
+          <Field label="Which version to try" htmlFor="try-version">
+            <select
+              id="try-version"
+              value={tryId ?? current?.model_id ?? ""}
+              onChange={(e) => onPick(e.target.value === current?.model_id ? undefined : e.target.value)}
+              className="w-full rounded-lg border border-border bg-white px-3.5 py-[11px] text-sm text-ink shadow-btn-neutral outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand-edge"
+            >
+              {list.map((v) => (
+                <option key={v.model_id} value={v.model_id}>
+                  Version {v.version_no}
+                  {v.is_current ? " (in use)" : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
       </Card>
       {model.usable ? (
         <>
-          <OneRecord projectId={projectId} columns={model.columns} />
-          <BatchCard projectId={projectId} />
+          <OneRecord key={`one-${model.model_id ?? "m"}`} projectId={projectId} columns={model.columns} modelId={tryId} />
+          <BatchCard key={`batch-${model.model_id ?? "m"}`} projectId={projectId} modelId={tryId} />
         </>
       ) : (
         <Card variant="amber" aria-label="Why it cannot run here" className="gap-2 p-5">
@@ -75,12 +195,12 @@ function Available({ projectId, model }: { projectId: string; model: Available }
           <p className="text-sm leading-5 text-ink-2">You can still download it and open it yourself.</p>
         </Card>
       )}
-      <DownloadCard projectId={projectId} model={model} />
+      <DownloadCard projectId={projectId} model={model} modelId={tryId} />
     </>
   );
 }
 
-function OneRecord({ projectId, columns }: { projectId: string; columns: BModelColumn[] }) {
+function OneRecord({ projectId, columns, modelId }: { projectId: string; columns: BModelColumn[]; modelId?: string }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [result, setResult] = useState<PredictionView | null>(null);
   const { busy, error, run, setError } = useAction();
@@ -94,7 +214,7 @@ function OneRecord({ projectId, columns }: { projectId: string; columns: BModelC
     }
     void run(async () => {
       setResult(null);
-      setResult(toPrediction(await predictOne(projectId, record)));
+      setResult(toPrediction(await predictOne(projectId, record, modelId)));
     });
   }
 
@@ -162,7 +282,7 @@ function OneRecord({ projectId, columns }: { projectId: string; columns: BModelC
   );
 }
 
-function BatchCard({ projectId }: { projectId: string }) {
+function BatchCard({ projectId, modelId }: { projectId: string; modelId?: string }) {
   const input = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [out, setOut] = useState<BBatch | null>(null);
@@ -185,7 +305,7 @@ function BatchCard({ projectId }: { projectId: string }) {
     }
     void run(async () => {
       setOut(null);
-      setOut(await predictBatch(projectId, text));
+      setOut(await predictBatch(projectId, text, modelId));
     });
   }
 
@@ -256,7 +376,7 @@ function BatchCard({ projectId }: { projectId: string }) {
   );
 }
 
-function DownloadCard({ projectId, model }: { projectId: string; model: Available }) {
+function DownloadCard({ projectId, model, modelId }: { projectId: string; model: Available; modelId?: string }) {
   const { busy, error, run } = useAction();
   const [note, setNote] = useState<string | null>(null);
   return (
@@ -272,7 +392,7 @@ function DownloadCard({ projectId, model }: { projectId: string; model: Availabl
           disabled={busy}
           onClick={() =>
             run(async () => {
-              const f = await downloadModel(projectId);
+              const f = await downloadModel(projectId, modelId);
               saveFile(f.blob, f.filename);
               setNote(`Downloaded ${f.filename}. ${sklearnNote(f.sklearn ?? model.sklearn_version)}`);
             })
