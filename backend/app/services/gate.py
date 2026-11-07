@@ -29,8 +29,8 @@ class Action(str, Enum):
 
 
 LEVEL = {
-    Action.SEARCH: 0, Action.DISCOVER: 0, Action.FETCH: 0, Action.ANALYZE: 0, Action.BASELINE: 0, Action.CLEAN: 0, Action.CREATE_QUOTE: 0, Action.PILOT: 0,
-    Action.SELECT_DATASET: 1,
+    Action.SEARCH: 0, Action.DISCOVER: 0, Action.FETCH: 0, Action.ANALYZE: 0, Action.BASELINE: 0, Action.CREATE_QUOTE: 0, Action.PILOT: 0,
+    Action.SELECT_DATASET: 1, Action.CLEAN: 1,   # CLEAN changes the user's data (a guided fix): needs their approval
     Action.REQUEST_PAYMENT: 2, Action.START_TRAINING: 2,
 }
 

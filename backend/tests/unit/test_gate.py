@@ -18,6 +18,13 @@ def test_l1_needs_user_approval(session, project):
     gate.authorize(session, project, gate.Action.SELECT_DATASET, user_approved=True)
 
 
+def test_changing_the_users_data_needs_their_approval(session, project):
+    assert gate.LEVEL[gate.Action.CLEAN] == 1
+    with pytest.raises(gate.NeedsApproval):
+        gate.authorize(session, project, gate.Action.CLEAN)
+    gate.authorize(session, project, gate.Action.CLEAN, user_approved=True)
+
+
 def test_payment_needs_approved_unexpired_quote(session, project):
     with pytest.raises(gate.GateDenied):
         gate.authorize(session, project, gate.Action.REQUEST_PAYMENT)
