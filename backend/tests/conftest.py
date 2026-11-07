@@ -101,7 +101,7 @@ def provider():
 
 @pytest.fixture
 def project(session, user):
-    p = Project(goal="predict which customers leave", user_id=user.id, org_id=user.org_id)
+    p = Project(goal="predict which customers leave. I have no data.", user_id=user.id, org_id=user.org_id)
     session.add(p)
     session.commit()
     return p

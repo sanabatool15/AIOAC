@@ -36,6 +36,9 @@ def test_full_flow_through_the_launcher(server):
     pid = c.post("/projects", json={"goal": "predict which customers will leave"}).json()["id"]
 
     r = c.post(f"/projects/{pid}/chat", json={"message": "predict which customers will leave"}).json()
+    assert r["status"] == "reply" and r["card"] is None, r  # no search before the user chose "I have no data"
+    assert c.get(f"/projects/{pid}/activity").json() == [] or "Searched" not in str(c.get(f"/projects/{pid}/activity").json())
+    r = c.post(f"/projects/{pid}/chat", json={"message": "I have no data. Please find a dataset."}).json()
     assert r["status"] == "awaiting_approval", r
     card = r["card"]
     assert card["tool"] == "select_dataset" and card["detail"]["target"] == "left" and card["detail"]["rows"] and "predict the column" in card["what"]

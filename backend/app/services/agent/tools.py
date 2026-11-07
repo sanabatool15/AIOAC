@@ -18,7 +18,7 @@ from ..data.samples import CATALOG
 from ..data import analysis, datasets, discovery, pilot
 from ..cost import cost, quotes
 from .. import gate, payments, training
-from . import clarity, memory, skills, target as target_rule
+from . import clarity, data_choice, memory, skills, target as target_rule
 from ...repositories.traces import TraceRepository
 from ..data.insights import analyze
 from .context import mark, sanitise_license
@@ -86,7 +86,11 @@ def _bad_id(did: str) -> dict:
 
 
 def _needs_clarity(ctx) -> dict | None:
-    """Vague goal: ask before searching (see clarity.py)."""
+    """Search only after the user chose it (data_choice.py), and only for a goal that names an outcome (clarity.py)."""
+    texts = memory.user_texts(ctx.session, ctx.project)
+    if not data_choice.wants_search(texts):
+        ctx.emit("waiting_for_choice", "INFO")
+        return {"waiting_for_choice": True, "advice": data_choice.WAITING_HINT}
     if clarity.is_clear(memory.user_texts(ctx.session, ctx.project)):
         return None
     ctx.emit("need_clarity", "INFO")

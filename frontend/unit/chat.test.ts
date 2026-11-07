@@ -1,7 +1,7 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/api";
-import { bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
+import { askedForSearch, NO_DATA_MESSAGE, bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
 
 // Shapes follow specs/api.md A2 and backend/tests/e2e/test_chat_blocks.py.
 const PID = "p1";
@@ -130,4 +130,13 @@ test("card facts: target_meaning is optional and null is fine", () => {
   assert.equal(cardFacts({ ...card, detail: bare })[3].note, undefined);
   assert.equal(cardFacts({ ...card, detail: { ...detail, target_meaning: null } })[3].note, undefined);
   assert.deepEqual(cardFacts(card), []);
+});
+
+test("only the 'no data' choice counts as asking for a search", () => {
+  const u = (text: string) => ({ role: "user", text });
+  assert.equal(askedForSearch(null), false);
+  assert.equal(askedForSearch([u("I want to predict churn")]), false);
+  assert.equal(askedForSearch([u("I want to predict churn"), u(NO_DATA_MESSAGE)]), true);
+  assert.equal(askedForSearch([u(NO_DATA_MESSAGE), { role: "assistant", text: "ok" }]), true);
+  assert.equal(askedForSearch([u(NO_DATA_MESSAGE), u("something else")]), false);
 });

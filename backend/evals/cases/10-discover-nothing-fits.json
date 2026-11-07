@@ -19,5 +19,8 @@
     ],
     "target": "left"
   },
-  "expect_english_queries": true
+  "expect_english_queries": true,
+  "followups": [
+    "I have no data. Please find a dataset."
+  ]
 }

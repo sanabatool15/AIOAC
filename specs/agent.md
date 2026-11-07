@@ -80,6 +80,7 @@ Status: sections 3.1 to 3.5 are the original design. Section 3.6 lists what actu
 
 ### 3.6 Implemented dataset tools (MVP)
 
+- Data-choice gate (2026-11-07): at `described` the screen shows three choices (upload a CSV, paste a link, "I have no data"). `discover_datasets` and `search_datasets` answer `{waiting_for_choice: true, advice}` until the user's own text says they have no data or asks for a search (`services/agent/data_choice.py`, checked from stored messages like `clarity.py`; English, Roman Urdu and Urdu phrases). The "no data" choice sends `I have no data. Please find a dataset.`
 - `discover_datasets` (2026-10-25): the tool to use when the user has no data. The model gives a goal summary and 2 or 3 short English phrases; code searches the hand-checked list, UCI, OpenML and Hugging Face, removes copies, ranks, and returns the top 3 with plain reasons, or `nothing_fits`. Level 0. Details: `specs/agent/11-dataset-discovery.md` and `specs/agent/03-tools-reference.md`.
 
 - `search_datasets`: bundled samples plus Hugging Face. Hugging Face is searched twice (tagged as tabular classification first, then untagged) and merged, because good datasets are often untagged.

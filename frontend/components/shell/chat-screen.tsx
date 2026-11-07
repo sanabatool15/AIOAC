@@ -1,13 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Skeleton } from "@/components/ui/state";
 import { ApiError, type BProject } from "@/lib/api";
 import { getProject, rememberProject } from "@/lib/api-real";
 import { isSettling, screenFor, STEP_LABELS, stepIndex } from "@/lib/status";
 import { ChatComposer, ChatThread, useProjectChat } from "./project-chat";
-import { UploadPanel } from "./data-upload";
+import { DataPicker } from "./data-picker";
 import { InlineChatFrame } from "./inline-chat";
 import { Stepper } from "./step-parts";
 import { StepArea } from "./step-area";
@@ -63,7 +62,6 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
 function Project({ project, error, reload }: { project: BProject; error: Error | null; reload: () => Promise<void> }) {
   const pc = useProjectChat(project.id, project.goal, project.status, reload);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const screen = screenFor(project);
   const idx = stepIndex(screen);
   const onData = screen === "data";
@@ -80,7 +78,7 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
       projectName={project.goal.length > 48 ? `${project.goal.slice(0, 48)}…` : project.goal}
       stepLabel={`Step ${idx + 1} of ${STEP_LABELS.length}: ${STEP_LABELS[idx]}`}
       wide
-      composer={<ChatComposer pc={pc} onAttach={onData ? () => setUploadOpen(true) : undefined} />}
+      composer={<ChatComposer pc={pc} />}
     >
       <Stepper index={idx} />
       {error && (
@@ -93,20 +91,7 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
       )}
       <ChatThread pc={pc} projectStatus={project.status} />
       {!onData && <StepArea screen={screen} project={project} onChanged={reload} />}
-      {onData && (
-        <div className="flex flex-col gap-3">
-          <Button
-            variant="outline"
-            className="w-fit"
-            aria-expanded={uploadOpen}
-            onClick={() => setUploadOpen((o) => !o)}
-          >
-            {uploadOpen ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
-            {uploadOpen ? "Hide the upload option" : "Or upload my own CSV"}
-          </Button>
-          {uploadOpen && <UploadPanel projectId={project.id} onChanged={reload} />}
-        </div>
-      )}
+      {onData && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
       <div ref={bottom} />
     </InlineChatFrame>
   );

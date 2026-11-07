@@ -40,6 +40,8 @@ def _tool_line(name: str, args: dict, result: dict) -> tuple[str, str] | None:
         result = {}
     if result.get("error"):
         return "problem", "One step did not work, so the assistant tried another way"
+    if result.get("waiting_for_choice"):
+        return "question", "Waiting for you to choose how to bring your data"
     if result.get("need_clarity"):
         return "question", "Asked what you want to predict before searching"
     if name in ("search_datasets", "discover_datasets"):
