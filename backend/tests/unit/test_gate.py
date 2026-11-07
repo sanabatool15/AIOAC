@@ -73,3 +73,47 @@ def test_a_hold_that_is_not_held_does_not_count(session, project):
 
 def test_pilot_is_free(session, project):
     gate.authorize(session, project, gate.Action.PILOT)
+
+
+# ---- the quote pins the data version and the model type (HUMAN REVIEW) --------------------------------------
+def _paid_with_quote(session, project, **pins):
+    q = make_quote(session, project)
+    for k, v in pins.items():
+        setattr(q, k, v)
+    project.status = "paid"
+    session.add(Payment(project_id=project.id, quote_id=q.id, provider="mock", provider_order_id="o", amount_cents=700,
+                        verified=True, state="held"))
+    session.commit()
+    return q
+
+
+def test_training_refused_when_the_data_version_changed_after_the_quote(session, project):
+    project.chosen_dataset_version_id = "v2"
+    _paid_with_quote(session, project, dataset_version_id="v1", family="forest")
+    with pytest.raises(gate.NotReady, match="data changed"):
+        gate.authorize(session, project, gate.Action.START_TRAINING)
+
+
+def test_training_refused_when_the_model_type_changed_after_the_quote(session, project):
+    from app.repositories import forecasts as forecasts_repo
+    project.chosen_dataset_version_id = "v1"
+    forecasts_repo.add(session, project_id=project.id, target=0.8, predicted_metric=0.8, band_low=0.7, band_high=0.9,
+                       confidence=0.8, eligible=True, pilot={}, family="boosting")
+    _paid_with_quote(session, project, dataset_version_id="v1", family="forest")
+    with pytest.raises(gate.NotReady, match="model type"):
+        gate.authorize(session, project, gate.Action.START_TRAINING)
+
+
+def test_training_allowed_when_pins_match_and_for_old_quotes_without_pins(session, project):
+    from app.repositories import forecasts as forecasts_repo
+    project.chosen_dataset_version_id = "v1"
+    forecasts_repo.add(session, project_id=project.id, target=0.8, predicted_metric=0.8, band_low=0.7, band_high=0.9,
+                       confidence=0.8, eligible=True, pilot={}, family="forest")
+    _paid_with_quote(session, project, dataset_version_id="v1", family="forest")
+    assert gate.authorize(session, project, gate.Action.START_TRAINING) is not None
+
+
+def test_old_quote_without_pins_is_not_checked(session, project):
+    project.chosen_dataset_version_id = "anything"
+    _paid_with_quote(session, project)
+    assert gate.authorize(session, project, gate.Action.START_TRAINING) is not None
