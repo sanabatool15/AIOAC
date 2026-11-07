@@ -28,6 +28,7 @@ from ..repositories.budget import BudgetRepository
 from ..repositories.transactions import rollback
 from ..repositories.traces import TraceRepository
 from . import gate, lifecycle, payments
+from .data import families
 from .data import models as model_versions
 from .data import verification
 from .cost.prices import INSTANCES, PLATFORM_FEE_CENTS, STORAGE_CENTS
@@ -126,10 +127,11 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     def should_stop() -> bool:
         return runs_repo.heartbeat_and_stop_requested(session, run)
 
+    family = quote.family or families.DEFAULT_FAMILY   # the model type the quote priced (the gate checked it is still the one)
     try:
         work_key, locked_key = verification.prepare_split(storage, version.id, version.storage_key, version.target_column)
         res = backend.run(storage.path(work_key), version.target_column, quote.compute_cap_cents,
-                          on_progress=on_progress, should_stop=should_stop, job_key=run.id)
+                          on_progress=on_progress, should_stop=should_stop, job_key=run.id, family=family)
     except Exception as exc:
         rollback(session)
         fail_run(session, provider, run, type(exc).__name__)
@@ -164,7 +166,7 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
         storage.put(key, res.model_bytes)
         try:  # version bookkeeping must never block the settle step below
             model_versions.record_new_model(session, project.id, run.id, key, result, version.id,
-                                            quote.forecast_id, quote.id)
+                                            quote.forecast_id, quote.id, family)
         except Exception:
             rollback(session)
             if not runs_repo.models_for_run(session, run.id):

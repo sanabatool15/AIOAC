@@ -50,7 +50,8 @@ def should_promote(current: Model | None, new_value: float | None, new_passed: b
 
 
 def record_new_model(session: Session, project_id: str, run_id: str, storage_key: str, result: dict,
-                     dataset_version_id: str | None, forecast_id: str | None, quote_id: str | None) -> Model:
+                     dataset_version_id: str | None, forecast_id: str | None, quote_id: str | None,
+                     family: str | None = None) -> Model:
     """Save the model of a finished run as the next version and decide whether it becomes current."""
     v = result.get("verification") or {}
     value, ok = v.get("value"), bool(v.get("passed"))
@@ -58,7 +59,7 @@ def record_new_model(session: Session, project_id: str, run_id: str, storage_key
     number = runs_repo.next_version_no(session, project_id)
     row = runs_repo.add_model(session, project_id, run_id, storage_key, result, version_no=number,
                               dataset_version_id=dataset_version_id, forecast_id=forecast_id, quote_id=quote_id,
-                              verified_value=value, passed=ok if v else None)
+                              verified_value=value, passed=ok if v else None, family=family)
     if should_promote(current, value, ok):
         runs_repo.set_current(session, project_id, row.id)
     elif current is not None and not current.is_current:
