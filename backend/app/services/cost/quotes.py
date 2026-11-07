@@ -24,7 +24,9 @@ def create_quote(session: Session, project: Project) -> Quote:
         raise QuoteError(f"a new quote cannot be made now (the project is '{project.status}')")
     previous = quotes_repo.latest_for_project(session, project.id)
     old = payments_repo.for_quote(session, previous.id) if previous else None
-    if old is not None and old.state not in {"none", "voided", "expired", "declined"}:
+    # A hold that is live (held) or half settled (captures done, remainder not yet released) still blocks a new quote.
+    # A fully settled one (released) belongs to an earlier finished run and must not block the Improve round.
+    if old is not None and old.state in {"held", "compute_captured", "fee_captured", "fee_skipped"}:
         raise QuoteError("a payment hold already exists for the current quote; cancel it before asking for a new quote")
     forecast = forecasts_repo.latest_for_project(session, project.id)
     if forecast is None:
