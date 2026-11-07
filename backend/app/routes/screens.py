@@ -59,27 +59,38 @@ def _guard(call):
 
 
 @router.get("/projects/{pid}/model")
-def model_info(pid: str, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
-    return model_use.describe(s, get_storage(), p)
+def model_info(pid: str, model_id: str | None = None, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
+    return _guard(lambda: model_use.describe(s, get_storage(), p, model_id))
+
+
+@router.get("/projects/{pid}/model/versions")
+def model_versions(pid: str, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
+    return model_use.list_versions(s, get_storage(), p)
+
+
+@router.post("/projects/{pid}/model/{model_id}/use")
+def model_use_version(pid: str, model_id: str, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
+    """Free: choose which saved version is in use. No payment, no gate."""
+    return _guard(lambda: model_use.use_version(s, p, model_id))
 
 
 @router.post("/projects/{pid}/predict")
-def predict(pid: str, body: PredictIn, p: Project = Depends(owned_project), s: Session = Depends(get_session),
+def predict(pid: str, body: PredictIn, model_id: str | None = None, p: Project = Depends(owned_project), s: Session = Depends(get_session),
             user: User = Depends(current_user)):
     _limit(predict_limiter, user.id)
-    return _guard(lambda: model_use.predict_one(s, get_storage(), p, body.record))
+    return _guard(lambda: model_use.predict_one(s, get_storage(), p, body.record, model_id))
 
 
 @router.post("/projects/{pid}/predict-batch")
-def predict_batch(pid: str, body: BatchIn, p: Project = Depends(owned_project), s: Session = Depends(get_session),
+def predict_batch(pid: str, body: BatchIn, model_id: str | None = None, p: Project = Depends(owned_project), s: Session = Depends(get_session),
                   user: User = Depends(current_user)):
     _limit(batch_limiter, user.id)
-    return _guard(lambda: model_use.predict_batch(s, get_storage(), p, body.csv_text))
+    return _guard(lambda: model_use.predict_batch(s, get_storage(), p, body.csv_text, model_id))
 
 
 @router.get("/projects/{pid}/model/download")
-def model_download(pid: str, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
-    data, sklearn_version = _guard(lambda: model_use.download(s, get_storage(), p))
+def model_download(pid: str, model_id: str | None = None, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
+    data, sklearn_version = _guard(lambda: model_use.download(s, get_storage(), p, model_id))
     return Response(content=data, media_type="application/octet-stream",
                     headers={"Content-Disposition": f'attachment; filename="model-{p.id[:8]}.joblib"',
                              "X-Requires-Scikit-Learn": sklearn_version,
