@@ -27,3 +27,24 @@ test("the three-way picker comes first; nothing is searched until 'No data' is c
   await expect(page.getByText("I have no data. Please find a dataset.")).toBeVisible();
   await expect(page.getByLabel("Approval needed")).toBeVisible({ timeout: 30_000 });
 });
+
+test("pasting a dataset link: a bad address is refused in plain words, a good one is fetched and used", async ({ page }) => {
+  await signUp(page);
+  await page.getByRole("link", { name: "Start" }).click();
+  await page.getByLabel("Message AIOAC").fill("I want to predict which customers will leave.");
+  await page.getByLabel("Send message").click();
+  await expect(page).toHaveURL(/\/c\/[0-9a-f]+$/);
+  await page.getByRole("button", { name: /Paste a link to an open dataset/ }).click();
+
+  await page.getByLabel("Dataset link").fill("https://example.com/data.csv");
+  await page.getByRole("button", { name: "Get this dataset" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Hugging Face" })).toBeVisible();
+  await expect(page.getByLabel("Approval needed")).toHaveCount(0); // no search started
+
+  await page.getByLabel("Dataset link").fill("https://huggingface.co/datasets/eval/churn-table");
+  await page.getByRole("button", { name: "Get this dataset" }).click();
+  await expect(page.getByText(/Found a table with 1,500 rows/)).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel("Which column should we predict?").selectOption("left");
+  await page.getByRole("button", { name: "Use this data" }).click();
+  await expect(page.getByRole("button", { name: "Check my data" })).toBeVisible({ timeout: 30_000 });
+});

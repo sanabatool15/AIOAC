@@ -129,7 +129,7 @@ export interface FriendlyError {
 export function chatError(e: unknown): FriendlyError {
   if (e instanceof ApiError) {
     if (e.status === 503) {
-      return { text: "The AI assistant is not set up on this server yet. You can still upload your own CSV file.", unavailable: true };
+      return { text: "The AI assistant is not set up on this server yet. You can still upload your own CSV file or paste a link.", unavailable: true };
     }
     if (e.status === 409) {
       return { text: "The assistant is still working on your last message. Give it a moment, then check again.", busy: true };

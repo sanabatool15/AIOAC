@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { FileUp, Link2, Search } from "lucide-react";
+import { LinkPanel } from "./link-panel";
 import { UploadPanel } from "./data-upload";
 import { NO_DATA_MESSAGE } from "@/lib/chat";
 import type { ProjectChat } from "./project-chat";
@@ -26,10 +27,10 @@ export function DataPicker({ projectId, pc, onChanged }: { projectId: string; pc
           <span className="font-medium text-ink">Upload your own CSV</span>
           <span className="text-muted">A table with one row per case.</span>
         </button>
-        <button type="button" disabled className={`${base} border-border opacity-60`}>
+        <button type="button" aria-pressed={open === "link"} className={`${base} ${open === "link" ? on : off}`} onClick={() => setOpen(open === "link" ? null : "link")}>
           <Link2 aria-hidden className="size-5 text-brand" />
           <span className="font-medium text-ink">Paste a link to an open dataset</span>
-          <span className="text-muted">Coming next.</span>
+          <span className="text-muted">Hugging Face, UCI or OpenML.</span>
         </button>
         <button
           type="button"
@@ -42,6 +43,7 @@ export function DataPicker({ projectId, pc, onChanged }: { projectId: string; pc
           <span className="text-muted">{chatOff ? "The AI assistant is not set up on this server." : "It searches free open datasets for you."}</span>
         </button>
       </div>
+      {open === "link" && <LinkPanel projectId={projectId} onChanged={onChanged} />}
       {open === "upload" && <UploadPanel projectId={projectId} onChanged={onChanged} />}
     </section>
   );

@@ -130,6 +130,11 @@ export const uploadCsv = (id: string, name: string, csvText: string) =>
   api<{ candidate_id: string; rows: number }>(`/projects/${id}/data`, {
     body: { name, csv_text: csvText },
   });
+// A pasted Hugging Face, UCI or OpenML page address. The server refuses every other address (specs/api.md A0).
+export const addDatasetLink = (id: string, url: string) =>
+  api<{ candidate_id: string; rows: number; columns: string[]; suggested_target?: string }>(`/projects/${id}/data/link`, {
+    body: { url },
+  });
 export const selectDataset = (id: string, candidateId: string, target: string) =>
   api<{ rows: number; target: string; status: string }>(
     `/projects/${id}/data/${candidateId}/select`,
