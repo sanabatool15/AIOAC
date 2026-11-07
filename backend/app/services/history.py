@@ -5,6 +5,7 @@ from ..repositories import datasets as datasets_repo
 from ..repositories import payments as payments_repo
 from ..repositories import quotes as quotes_repo
 from ..repositories import training_runs as runs_repo
+from .data import models as versions
 
 
 def result_summary(result: dict | None) -> dict | None:
@@ -26,14 +27,22 @@ def payment_summary(pay) -> dict:
 
 
 def project_history(session: Session, project: Project) -> dict:
-    versions = [{"id": v.id, "parent_id": v.parent_id, "rows": v.rows, "columns": v.columns, "target_column": v.target_column,
+    dataset_versions = [{"id": v.id, "parent_id": v.parent_id, "rows": v.rows, "columns": v.columns, "target_column": v.target_column,
                  "source": v.source, "license": v.license, "notes": v.notes, "created_at": v.created_at}
                 for v in datasets_repo.versions_for_project(session, project.id)]
+    all_runs = runs_repo.all_for_project(session, project.id)  # newest first
+    rounds = {r.id: n for n, r in enumerate(reversed(all_runs), start=1)}  # Round 1 is the oldest attempt
+    rows = runs_repo.models_for_project(session, project.id)
+    numbers = versions.version_numbers(rows)
+    version_of_run = {m.training_run_id: numbers[m.id] for m in rows}
     runs = [{"id": r.id, "status": r.status, "backend": r.backend, "cost_cents": r.cost_cents,
-             "started_at": r.started_at, "finished_at": r.finished_at, "result": result_summary(r.result)}
-            for r in runs_repo.all_for_project(session, project.id)]
+             "started_at": r.started_at, "finished_at": r.finished_at, "result": result_summary(r.result),
+             "round": rounds[r.id], "version_no": version_of_run.get(r.id), "dataset_version_id": r.dataset_version_id}
+            for r in all_runs]
     quotes = [{"id": q.id, "estimate_cents": q.estimate_cents, "low_cents": q.low_cents, "high_cents": q.high_cents,
                "cap_cents": q.cap_cents, "approved": q.approved_at is not None, "created_at": q.created_at}
               for q in quotes_repo.all_for_project(session, project.id)]
-    pay = payments_repo.latest_for_project(session, project.id)
-    return {"versions": versions, "runs": runs, "quotes": quotes, "payment": payment_summary(pay) if pay else None}
+    pays = payments_repo.all_for_project(session, project.id)  # oldest first
+    pay = pays[-1] if pays else None  # `payment` stays the latest, for older screens
+    return {"versions": dataset_versions, "runs": runs, "quotes": quotes, "payment": payment_summary(pay) if pay else None,
+            "payments": [{**payment_summary(p), "quote_id": p.quote_id, "created_at": p.created_at} for p in pays]}

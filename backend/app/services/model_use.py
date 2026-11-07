@@ -17,6 +17,7 @@ from ..db.tables import Model, Project
 from ..ports import Storage
 from ..repositories import datasets as datasets_repo
 from ..repositories import training_runs as runs_repo
+from .data import models as versions
 
 MAX_BATCH_ROWS = 5_000
 MAX_BATCH_BYTES = 5 * 1024 * 1024
@@ -47,15 +48,21 @@ class Loaded:
         self.columns: list[str] = list(getattr(pipeline, "feature_names_in_", self.num + self.cat))
 
 
-def current_model(session: Session, project: Project) -> Model:
-    row = runs_repo.latest_model(session, project.id)
+def current_model(session: Session, project: Project, model_id: str | None = None) -> Model:
+    """The model in use, or the one asked for by id (it must belong to this project)."""
+    if model_id is not None:
+        row = runs_repo.get_model(session, project.id, model_id)
+        if row is None:
+            raise NoModel("that model version was not found")
+        return row
+    row = runs_repo.current_model(session, project.id)
     if row is None:
         raise NoModel("there is no trained model for this project yet")
     return row
 
 
-def load(session: Session, storage: Storage, project: Project) -> Loaded:
-    row = current_model(session, project)
+def load(session: Session, storage: Storage, project: Project, model_id: str | None = None) -> Loaded:
+    row = current_model(session, project, model_id)
     try:
         data = storage.get(row.storage_key)
     except Exception:
@@ -100,19 +107,24 @@ def _choices(m: Loaded) -> dict[str, list[str]]:
     return {}
 
 
-def describe(session: Session, storage: Storage, project: Project) -> dict:
+def describe(session: Session, storage: Storage, project: Project, model_id: str | None = None) -> dict:
     try:
-        row = current_model(session, project)
+        row = current_model(session, project, model_id)
     except NoModel:
+        if model_id is not None:
+            raise
         return {"available": False}
-    version = datasets_repo.get_version(session, project.chosen_dataset_version_id) if project.chosen_dataset_version_id else None
+    version_id = row.dataset_version_id or project.chosen_dataset_version_id
+    version = datasets_repo.get_version(session, version_id) if version_id else None
     q = row.quality or {}
-    base = {"available": True, "trained_at": row.created_at, "target": version.target_column if version else None,
+    numbers = versions.version_numbers(runs_repo.models_for_project(session, project.id))
+    base = {"available": True, "model_id": row.id, "version_no": numbers.get(row.id), "is_current": row.id == _current_id(session, project),
+            "trained_at": row.created_at, "target": version.target_column if version else None,
             "accuracy": q.get("accuracy"), "simple_guess_accuracy": q.get("simple_guess_accuracy"),
             "is_estimate_note": ESTIMATE_NOTE, "sklearn_version": None, "size_bytes": None, "usable": False,
             "unusable_reason": None, "columns": [], "classes": []}
     try:
-        m = load(session, storage, project)
+        m = load(session, storage, project, row.id)
     except ModelUnusable as exc:
         return {**base, "unusable_reason": str(exc)}
     examples, choices = _imputer_values(m), _choices(m)
@@ -120,6 +132,42 @@ def describe(session: Session, storage: Storage, project: Project) -> dict:
             for c in m.columns]
     classes = [x.item() if hasattr(x, "item") else x for x in getattr(m.pipeline, "classes_", [])]
     return {**base, "sklearn_version": m.trained_with, "size_bytes": m.size, "usable": True, "columns": cols, "classes": classes}
+
+
+def _current_id(session: Session, project: Project) -> str | None:
+    row = runs_repo.current_model(session, project.id)
+    return row.id if row else None
+
+
+def list_versions(session: Session, storage: Storage, project: Project) -> list[dict]:
+    """Every saved model of the project, newest first, in plain terms. Never storage keys or paths."""
+    rows = runs_repo.models_for_project(session, project.id)
+    numbers = versions.version_numbers(rows)
+    cur = _current_id(session, project)
+    out = []
+    for row in rows:
+        q = row.quality or {}
+        vid = row.dataset_version_id
+        dv = datasets_repo.get_version(session, vid) if vid else None
+        try:
+            load(session, storage, project, row.id)
+            usable = True
+        except ModelUnusable:
+            usable = False
+        out.append({"model_id": row.id, "version_no": numbers[row.id], "created_at": row.created_at, "is_current": row.id == cur,
+                    "accuracy": q.get("accuracy"), "simple_guess_accuracy": q.get("simple_guess_accuracy"),
+                    "verified_value": versions.verified_value(row), "target": (q.get("verification") or {}).get("target"),
+                    "passed": versions.passed(row), "dataset_version_id": vid, "dataset_rows": dv.rows if dv else None,
+                    "usable": usable})
+    return list(reversed(out))
+
+
+def use_version(session: Session, project: Project, model_id: str) -> dict:
+    """Free: the owner picks which saved model is in use. Another project's id is 'not found'."""
+    row = current_model(session, project, model_id)
+    runs_repo.set_current(session, project.id, row.id)
+    return {"model_id": row.id, "version_no": versions.version_numbers(runs_repo.models_for_project(session, project.id))[row.id],
+            "is_current": True}
 
 
 def _plain(x):
@@ -162,10 +210,10 @@ def _predict_frame(m: Loaded, frame: pd.DataFrame):
     return preds, proba
 
 
-def predict_one(session: Session, storage: Storage, project: Project, record: dict) -> dict:
+def predict_one(session: Session, storage: Storage, project: Project, record: dict, model_id: str | None = None) -> dict:
     if not isinstance(record, dict) or not record:
         raise BadInput("Give at least one value, for example {\"column\": value}.")
-    m = load(session, storage, project)
+    m = load(session, storage, project, model_id)
     unknown = [k for k in record if k not in m.columns]
     if unknown:
         raise BadInput("The model does not use: " + ", ".join(str(u)[:40] for u in unknown[:5]) + ". Known columns: " + ", ".join(m.columns[:12]) + ".")
@@ -179,7 +227,7 @@ def predict_one(session: Session, storage: Storage, project: Project, record: di
     return out
 
 
-def predict_batch(session: Session, storage: Storage, project: Project, csv_text: str) -> dict:
+def predict_batch(session: Session, storage: Storage, project: Project, csv_text: str, model_id: str | None = None) -> dict:
     if not isinstance(csv_text, str) or not csv_text.strip():
         raise BadInput("The file is empty.")
     if len(csv_text.encode("utf-8", "ignore")) > MAX_BATCH_BYTES:
@@ -192,7 +240,7 @@ def predict_batch(session: Session, storage: Storage, project: Project, csv_text
         raise BadInput("The file has no rows.")
     if len(df) > MAX_BATCH_ROWS:
         raise BadInput(f"Too many rows. The limit is {MAX_BATCH_ROWS:,} rows.")
-    m = load(session, storage, project)
+    m = load(session, storage, project, model_id)
     preds, proba = _predict_frame(m, _frame(m, df))
     out = df.copy()
     name = "prediction"
@@ -205,15 +253,15 @@ def predict_batch(session: Session, storage: Storage, project: Project, csv_text
     return {"rows": int(len(out)), "columns": [str(c) for c in out.columns], "preview": preview, "csv_text": out.to_csv(index=False)}
 
 
-def download(session: Session, storage: Storage, project: Project) -> tuple[bytes, str]:
+def download(session: Session, storage: Storage, project: Project, model_id: str | None = None) -> tuple[bytes, str]:
     """The saved file and the scikit-learn version it needs (the app's own version when the file cannot be inspected)."""
-    row = current_model(session, project)
+    row = current_model(session, project, model_id)
     try:
         data = storage.get(row.storage_key)
     except Exception:
         raise ModelUnusable("The saved model file could not be found.")
     try:
-        trained_with = load(session, storage, project).trained_with
+        trained_with = load(session, storage, project, row.id).trained_with
     except ModelUnusable:
         trained_with = None
     return data, trained_with or "unknown"

@@ -12,6 +12,7 @@ from ..repositories import datasets as datasets_repo
 from ..repositories import projects as projects_repo
 from ..repositories import shares as shares_repo
 from ..repositories import training_runs as runs_repo
+from .data import models as versions
 
 TOKEN_BYTES = 32  # secrets.token_urlsafe(32) is 43 characters from 32 random bytes
 NOTE = "These numbers are estimates from held-back test rows, not a promise about future results."
@@ -47,14 +48,18 @@ def public_result(session: Session, token: str) -> dict | None:
     version = datasets_repo.get_version(session, project.chosen_dataset_version_id) if project.chosen_dataset_version_id else None
     cand = datasets_repo.chosen_candidate(session, project.id)
     base = project.baseline_result or {}
-    run = runs_repo.latest_finished(session, project.id)
+    # Only the version in use is shown: its verified result and its number. Never other versions, ids or cost.
+    model = runs_repo.current_model(session, project.id)
+    run = runs_repo.get(session, model.training_run_id) if model is not None else None
     verification = None
-    if run is not None and run.status == "done" and run.result and run.result.get("verification"):
-        v = run.result["verification"]
+    version_no = None
+    if model is not None and (model.quality or {}).get("verification"):
+        v = model.quality["verification"]
         verification = {"value": v.get("value"), "target": v.get("target"), "passed": v.get("passed")}
+        version_no = versions.version_numbers(runs_repo.models_for_project(session, project.id)).get(model.id)
     return {"goal": project.goal, "status": project.status,
             "dataset": version and {"name": cand.name if cand else None, "rows": version.rows, "target": version.target_column},
             "baseline": {"accuracy": base.get("accuracy"), "simple_guess_accuracy": base.get("simple_guess_accuracy")} if base else None,
-            "verification": verification,
+            "verification": verification, "version_no": version_no,
             "finished_at": run.finished_at if verification and run else None,
             "is_estimate_note": NOTE}
