@@ -23,7 +23,8 @@ from ...ports import LLMResponse, ToolCall
 from ...repositories import conversations, projects
 from . import context
 
-SKILL_LIMIT = 8000   # playbooks are kept nearly whole
+_NO_LIMIT_SEQ = 2**31 - 1   # messages.seq is a 32-bit INTEGER; a bigger bound makes Postgres fail ("integer out of range")
+SKILL_LIMIT = 8000  # playbooks are kept nearly whole
 STUB_PREFIX = "[old result, shortened] "
 
 
@@ -175,7 +176,7 @@ def pending_card(session: Session, conv: Conversation) -> dict | None:
 def history(session: Session, conv: Conversation, budget: int | None = None, upto_seq: int | None = None) -> tuple[list[dict], list[tuple[str, str]], int, int]:
     """(messages, skills moved to the system message, stubbed count, dropped group count)."""
     budget = budget if budget is not None else settings.agent_history_token_budget
-    msgs = conversations.messages_after_summary(session, conv, upto_seq if upto_seq is not None else 10**12)
+    msgs = conversations.messages_after_summary(session, conv, upto_seq if upto_seq is not None else _NO_LIMIT_SEQ)
     groups = _groups(msgs)
     for g in groups:
         g.sent = _render(g, stub=False)
