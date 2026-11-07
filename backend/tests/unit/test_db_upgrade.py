@@ -99,3 +99,17 @@ def test_postgres_statements_compile_without_connection():
 def test_null_password_hash_means_no_login():
     from app.services.auth import verify_password
     assert verify_password("whatever", None) is False
+
+
+def test_database_without_column_labels_gets_the_table_added(tmp_path, capsys):
+    eng = create_engine(f"sqlite:///{tmp_path / 'nolabels.db'}")
+    Base.metadata.create_all(eng)
+    with eng.begin() as c:
+        c.execute(text("DROP TABLE column_labels"))
+    assert main(["--check"], eng) == 1
+    assert "MISSING TABLE  column_labels" in capsys.readouterr().out
+    assert main(["--upgrade", "--yes"], eng) == 0
+    assert main(["--check"], eng) == 0
+    cols = {c["name"] for c in inspect(eng).get_columns("column_labels")}
+    assert {"dataset_version_id", "labels", "model", "created_at"} <= cols
+    assert any(i["unique"] for i in inspect(eng).get_indexes("column_labels"))
