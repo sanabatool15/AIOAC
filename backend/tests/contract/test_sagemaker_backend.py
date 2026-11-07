@@ -156,6 +156,7 @@ def test_run_success_and_request_shape(csv_path):
         "683313688378.dkr.ecr.us-east-1.amazonaws.com/sagemaker-scikit-learn:1.4-2-cpu-py3"
     hp = c["HyperParameters"]
     assert json.loads(hp["sagemaker_program"]) == "train.py" and json.loads(hp["target"]) == "churn"
+    assert json.loads(hp["family"]) == "forest"  # the default; a quote pins another one
     assert json.loads(hp["sagemaker_submit_directory"]) == "s3://b/jobs/j/code/sourcedir.tar.gz"
     assert set(s3.puts) == {"jobs/j/input/train/dataset.csv", "jobs/j/code/sourcedir.tar.gz"}
     assert all(p["ServerSideEncryption"] == "AES256" for p in s3.puts.values())
@@ -165,6 +166,38 @@ def test_run_success_and_request_shape(csv_path):
     names = [s for s, _ in stages]
     assert names[0] == "queued" and names[1:5] == ["provisioning", "preparing data", "training", "saving the model"]
     assert all(spend <= 200 for _, spend in stages)
+
+
+def test_the_family_is_sent_as_a_hyperparameter(csv_path):
+    b, smc, _ = backend([completed()])
+    b.run(csv_path, "churn", 200, family="boosting")
+    assert json.loads(smc.created["HyperParameters"]["family"]) == "boosting"
+
+
+def test_script_trains_every_family_and_only_the_forest_saves_a_partial_model(tmp_path, csv_path):
+    sys.path.insert(0, str(sm.SCRIPT_DIR))
+    sys.modules.setdefault("aioac_core", type(sys)("aioac_core"))
+    try:
+        import importlib.util
+        from app.services.data import baseline, families, features
+        sys.modules["aioac_core.baseline"], sys.modules["aioac_core.features"] = baseline, features
+        sys.modules["aioac_core.families"] = families
+        spec = importlib.util.spec_from_file_location("sm_train2", sm.SCRIPT_DIR / "train.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        train_dir = tmp_path / "t"
+        train_dir.mkdir()
+        (train_dir / "d.csv").write_bytes(open(csv_path, "rb").read())
+        for fam in ("logistic", "boosting"):
+            m = mod.train(str(train_dir), str(tmp_path / fam), "left", family=fam, should_stop=lambda: True)
+            assert m["family"] == fam and not m["interrupted"] and 0 < m["accuracy"] <= 1  # a stop request does not cut these
+            assert (tmp_path / fam / "model.joblib").exists()
+        with pytest.raises(ValueError):
+            mod.train(str(train_dir), str(tmp_path / "x"), "left", family="nonsense")
+    finally:
+        sys.path.remove(str(sm.SCRIPT_DIR))
+        for k in ("aioac_core", "aioac_core.baseline", "aioac_core.features", "aioac_core.families"):
+            sys.modules.pop(k, None)
 
 
 def test_stop_requested_calls_stop_training_job_once(csv_path):
@@ -266,9 +299,10 @@ def test_tarball_contents_and_script_runs_locally(tmp_path, csv_path):
     with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz") as tar:
         names = tar.getnames()
         tar.extractall(src, filter="data")
-    assert {"train.py", "aioac_core/__init__.py", "aioac_core/features.py", "aioac_core/baseline.py"} <= set(names)
+    assert {"train.py", "aioac_core/__init__.py", "aioac_core/features.py", "aioac_core/families.py", "aioac_core/baseline.py"} <= set(names)
     # verbatim copies: one source of truth with the local baseline
-    assert (src / "aioac_core/features.py").read_bytes() == (sm.SERVICES_DIR / "features.py").read_bytes()
+    for name in sm.SHARED_MODULES:
+        assert (src / f"aioac_core/{name}").read_bytes() == (sm.SERVICES_DIR / name).read_bytes()
 
     train_dir, model_dir = tmp_path / "train", tmp_path / "model"
     train_dir.mkdir()
@@ -287,8 +321,9 @@ def test_script_saves_partial_model_on_stop(tmp_path, csv_path):
     sys.modules.setdefault("aioac_core", type(sys)("aioac_core"))
     try:
         import importlib.util
-        from app.services.data import baseline, features
+        from app.services.data import baseline, families, features
         sys.modules["aioac_core.baseline"], sys.modules["aioac_core.features"] = baseline, features
+        sys.modules["aioac_core.families"] = families
         spec = importlib.util.spec_from_file_location("sm_train", sm.SCRIPT_DIR / "train.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -300,7 +335,7 @@ def test_script_saves_partial_model_on_stop(tmp_path, csv_path):
         assert (tmp_path / "m" / "model.joblib").exists()
     finally:
         sys.path.remove(str(sm.SCRIPT_DIR))
-        for k in ("aioac_core", "aioac_core.baseline", "aioac_core.features"):
+        for k in ("aioac_core", "aioac_core.baseline", "aioac_core.features", "aioac_core.families"):
             sys.modules.pop(k, None)
 
 
