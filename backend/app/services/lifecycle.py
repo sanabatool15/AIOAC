@@ -42,3 +42,11 @@ def reopen_for_improvement(session: Session, project: Project) -> None:
     if project.status != "done" or not missed:
         raise BadTransition(f"{project.status} -> baseline_done")
     projects_repo.set_status(session, project, "baseline_done")
+
+
+def reopen_for_new_data(session: Session, project: Project) -> None:
+    """A guided data fix made a new dataset version. Go back to `data_chosen` so the readiness check and the free test
+    run again on the new data (both free). Only before a price is paid for: from baseline_done or quoted."""
+    if project.status not in {"baseline_done", "quoted"}:
+        raise BadTransition(f"{project.status} -> data_chosen")
+    projects_repo.set_status(session, project, "data_chosen")

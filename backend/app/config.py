@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     success_fee_percent: float = 0.05    # of the compute actually used; charged only if the locked-test-set check passes
     forecast_min_confidence: float = 0.60  # below this the run is not sold ("Not eligible")
     forecast_min_rows: int = 500         # after cleaning; fewer rows cannot support a forecast
+    max_fixes_per_project: int = 3       # free data-fix tries per project; more would let a lucky forecast look real
     hold_ttl_hours: int = 24             # a hold nobody trains on is marked expired after this
     candidate_ttl_hours: int = 24
     agent_max_steps: int = 12

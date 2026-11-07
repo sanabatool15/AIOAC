@@ -31,6 +31,12 @@ def set_status(session: Session, project: Project, new: str) -> None:
     session.commit()
 
 
+def set_chosen_version(session: Session, project: Project, version_id: str) -> None:
+    """Point the project at another dataset version (a guided fix makes a child version)."""
+    project.chosen_dataset_version_id = version_id
+    session.commit()
+
+
 def claim_status(session: Session, project: Project, expected: str, new: str) -> bool:
     """Compare-and-swap: move the status only if it is still `expected` in the database. True for exactly one caller."""
     res = session.execute(update(Project).where(Project.id == project.id, Project.status == expected).values(status=new))
