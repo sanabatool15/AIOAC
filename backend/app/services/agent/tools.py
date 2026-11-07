@@ -15,7 +15,7 @@ from ...integrations.jobs.inline import InlineJobRunner
 from ...integrations.datasets.registry import SourceRegistry, as_registry
 from ...ports import PaymentProvider, Storage, TrainingBackend
 from ..data.samples import CATALOG
-from ..data import analysis, datasets, discovery, pilot
+from ..data import analysis, datasets, discovery, families, pilot
 from ..cost import cost, quotes
 from .. import gate, payments, training
 from . import clarity, memory, skills, target as target_rule
@@ -294,7 +294,8 @@ def run_pilot(ctx, a):
            "predicted": round(f.predicted_metric, 3), "predicted_out_of_100": round(f.predicted_metric * 100),
            "band": [round(f.band_low, 3), round(f.band_high, 3)], "band_out_of_100": [round(f.band_low * 100), round(f.band_high * 100)], "confidence": f.confidence, "eligible": f.eligible,
            "pilot_rows": (f.pilot or {}).get("rows_used"),
-           "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", [])}
+           "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", []),
+           "model_type": families.plain_name(f.family) if f.family else None}
     out["next"] = "create the quote" if f.eligible else "explain honestly why we cannot sell this run: " + (f.reason or "")
     return out
 
@@ -316,7 +317,7 @@ def create_quote(ctx, a):
             "in_dollars": {"estimate": usd(q.estimate_cents), "range": f"{usd(q.low_cents)} to {usd(q.high_cents)}", "most_you_can_be_charged": usd(q.cap_cents),
                            "platform_fee": usd(breakdown["platform_fee_cents"]), "storage": usd(breakdown["storage_cents"]),
                            "compute": usd(breakdown["compute_estimate_cents"]), "success_fee_max": usd(q.fee_cents)},
-            "label": "estimate",
+            "label": "estimate", "model_type": families.plain_name(q.family),
             "next": "the user must approve this quote"}
 
 

@@ -9,7 +9,7 @@ from ..deps import get_ctx_factory, owned_project
 from ..repositories import forecasts as forecasts_repo
 from ..repositories.traces import TraceRepository
 from ..services import gate, lifecycle
-from ..services.data import pilot
+from ..services.data import families, pilot
 
 router = APIRouter(tags=["forecast"])
 
@@ -23,7 +23,8 @@ def forecast_view(f: Forecast) -> dict:
             "predicted_metric": f.predicted_metric, "band_low": f.band_low, "band_high": f.band_high,
             "confidence": f.confidence, "eligible": f.eligible, "reason": f.reason, "pilot": f.pilot,
             "min_confidence": settings.forecast_min_confidence,
-            "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", [])}
+            "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", []),
+            "model_type": families.type_info(f.family) if f.family else None}
 
 
 _PILOT_BLOCKED = {

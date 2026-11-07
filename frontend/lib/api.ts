@@ -3,6 +3,13 @@ import { API_BASE_URL } from "./config";
 import { clearRealUser, redirectToLogin } from "./session";
 
 // Raw backend shapes. snake_case, money in whole cents, rates 0 to 1. Convert only in adapters.ts.
+// The kind of model a price or forecast is for, in plain words. `note` says it is only the type that was tested.
+export interface BModelType {
+  family: string;
+  name: string;
+  note: string;
+}
+
 export interface BProject {
   id: string;
   goal: string;
@@ -18,6 +25,7 @@ export interface BProject {
     cap_cents: number;
     success_fee_max_cents: number;
     approved: boolean;
+    model_type?: BModelType | null;
   } | null;
   dataset: {
     rows: number;
@@ -55,6 +63,7 @@ export interface BForecast {
   suggested_target: number | null;
   issues: string[];
   pilot?: unknown;
+  model_type?: BModelType | null;
 }
 
 export interface BQuote {
@@ -71,6 +80,7 @@ export interface BQuote {
   forecast_confidence: number;
   target: number;
   terms: string;
+  model_type?: BModelType | null;
 }
 
 export interface BOrder {

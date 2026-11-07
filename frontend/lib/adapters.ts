@@ -2,6 +2,7 @@
 // Backend: whole cents, rates 0 to 1, snake_case. Screens: dollars text, "N out of 100", camelCase.
 import type {
   BForecast,
+  BModelType,
   BProject,
   BQuote,
   BReceipt,
@@ -66,6 +67,11 @@ export interface ForecastView {
   reason: string;
   issues: string[];
   suggestedTarget: number | null; // percent
+  modelType: ModelTypeView | null;
+}
+export interface ModelTypeView {
+  name: string; // plain words, e.g. "a forest of decision trees"
+  note: string; // "only the type we tested, not a promise of a better result"
 }
 export interface QuoteView {
   estimate: string;
@@ -75,6 +81,7 @@ export interface QuoteView {
   feeMax: string;
   target: number | null;
   terms: string;
+  modelType: ModelTypeView | null;
 }
 export interface ReceiptView {
   state: string;
@@ -117,6 +124,11 @@ export function toBaseline(p: Maybe<BProject>): BaselineView | null {
   return { right, guess, beatsGuess: right !== null && guess !== null && right > guess };
 }
 
+export function toModelType(m: Maybe<BModelType>): ModelTypeView | null {
+  if (!m || !m.name) return null;
+  return { name: m.name, note: m.note };
+}
+
 export function toForecast(f: Maybe<BForecast>): ForecastView | null {
   if (!f) return null;
   return {
@@ -129,6 +141,7 @@ export function toForecast(f: Maybe<BForecast>): ForecastView | null {
     reason: f.reason ?? "",
     issues: f.issues ?? [],
     suggestedTarget: percent(f.suggested_target),
+    modelType: toModelType(f.model_type),
   };
 }
 
@@ -145,6 +158,7 @@ export function toQuote(q: Maybe<BQuote>): QuoteView | null {
     feeMax: dollars(q.success_fee_max_cents),
     target: percent(q.target),
     terms: QUOTE_TERMS,
+    modelType: toModelType(q.model_type),
   };
 }
 
@@ -164,6 +178,7 @@ export function quoteFromProject(p: Maybe<BProject>): QuoteView | null {
     feeMax: dollars(q.success_fee_max_cents),
     target: percent(f?.target),
     terms: QUOTE_TERMS,
+    modelType: toModelType(q.model_type),
   };
 }
 

@@ -17,7 +17,7 @@ from ..repositories import payments as payments_repo
 from ..repositories import projects as projects_repo
 from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
-from ..services.data import analysis, datasets
+from ..services.data import analysis, datasets, families
 from .forecast import forecast_view
 from .payments import receipt
 from ..services import gate, lifecycle, payments, training
@@ -65,7 +65,7 @@ def read(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(
             "trust_level": p.trust_level, "baseline": p.baseline_result,
             "quote": q and {"id": q.id, "estimate_cents": q.estimate_cents, "low_cents": q.low_cents,
                             "high_cents": q.high_cents, "cap_cents": q.cap_cents, "success_fee_max_cents": q.fee_cents,
-                            "approved": q.approved_at is not None},
+                            "approved": q.approved_at is not None, "model_type": families.type_info(q.family)},
             "dataset": version and {"rows": version.rows, "columns": version.columns, "target": version.target_column,
                                     "source": version.source, "license": version.license},
             "readiness": report and {"grade": report.grade, "findings": report.findings},

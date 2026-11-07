@@ -94,6 +94,20 @@ test("quote: cents to dollars, the cap is a fact, terms pass through", () => {
   assert.equal(thin.computeMax, "$0.53");
 });
 
+test("model type: shown in plain words with the not-a-promise note; missing for old quotes", () => {
+  const withType = {
+    ...(fx.quote as unknown as BQuote),
+    model_type: { family: "boosting", name: "a boosted-trees model", note: "This is only the model type we tested, not a promise of a better result." },
+  };
+  const q = toQuote(withType)!;
+  assert.equal(q.modelType?.name, "a boosted-trees model");
+  assert.match(q.modelType!.note, /not a promise/);
+  assert.equal(toQuote(fx.quote as unknown as BQuote)!.modelType, null);
+  const f = toForecast({ ...(fx.forecastOk as unknown as BForecast), model_type: withType.model_type })!;
+  assert.equal(f.modelType?.name, "a boosted-trees model");
+  assert.equal(toForecast(fx.forecastOk as unknown as BForecast)!.modelType, null);
+});
+
 test("training: not_started is normal; running and done map cleanly", () => {
   const ns = toTraining(trainingNotStarted as unknown as BTraining)!;
   assert.equal(ns.status, "not_started");

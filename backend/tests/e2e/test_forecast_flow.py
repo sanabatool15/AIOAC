@@ -36,7 +36,10 @@ def test_endpoints_pilot_forecast_quote(session, storage, chosen, provider):
     r = c.post(f"/chats/{chosen.id}/pilot", json={"target": 0.6})
     assert r.status_code == 200 and r.json()["eligible"] and r.json()["is_estimate"]
     assert c.get(f"/jobs/{chosen.id}/forecast").json()["forecast_id"] == r.json()["forecast_id"]
+    mt = r.json()["model_type"]  # the model type the pilot kept, in plain words, with the not-a-promise sentence
+    assert mt["name"] and "not a promise" in mt["note"]
     q = c.post(f"/agreements/{chosen.id}/quote").json()
+    assert q["model_type"] == mt
     assert q["cap_cents"] == q["compute_cap_cents"] + q["success_fee_max_cents"] and q["is_estimate"]
     assert q["success_fee_estimate_cents"] <= q["success_fee_max_cents"]
     assert q["terms"] == "You pay compute either way. The success fee only if the target is verified."

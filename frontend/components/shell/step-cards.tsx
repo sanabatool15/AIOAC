@@ -111,7 +111,9 @@ export function ForecastCard({ f }: { f: ForecastView }) {
         <Row label="Expected result (estimate)" value={`about ${f.expected} out of 100`} />
         <Row label="Likely range (estimate)" value={`${f.low} to ${f.high} out of 100`} />
         <Row label="Chance of reaching your target (estimate)" value={`about ${f.confidence}%`} />
+        {f.modelType && <Row label="Model type tested" value={f.modelType.name} />}
       </dl>
+      {f.modelType && <p className="text-xs text-muted">{f.modelType.note}</p>}
       <p className="text-xs text-muted">An estimate from a small free pilot, not a promise.</p>
     </Card>
   );
