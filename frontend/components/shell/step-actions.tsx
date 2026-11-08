@@ -76,14 +76,18 @@ export function TargetAction({
   onChanged,
   initial,
   intro,
-}: Props & { initial?: number | null; intro?: string }) {
+  title,
+  buttonLabel,
+  mustBeAbove,
+}: Props & { initial?: number | null; intro?: string; title?: string; buttonLabel?: string; mustBeAbove?: number | null }) {
   const { busy, error, run } = useAction();
   const base = toBaseline(project);
   const [value, setValue] = useState(String(initial ?? Math.min(95, (base?.right ?? 70) + 5)));
   const target = targetFromOutOf100(Number(value));
+  const tooLow = mustBeAbove != null && !(Number(value) > mustBeAbove);
   return (
-    <Card variant="violet" aria-label="Pick your target" className="gap-3 p-4">
-      <h2 className="text-base font-semibold leading-[normal] text-ink">Pick your target</h2>
+    <Card variant="violet" aria-label={title ?? "Pick your target"} className="gap-3 p-4">
+      <h2 className="text-base font-semibold leading-[normal] text-ink">{title ?? "Pick your target"}</h2>
       <p className="text-sm leading-5 text-ink-2">
         {intro ??
           "How many predictions out of 100 do you want to be right? I will run a small free pilot and give an estimate of the chance a full run gets there. It is an estimate, not a promise."}
@@ -102,10 +106,15 @@ export function TargetAction({
           />
         </Field>
       </div>
+      {tooLow && (
+        <p className="text-xs text-muted" role="status">
+          The new target must be higher than the {mustBeAbove} out of 100 already reached.
+        </p>
+      )}
       <div>
         <Button
           size="md"
-          disabled={busy || target === null}
+          disabled={busy || target === null || tooLow}
           onClick={() =>
             run(async () => {
               await real.runPilot(project.id, target as number);
@@ -113,7 +122,7 @@ export function TargetAction({
             })
           }
         >
-          {busy ? "Running the free pilot (about half a minute)…" : "Run the free pilot"}
+          {busy ? "Running the free pilot (about half a minute)…" : (buttonLabel ?? "Run the free pilot")}
         </Button>
       </div>
       <ErrorLine message={error} />
