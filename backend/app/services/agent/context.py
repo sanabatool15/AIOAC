@@ -81,7 +81,7 @@ NEXT_STEP = {
     "awaiting_payment": "Request the hold, then wait for the user to approve it in PayPal. Nothing is charged yet. If the quote has expired, create a new quote instead.",
     "paid": "Start training.",
     "training": "Training is running. Report progress in plain words.",
-    "done": "Help the user use the result.",
+    "done": "The run is complete. Help the user use the result. You have no tools here: never say or offer that you will run, start or test anything. If they want a higher target (or to improve a missed one), tell them to press 'Try a higher target' (or 'Improve') on the result screen.",
     "failed": "The run failed on our side. Say so plainly: the whole PayPal hold is released, so nothing is charged. You have no tools here; do not offer to retry or start anything.",
     "stopped": "The run was stopped. The user pays only the compute used so far and no success fee, and the rest of the hold is released. Explain this plainly; you have no tools here.",
     "voided": "The hold was released with no charge. Explain this plainly; you have no tools here. Starting again needs a new project or a new quote from the user.",

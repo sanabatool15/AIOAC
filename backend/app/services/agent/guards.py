@@ -8,6 +8,9 @@ PAID_OR_LATER = {"paid", "training", "done", "voided", "failed", "stopped"}
 TRAINED = {"training", "done"}
 SETTLED = {"done", "voided", "failed", "stopped"}
 
+# Steps where the agent has tools and may truly run something. Anywhere else a promise to run it is false.
+ORDER_WITH_TOOLS = ["described", "data_chosen", "readiness_done", "baseline_done", "quoted", "awaiting_payment", "paid"]
+
 # (pattern, statuses in which the claim could be true, what actually is the case)
 _CLAIMS = [
     (re.compile(r"\b(payment|pay(ing)?)\b[^.!?\n]{0,40}\b(was|has been|is|went)\s+(received|confirmed|complete[d]?|successful|through)\b|"
@@ -18,6 +21,9 @@ _CLAIMS = [
      TRAINED | SETTLED, "paid training has not started"),
     (re.compile(r"\b(refund(ed)?|released|voided)\b[^.!?\n]{0,30}\b(sent|issued|processed|on its way|complete[d]?)\b|\bi(?:'ve| have) (refunded|released|voided)\b", re.I),
      SETTLED, "nothing has been released yet"),
+    # a promise to run something, where this step has no tools (the user must press the button on screen)
+    (re.compile(r"\b(i(?:'ll| will| can)|let me|shall i|do you (still )?want (me )?to)\s+(now\s+)?(run|start|try|launch|test|re-?run)\b", re.I),
+     set(ORDER_WITH_TOOLS), "nothing can be run from this step by chat; the result screen has a 'Try a higher target' button"),
 ]
 
 

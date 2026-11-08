@@ -234,3 +234,25 @@ def test_turn_deadline_ends_the_turn_with_timeout(session, storage, provider, pr
 
     r = run_agent(ctx(session, storage, provider, project), Slow([call("search_datasets", query="a"), call("search_datasets", query="b"), LLMResponse(text="late")]), "go")
     assert r.status == "limit" and r.reason == "timeout"
+
+
+def test_at_done_the_agent_has_no_tools_and_cannot_promise_to_run_anything():
+    from app.services.agent import context, guards
+    assert context.tool_names("done") == ["load_skill"]
+    assert "Try a higher target" in context.NEXT_STEP["done"] and "never say or offer" in context.NEXT_STEP["done"]
+    promise = "Do you still want to run the free small test for 99?"
+    assert guards.false_claims(promise, "done")
+    assert guards.false_claims("I will run it now.", "done")
+    assert not guards.false_claims("Press 'Try a higher target' on the result screen.", "done")
+    assert not guards.false_claims(promise, "baseline_done")  # where tools exist the offer is true
+
+
+def test_a_promise_at_done_is_replaced_in_the_loop(session, storage, provider, chosen):
+    from app.ports import LLMResponse
+    from app.services.agent.loop import run_agent
+    from doubles.llm import FakeLLM
+    from tests.helpers.builders import ctx
+    chosen.status = "done"
+    session.commit()
+    r = run_agent(ctx(session, storage, provider, chosen), FakeLLM([LLMResponse(text="Sure, I will run the free small test for 99 now.")]), "try 99")
+    assert "I need to correct myself" in r.text
