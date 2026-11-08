@@ -10,7 +10,7 @@ interface CheckboxProps {
   quiet?: boolean; // neutral border (confirm dialogs) instead of the brand border
 }
 
-// Native checkbox (keyboard + screen readers) with the Figma 18px box.
+// Native checkbox (keyboard + screen readers) with an 18px box.
 export function Checkbox({
   id,
   checked,
@@ -21,7 +21,7 @@ export function Checkbox({
   return (
     <label
       htmlFor={id}
-      className="flex cursor-pointer items-center gap-2.5 text-sm leading-[normal] text-ink"
+      className="flex cursor-pointer items-center gap-2.5 text-body text-ink"
     >
       <input
         id={id}
@@ -33,9 +33,9 @@ export function Checkbox({
       <span
         aria-hidden
         className={cn(
-          "flex size-[18px] shrink-0 items-center justify-center rounded-[5px] border peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand",
+          "flex size-4.5 shrink-0 items-center justify-center rounded-sm border peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand",
           quiet ? "border-border" : "border-brand",
-          checked ? "bg-brand text-white" : "bg-white",
+          checked ? "bg-brand text-on-brand" : "bg-card",
         )}
       >
         {checked && <Check size={12} strokeWidth={3} />}
