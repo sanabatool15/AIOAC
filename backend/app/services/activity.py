@@ -7,6 +7,7 @@ a stored row already covers (same step, within two minutes) is dropped, so nothi
 Raw tool JSON, dataset rows, error text, storage keys and secrets are never copied into the feed: each line is a fixed
 sentence with a few safe values (a dataset name, a row count, a grade, a dollar amount). User text is scrubbed and cut.
 """
+import re
 from datetime import datetime, timedelta, timezone
 
 from ..db import Session
@@ -36,46 +37,115 @@ def _rows(n) -> str:
     return f"{n:,} rows" if isinstance(n, int) else "some rows"
 
 
-def _tool_line(name: str, args: dict, result: dict) -> tuple[str, str] | None:
+_TAG = re.compile(r"</?\s*untrusted_dataset_text\s*>", re.I)
+# The only reasons discovery may report for a skipped dataset (services/data/discovery.py prefilter). Anything else is ignored,
+# so no free text from outside can reach the feed.
+DROP_REASONS = ("needs a login or approval", "not a plain table", "not a prediction of a category", "too few rows")
+IN_PROGRESS = {"search_datasets": "Searching open datasets", "discover_datasets": "Searching open datasets",
+               "look_at_dataset": "Looking at a dataset", "fetch_dataset": "Downloading a dataset",
+               "inspect_candidate": "Checking the columns of a dataset", "run_readiness": "Checking data readiness",
+               "run_baseline": "Running the free test", "run_pilot": "Running the free pilot",
+               "create_quote": "Preparing a price estimate"}
+IN_PROGRESS_MAX_AGE = timedelta(minutes=3)  # a call with no result after this long is not shown (a crashed turn must not look busy forever)
+
+
+def _title(v, n=60) -> str:
+    """A dataset name as the user saw it: the untrusted tag removed, scrubbed, cut. Empty string when there is none."""
+    return _s(_TAG.sub("", v), n) if isinstance(v, str) else ""
+
+
+def _queries(args: dict) -> str:
+    q = args.get("queries") or args.get("query") or args.get("goal_summary") or ""
+    return ", ".join(_s(x, 40) for x in q[:3]) if isinstance(q, list) else _s(q)
+
+
+def _tool_lines(name: str, args: dict, result: dict, titles: dict[str, str]) -> list[tuple[str, str]]:
+    """Plain sentences for one finished tool call. `titles` maps a dataset id to the title discovery showed (ids are never shown)."""
     if not isinstance(result, dict):
         result = {}
     if result.get("error"):
-        return "problem", "One step did not work, so the assistant tried another way"
+        title = titles.get(str(args.get("dataset_id", ""))) if name in ("look_at_dataset", "fetch_dataset") else None
+        if title:
+            return [("problem", f'Could not use "{title}", so the assistant tried another way')]
+        return [("problem", "One step did not work, so the assistant tried another way")]
     if result.get("need_clarity"):
-        return "question", "Asked what you want to predict before searching"
+        return [("question", "Asked what you want to predict before searching")]
     if name in ("search_datasets", "discover_datasets"):
-        q = args.get("queries") or args.get("query") or args.get("goal_summary") or ""
-        q = ", ".join(_s(x, 40) for x in q[:3]) if isinstance(q, list) else _s(q)
-        return "search", f"Searched open datasets for {q}" if q else "Searched open datasets"
+        q = _queries(args)
+        lines = [("search", f"Searched open datasets for {q}" if q else "Searched open datasets")]
+        items = result.get("candidates") if name == "discover_datasets" else result.get("results")
+        items = [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
+        names = [t for t in (_title(i.get("name"), 50) for i in items) if t][:3]
+        if result.get("nothing_fits"):
+            lines.append(("search", "Nothing found was a good fit for your goal"))
+        elif items:
+            n = len(items)
+            tail = ": " + ", ".join(f'"{t}"' for t in names) if names else ""
+            lines.append(("search", f"Found {n} possible dataset{'s' if n != 1 else ''}{tail}"))
+        copies = result.get("near_copies_removed")
+        if isinstance(copies, int) and copies > 0:
+            lines.append(("search", "Left out 1 near-copy of a dataset already in the list" if copies == 1
+                          else f"Left out {copies} near-copies of datasets already in the list"))
+        dropped = result.get("dropped")
+        if isinstance(dropped, dict):
+            parts = [f"{r} ({dropped[r]})" for r in DROP_REASONS if isinstance(dropped.get(r), int) and dropped[r] > 0]
+            if parts:
+                lines.append(("search", "Skipped datasets that cannot be used: " + ", ".join(parts)))
+        return lines
     if name == "look_at_dataset":
-        title = result.get("title") or result.get("name")  # never the raw id ("uci:144"): the user knows datasets by title
-        return "look", f'Looked at "{_s(title, 60)}" ({_rows(result.get("rows"))})' if title else f"Looked at a dataset ({_rows(result.get('rows'))})"
+        title = _title(result.get("title") or result.get("name"), 60) or titles.get(str(args.get("dataset_id", "")), "")
+        who = f'"{title}"' if title else "A dataset"
+        if result.get("tabular") is False:
+            return [("look", f"{who} is not a plain table, skipped")]
+        if result.get("gated"):
+            return [("look", f"{who} needs a login or approval, skipped")]
+        if title:
+            return [("look", f'Looked at "{title}" ({_rows(result.get("rows"))})')]
+        return [("look", f"Looked at a dataset ({_rows(result.get('rows'))})")]
     if name == "fetch_dataset":
-        title = result.get("title")
-        return "download", f'Downloaded "{_s(title, 60)}" ({_rows(result.get("rows"))})' if title else f"Downloaded a dataset ({_rows(result.get('rows'))})"
+        title = _title(result.get("title"), 60) or titles.get(str(args.get("dataset_id", "")), "")
+        lines = [("download", f'Downloaded "{title}" ({_rows(result.get("rows"))})' if title else f"Downloaded a dataset ({_rows(result.get('rows'))})")]
+        if result.get("truncated"):
+            lines.append(("download", f'Only the first {_rows(result.get("rows"))} of "{title}" were kept because the dataset is large'
+                          if title else f"Only the first {_rows(result.get('rows'))} were kept because the dataset is large"))
+        return lines
     if name == "inspect_candidate":
-        return "check", "Checked the columns of a dataset"
+        return [("check", "Checked the columns of a dataset")]
     if name == "select_dataset":
-        return "choose", f"Chose the dataset ({_rows(result.get('rows'))}) to predict \"{_s(result.get('target') or '', 40)}\""
+        return [("choose", f"Chose the dataset ({_rows(result.get('rows'))}) to predict \"{_s(result.get('target') or '', 40)}\"")]
     if name == "run_readiness":
-        return "check", f"Checked data readiness: grade {_s(result.get('grade') or '?', 3)}"
+        return [("check", f"Checked data readiness: grade {_s(result.get('grade') or '?', 3)}")]
     if name == "run_baseline":
         acc = result.get("accuracy")
-        text = f"Ran the free test: about {round(acc * 100)} out of 100 right" if isinstance(acc, (int, float)) else "Ran the free test"
-        return "test", text
+        return [("test", f"Ran the free test: about {round(acc * 100)} out of 100 right" if isinstance(acc, (int, float)) else "Ran the free test")]
     if name == "run_pilot":
-        return "forecast", "Ran the free pilot on a small part of your data to forecast the full result"
+        return [("forecast", "Ran the free pilot on a small part of your data to forecast the full result")]
     if name == "propose_data_fix":
-        return "check", "Looked at what a data fix could change (nothing was changed)"
+        return [("check", "Looked at what a data fix could change (nothing was changed)")]
     if name == "apply_data_fix":
-        return "datafix", "Changed your data after you approved it (the original is kept)"
+        return [("datafix", "Changed your data after you approved it (the original is kept)")]
     if name == "create_quote":
-        return "quote", "Created a price estimate"
+        return [("quote", "Created a price estimate")]
     if name == "request_payment":
-        return "payment", "Prepared the payment hold request"
+        return [("payment", "Prepared the payment hold request")]
     if name == "start_training":
-        return "training", "Started training"
-    return None  # load_skill and anything unknown are not shown
+        return [("training", "Started training")]
+    return []  # load_skill and anything unknown are not shown
+
+
+def _remember_titles(result, titles: dict[str, str]) -> None:
+    """Keep id -> title from a search or discovery result, so later look/fetch lines can name the dataset (never the id)."""
+    if not isinstance(result, dict):
+        return
+    items: list = []
+    for key in ("candidates", "results"):
+        if isinstance(result.get(key), list):
+            items += result[key]
+    if isinstance(result.get("sample_option"), dict):
+        items.append(result["sample_option"])
+    for i in items:
+        if isinstance(i, dict) and isinstance(i.get("id"), str) and (t := _title(i.get("name"), 60)):
+            titles[i["id"]] = t
 
 
 # trace tool name -> the step a stored row also records
@@ -155,49 +225,57 @@ def activity(session: Session, project: Project) -> list[dict]:
         return bool(step) and any(abs(_utc(when) - t) <= DUPLICATE_WINDOW for t in covered.get(step, []))
 
     feed: list[dict] = []
-    last_args: dict[str, dict] = {}
+    pending: dict[str, tuple[dict, datetime]] = {}  # tool calls with no result yet: what the assistant is doing right now
+    titles: dict[str, str] = {}
     for st in TraceRepository(session).steps(project.id):
         c = st.content if isinstance(st.content, dict) else {}
-        line: tuple[str, str] | None = None
+        lines: list[tuple[str, str]] = []
         step: str | None = None
         if st.kind == "user":
             if not str(c.get("text", "")).lstrip().startswith(APPROVAL_PREFIX):  # the server's own text for a pressed Approve button
-                line = ("you", f'You said: "{_s(c.get("text", ""), 100)}"')
+                lines = [("you", f'You said: "{_s(c.get("text", ""), 100)}"')]
         elif st.kind == "assistant":
-            line = ("reply", "The assistant replied")
+            lines = [("reply", "The assistant replied")]
         elif st.kind == "tool_call":
-            last_args[c.get("name", "")] = c.get("args") if isinstance(c.get("args"), dict) else {}
+            pending[c.get("name", "")] = (c.get("args") if isinstance(c.get("args"), dict) else {}, _utc(st.created_at))
         elif st.kind == "tool_result":
             name = c.get("name", "")
-            line = _tool_line(name, last_args.pop(name, {}), c.get("result"))
+            args, _t = pending.pop(name, ({}, None))
+            _remember_titles(c.get("result"), titles)
+            lines = _tool_lines(name, args, c.get("result"), titles)
             step = TRACE_STEP.get(name)
         elif st.kind == "gate":
             action = c.get("action", "")
             words = ACTION_WORDS.get(action, "do that")
             if c.get("allowed") is False and c.get("reason") == "needs user approval":
-                line = ("approval", "Waited for your approval")
+                lines = [("approval", "Waited for your approval")]
             elif c.get("allowed") is False:
-                line = ("blocked", f"Held back a step ({words}): {_s(c.get('reason', 'not allowed yet'), 120)}")
+                lines = [("blocked", f"Held back a step ({words}): {_s(c.get('reason', 'not allowed yet'), 120)}")]
             elif action in LEVEL_ONE_TWO:
-                line = ("approved", f"Allowed to {words}")
+                lines = [("approved", f"Allowed to {words}")]
         elif st.kind == "forecast":
             step = "pilot"
             pct = c.get("confidence")
             ok = "can be sold" if c.get("eligible") else "is not eligible to run yet"
-            line = ("forecast", f"Forecast ready: about {round(pct * 100)}% chance of reaching your target; this run {ok}"
-                    if isinstance(pct, (int, float)) else "Forecast ready")
+            lines = [("forecast", f"Forecast ready: about {round(pct * 100)}% chance of reaching your target; this run {ok}"
+                      if isinstance(pct, (int, float)) else "Forecast ready")]
         elif st.kind == "settle_failed":
-            line = ("payment", "Settling the payment hit a problem; it can be retried safely")
+            lines = [("payment", "Settling the payment hit a problem; it can be retried safely")]
         elif st.kind == "limit":
-            line = ("limit", "The assistant stopped at a safety limit")
+            lines = [("limit", "The assistant stopped at a safety limit")]
         elif st.kind == "llm_error":
-            line = ("problem", "The AI service had a problem")
+            lines = [("problem", "The AI service had a problem")]
         elif st.kind == "claim_blocked":
-            line = ("guard", "Corrected a reply that claimed something that had not happened")
+            lines = [("guard", "Corrected a reply that claimed something that had not happened")]
         elif st.kind == "tool_refused":
-            line = ("blocked", "A step was refused because it was not allowed yet")
-        if line and not duplicate(step, st.created_at):
-            feed.append({"when": _utc(st.created_at), "kind": line[0], "text": line[1]})
+            lines = [("blocked", "A step was refused because it was not allowed yet")]
+        if not duplicate(step, st.created_at):
+            feed += [{"when": _utc(st.created_at), "kind": k, "text": x} for k, x in lines]
+    now = datetime.now(timezone.utc)
+    for name, (args, when) in pending.items():  # calls still running: shown as "...ing" until their result arrives
+        if name in IN_PROGRESS and now - when <= IN_PROGRESS_MAX_AGE:
+            q = _queries(args) if name in ("search_datasets", "discover_datasets") else ""
+            feed.append({"when": when, "kind": "working", "text": f"{IN_PROGRESS[name]} for {q}…" if q else f"{IN_PROGRESS[name]}…"})
     feed += [{"when": t, "kind": kind, "text": text} for t, _step, kind, text in stored]
     feed.sort(key=lambda f: f["when"])  # stable: equal times keep the order they were added in
     return feed

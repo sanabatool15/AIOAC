@@ -502,3 +502,22 @@ def test_model_of_an_all_numeric_dataset_is_described_and_usable(api, session, s
     assert m["usable"] is True and {c["kind"] for c in m["columns"]} == {"number"}
     assert all(c["choices"] is None for c in m["columns"])
     assert api.post(f"/projects/{project.id}/predict", json={"record": {"f1": 1.0}}).status_code == 200
+
+def test_activity_shows_a_finished_step_while_the_turn_is_still_running(api, session, project):
+    """The chat polls /activity during a turn. The turn lock must not block it, and a step already saved must appear."""
+    from app.services.agent import loop
+    t = TraceRepository(session)
+    t.add(project.id, "user", {"text": "predict loan default"})
+    t.add(project.id, "tool_call", {"name": "discover_datasets", "args": {"queries": ["loan default"]}})
+    t.add(project.id, "tool_result", {"name": "discover_datasets", "result": {"candidates": [{"id": "uci:1", "name": "Credit card default"}]}})
+    t.add(project.id, "tool_call", {"name": "look_at_dataset", "args": {"dataset_id": "uci:1"}})  # still running, no result yet
+    loop._acquire(project.id)  # the turn is running
+    try:
+        feed = api.get(f"/projects/{project.id}/activity")
+    finally:
+        loop._release(project.id)
+    assert feed.status_code == 200
+    texts = [f["text"] for f in feed.json()]
+    assert 'Found 1 possible dataset: "Credit card default"' in texts
+    assert "Looking at a dataset…" in texts
+    assert "uci:" not in " ".join(texts)

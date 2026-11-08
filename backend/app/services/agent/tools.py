@@ -155,7 +155,8 @@ def discover_datasets(ctx, a):
         if c.sample:
             out["sample_data"] = True
         return out
-    res = {"candidates": [card(s) for s in d.results], "sources": d.sources, "near_copies_removed": d.collapsed}
+    res = {"candidates": [card(s) for s in d.results], "sources": d.sources, "near_copies_removed": d.collapsed,
+           "dropped": d.dropped}  # reason -> count, plain words from discovery.prefilter; also shown in the activity feed
     if d.nothing_fits:
         res["nothing_fits"] = True
         res["advice"] = ("Nothing found is a good fit for this goal. Say so honestly in one or two sentences. Do not pick a loose match. "
