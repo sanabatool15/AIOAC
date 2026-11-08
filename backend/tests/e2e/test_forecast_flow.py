@@ -71,10 +71,12 @@ def test_improve_round_after_a_miss_runs_a_new_free_pilot(session, storage, chos
     assert session.query(Forecast).count() == 2
 
 
-def test_no_improve_round_after_a_hit(session, storage, chosen, provider, verdict):
+def test_no_round_after_a_hit_unless_the_target_is_higher(session, storage, chosen, provider, verdict):
     held(session, storage, chosen, provider)
     training.run_training(session, chosen, ScriptedBackend(cost=10), storage, provider)
-    assert client(session, storage, provider).post(f"/chats/{chosen.id}/pilot", json={"target": 0.6}).status_code == 409
+    r = client(session, storage, provider).post(f"/chats/{chosen.id}/pilot", json={"target": 0.6})
+    assert r.status_code == 400 and "80 out of 100" in r.json()["detail"] and "higher" in r.json()["detail"]  # a hit needs a HIGHER target
+    assert chosen.status == "done"
 
 
 def test_verification_runs_exactly_once_per_run(session, storage, chosen, provider, verdict):

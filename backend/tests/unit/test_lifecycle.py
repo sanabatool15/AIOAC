@@ -42,3 +42,31 @@ def test_improve_round_only_after_a_missed_target(session, project):
     session.commit()
     reopen_for_improvement(session, project)
     assert project.status == "baseline_done"
+
+
+def _finished(session, project, passed, target=0.94):
+    from app.db.tables import TrainingRun
+    project.status = "done"
+    session.add(TrainingRun(project_id=project.id, backend="x", status="done",
+                            result={"verification": {"passed": passed, "target": target, "value": 0.95}}))
+    session.commit()
+
+
+def test_higher_target_round_after_a_hit_needs_a_strictly_higher_target(session, project):
+    from app.services.lifecycle import TargetNotHigher, reopen_for_improvement
+    _finished(session, project, True)
+    for bad in (None, 0.94, 0.9):
+        with pytest.raises(TargetNotHigher):
+            reopen_for_improvement(session, project, bad)
+        assert project.status == "done"
+    with pytest.raises(TargetNotHigher, match="94 out of 100"):
+        reopen_for_improvement(session, project, 0.94)
+    reopen_for_improvement(session, project, 0.99)
+    assert project.status == "baseline_done"
+
+
+def test_missed_target_improve_is_unchanged_with_or_without_a_target(session, project):
+    from app.services.lifecycle import reopen_for_improvement
+    _finished(session, project, False)
+    reopen_for_improvement(session, project, 0.5)  # even a lower target: the old Improve rule
+    assert project.status == "baseline_done"

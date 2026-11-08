@@ -34,13 +34,30 @@ def transition(session: Session, project: Project, new: str) -> None:
     projects_repo.set_status(session, project, new)
 
 
-def reopen_for_improvement(session: Session, project: Project) -> None:
-    """Improve round: after a run that finished but MISSED its target, go back to the point where a new free
-    pilot and a new quote can be made. The earlier hold is already released; a new quote needs a new hold."""
+class TargetNotHigher(BadTransition):
+    """A new round after a HIT needs a strictly higher target. The message is plain words for the user."""
+
+
+def _out_of_100(rate: float) -> int:
+    return round(rate * 100)
+
+
+def reopen_for_improvement(session: Session, project: Project, new_target: float | None = None) -> None:
+    """New round after a finished run: go back to the point where a new free pilot and a new quote can be made.
+    - Target MISSED: always allowed (the Improve round).
+    - Target REACHED: allowed only with a strictly higher `new_target` ("Try a higher target").
+    Nothing is deleted: the dataset version, earlier model, payment record and history stay. The earlier hold is already
+    settled; a new quote needs a new hold, and a new training makes a new model version."""
     run = runs_repo.latest_for_project(session, project.id)
-    missed = run is not None and (run.result or {}).get("verification", {}).get("passed") is False
-    if project.status != "done" or not missed:
+    verdict = (run.result or {}).get("verification", {}) if run is not None else {}
+    if project.status != "done" or run is None or verdict.get("passed") is None:
         raise BadTransition(f"{project.status} -> baseline_done")
+    if verdict["passed"] is True:
+        reached = verdict.get("target")
+        if new_target is None or reached is None or _out_of_100(new_target) <= _out_of_100(reached):
+            raise TargetNotHigher(
+                f"the finished run already reached {_out_of_100(reached or 0)} out of 100; "
+                f"the new target must be higher than that" + (f" (you asked for {_out_of_100(new_target)})" if new_target is not None else ""))
     projects_repo.set_status(session, project, "baseline_done")
 
 

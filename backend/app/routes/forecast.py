@@ -51,13 +51,15 @@ _PILOT_BLOCKED = {
 
 @router.post("/chats/{pid}/pilot")
 def run_pilot(pid: str, *, p: Project = Depends(owned_project), body: PilotIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
-    """Free. Small test on about 5-10% of the data, then the forecast. After a MISSED run this is the Improve round."""
+    """Free. Small test on about 5-10% of the data, then the forecast. After a finished run it starts a new round: Improve (target missed) or Try a higher target (reached, new target must be higher)."""
     gate.authorize(s, p, gate.Action.PILOT)
     if p.status == "done":
         try:
-            lifecycle.reopen_for_improvement(s, p)
+            lifecycle.reopen_for_improvement(s, p, body.target)
+        except lifecycle.TargetNotHigher as e:
+            raise HTTPException(400, str(e))
         except lifecycle.BadTransition:
-            raise HTTPException(409, "the finished run reached its target, so there is nothing to improve")
+            raise HTTPException(409, "there is no finished run to start a new round from")
     if p.status not in {"baseline_done", "quoted"}:
         raise HTTPException(409, _PILOT_BLOCKED.get(p.status, "run the free baseline first"))
     try:
