@@ -19,13 +19,13 @@ export function ReadinessAction({ project, onChanged }: Props) {
   const { busy, error, run } = useAction();
   return (
     <Card aria-label="Check your data" className="gap-3 p-4">
-      <h2 className="text-base font-semibold leading-[normal] text-ink">Check your data</h2>
+      <h2 className="text-section text-ink">Check your data</h2>
       <p className="text-sm leading-5 text-ink-2">
         I will look for missing values, copies and other problems, and give your data a grade. This is free.
       </p>
       <div>
         <Button
-          size="md"
+         
           disabled={busy}
           onClick={() =>
             run(async () => {
@@ -46,14 +46,13 @@ export function FreeTestAction({ project, onChanged }: Props) {
   const { busy, error, run } = useAction();
   return (
     <Card aria-label="Run the free test" className="gap-3 p-4">
-      <h2 className="text-base font-semibold leading-[normal] text-ink">Run the free test</h2>
+      <h2 className="text-section text-ink">Run the free test</h2>
       <p className="text-sm leading-5 text-ink-2">
-        I will train a small first model here, at no cost, and test it on rows it has not seen. It gives an honest first
-        signal. It is not a promise of the final result.
+        I will train a small first model here, at no cost, and test it on rows it has not seen. It is a first signal, not the final result.
       </p>
       <div>
         <Button
-          size="md"
+         
           disabled={busy}
           onClick={() =>
             run(async () => {
@@ -86,13 +85,13 @@ export function TargetAction({
   const target = targetFromOutOf100(Number(value));
   const tooLow = mustBeAbove != null && !(Number(value) > mustBeAbove);
   return (
-    <Card variant="violet" aria-label={title ?? "Pick your target"} className="gap-3 p-4">
-      <h2 className="text-base font-semibold leading-[normal] text-ink">{title ?? "Pick your target"}</h2>
+    <Card variant="highlight" aria-label={title ?? "Pick your target"} className="gap-3 p-4">
+      <h2 className="text-section text-ink">{title ?? "Pick your target"}</h2>
       <p className="text-sm leading-5 text-ink-2">
         {intro ??
-          "How many predictions out of 100 do you want to be right? I will run a small free pilot and give an estimate of the chance a full run gets there. It is an estimate, not a promise."}
+          "How many predictions out of 100 do you want to be right? A small free pilot estimates the chance a full run gets there."}
       </p>
-      <div className="max-w-[220px]">
+      <div className="max-w-40">
         <Field label="Right out of 100" htmlFor="target-n">
           <Input
             id="target-n"
@@ -113,7 +112,7 @@ export function TargetAction({
       )}
       <div>
         <Button
-          size="md"
+         
           disabled={busy || target === null || tooLow}
           onClick={() =>
             run(async () => {
