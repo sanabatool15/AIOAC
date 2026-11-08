@@ -11,6 +11,7 @@ import { InlineChatFrame } from "./inline-chat";
 import { Stepper } from "./step-parts";
 import { StepArea } from "./step-area";
 import { PROJECTS_CHANGED } from "./sidebar";
+import { useFollowChat } from "./use-follow-chat";
 
 // Route body for /c/[chatId]: the screen comes from the project status (lib/status.ts), loaded from the server on every
 // visit. The project chat is on every status; a chat reply that may change things makes the page read the project again.
@@ -66,11 +67,10 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
   const idx = stepIndex(screen);
   const onData = screen === "data";
   const bottom = useRef<HTMLDivElement>(null);
-  const itemCount = pc.state.items?.length ?? 0;
-  // Keep the newest message and the current step in view (chat first, then what to do next).
-  useEffect(() => {
-    bottom.current?.scrollIntoView?.({ block: "end" });
-  }, [itemCount, pc.state.busy, project.status]);
+  const items = pc.state.items;
+  const lastIsUser = items?.[items.length - 1]?.role === "user";
+  // The newest chat message (or the live steps) stays next to the composer. A reader who scrolled up is not moved.
+  useFollowChat(bottom, `${items?.length ?? 0}:${pc.state.busy}:${pc.state.liveSteps.length}`, !!lastIsUser, items !== null);
 
   return (
     <InlineChatFrame
@@ -89,8 +89,10 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
           </Button>
         </p>
       )}
-      <ChatThread pc={pc} projectStatus={project.status} />
+      {/* The step cards come first and the chat under them, so a new reply is read right above the composer.
+          On the data step the chat comes first: the picker answers it. */}
       {!onData && <StepArea screen={screen} project={project} onChanged={reload} />}
+      <ChatThread pc={pc} projectStatus={project.status} />
       {onData && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
       <div ref={bottom} />
     </InlineChatFrame>
