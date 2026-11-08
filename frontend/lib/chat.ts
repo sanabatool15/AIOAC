@@ -166,7 +166,7 @@ export interface FriendlyError {
 export function chatError(e: unknown): FriendlyError {
   if (e instanceof ApiError) {
     if (e.status === 503) {
-      return { text: "The AI assistant is not set up on this server yet. You can still upload your own CSV file.", unavailable: true };
+      return { text: "The AI assistant is not set up on this server yet. You can still upload your own CSV file or paste a link.", unavailable: true };
     }
     if (e.status === 409) {
       return { text: "The assistant is still working on your last message. Give it a moment, then check again.", busy: true };
@@ -211,4 +211,14 @@ export function bootChat(projectId: string, goal: string, sendGoal = true, onGoa
   })().finally(() => booting.delete(projectId));
   booting.set(projectId, p);
   return p;
+}
+
+// The sentence the "I have no data" choice sends. The server's search gate (backend data_choice.py) recognises it, and the
+// screen shows "Looking for open datasets" only after it.
+export const NO_DATA_MESSAGE = "I have no data. Please find a dataset.";
+
+// True when the newest thing the user said is the "no data" choice, so the first step is a dataset search.
+export function askedForSearch(items: { role: string; text: string }[] | null | undefined): boolean {
+  const last = [...(items ?? [])].reverse().find((m) => m.role === "user");
+  return !!last && last.text.trim() === NO_DATA_MESSAGE;
 }

@@ -2,13 +2,13 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from ..db import Session, get_session
 from ..integrations.factory import get_job_runner
 from ..deps import current_user, get_ctx_factory, get_llm_client, owned_project
 from ..db.tables import Project, User
 from ..ports import ProviderError
-from ..integrations.factory import get_storage
+from ..integrations.factory import get_dataset_source, get_storage
 from ..repositories import analysis as analysis_repo
 from ..repositories import conversations as conversations_repo
 from ..repositories import datasets as datasets_repo
@@ -17,7 +17,7 @@ from ..repositories import payments as payments_repo
 from ..repositories import projects as projects_repo
 from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
-from ..services.data import analysis, datasets, families
+from ..services.data import analysis, dataset_link, datasets, families
 from .forecast import forecast_view, previous_on_other_data
 from .payments import receipt
 from ..services import gate, lifecycle, payments, training
@@ -115,6 +115,19 @@ def upload(pid: str, *, p: Project = Depends(owned_project), body: UploadIn, s: 
     except datasets.DatasetError as e:
         raise HTTPException(400, str(e))
     return {"candidate_id": c.id, "rows": c.rows}
+
+
+class LinkIn(BaseModel):
+    url: str = Field(min_length=1, max_length=300)
+
+
+@router.post("/{pid}/data/link")
+def add_link(pid: str, *, p: Project = Depends(owned_project), body: LinkIn, s: Session = Depends(get_session)):
+    """A pasted page address of a Hugging Face, UCI or OpenML dataset. Any other address is refused (no arbitrary fetches)."""
+    try:
+        return dataset_link.add_from_link(s, get_storage(), p, get_dataset_source(), body.url)
+    except datasets.DatasetError as e:
+        raise HTTPException(400, str(e))
 
 
 class SelectIn(BaseModel):

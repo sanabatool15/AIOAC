@@ -127,3 +127,12 @@ Real-LLM runs, real PayPal sandbox runs and any AWS run (step 4) cost money or u
 | M4 | No way to improve the data; `Action.CLEAN` was level 0 | `fixes.py`, `gate.py`, routes, agent, UI | Two whitelisted fixes, level 1, limit of 3, before and after forecast | done (HUMAN REVIEW: gate) |
 | M5 | A fix that removes only repeated rows rarely changes the estimate (training already ignores repeats) | `fixes.py` | Said plainly in the proposal; shown honestly, not as a rescue | known limit |
 | M6 | The pilot's family choice and the cost timing use the work rows of the current version only; a forecast from before a fix is hidden on the project read | `routes/projects.py` | Intended | known limit |
+
+## 8. Integration review items (2026-11-08)
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| N1 | `GET /projects/{id}/model` gave 500 for an all-numeric dataset (unfitted OneHotEncoder has no `categories_`) | `services/model_use.py` | Tolerant lookups, hints fall back to none | done |
+| N2 | Live chat lines were filtered with the browser clock against server timestamps | `frontend/lib/chat-controller.ts` | Baseline from the server feed's length; no browser clock; `dispose()` on unmount | done |
+| N3 | Label call could wait 15 s and a failed save left the session unusable | `config.py`, `repositories/column_labels.py` | Timeout 8 s; rollback on any save error; labels never break `describe` | done |
+| N4 | New table `column_labels` | `db/tables.py` | Owner runs `python -m app.db.init --upgrade --yes` and enables row level security on it | open (owner) |

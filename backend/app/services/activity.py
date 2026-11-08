@@ -68,6 +68,8 @@ def _tool_lines(name: str, args: dict, result: dict, titles: dict[str, str]) -> 
         if title:
             return [("problem", f'Could not use "{title}", so the assistant tried another way')]
         return [("problem", "One step did not work, so the assistant tried another way")]
+    if result.get("waiting_for_choice"):
+        return [("question", "Waiting for you to choose how to bring your data")]
     if result.get("need_clarity"):
         return [("question", "Asked what you want to predict before searching")]
     if name in ("search_datasets", "discover_datasets"):

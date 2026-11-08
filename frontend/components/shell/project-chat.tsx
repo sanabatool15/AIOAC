@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { pendingCard } from "@/lib/chat";
+import { askedForSearch, pendingCard } from "@/lib/chat";
 import { ChatController } from "@/lib/chat-controller";
 import { thinkingMessage } from "@/lib/thinking";
 import { ApprovalCard, ChatBlockView } from "./chat-blocks";
@@ -108,7 +108,7 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
       )}
       {state.busy && state.items !== null && (
         <Thinking
-          findingData={projectStatus === "described"}
+          findingData={projectStatus === "described" && askedForSearch(state.items)}
           readingGoal={state.items.length === 1 && state.items[0].role === "user"}
           since={state.busySince}
           steps={state.liveSteps}

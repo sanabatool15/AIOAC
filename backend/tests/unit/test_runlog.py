@@ -161,7 +161,7 @@ def test_eval_run_writes_a_folder_per_case_and_show_reads_it(tmp_path, capsys):
     index = json.loads((batch / "index.json").read_text(encoding="utf-8"))
     assert index[0]["passed"] is True and index[0]["folder"] == str(run_dir)
     ev = show.load_events(run_dir)
-    assert ev[-1]["type"] == "run_end" and ev[-1]["turns"] == 3  # the third turn is the model asking for the target
+    assert ev[-1]["type"] == "run_end" and ev[-1]["turns"] == 4  # goal (waits for the choice), "I have no data", the card, then the model asking for the target
     assert "select_dataset" in show.show_run(str(run_dir), tools=True)
     assert "# churn-subscription r1" in show.show_run(str(run_dir), md=True)
     assert show.show_run(str(batch)).startswith("PASS")

@@ -30,7 +30,7 @@ def test_an_answer_to_the_question_makes_the_goal_clear():
 
 
 def test_search_tools_ask_instead_of_searching_on_a_vague_goal(session, storage, provider, project):
-    project.goal = "Help me predict stuff for my business."
+    project.goal = "Help me predict stuff for my business. I have no data."
     session.commit()
     c = ctx(session, storage, provider, project)
     for name, args in (("discover_datasets", {"goal_summary": "x", "queries": ["a b"]}), ("search_datasets", {"query": "x"})):
