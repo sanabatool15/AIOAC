@@ -26,7 +26,7 @@ test("share link opens for a visitor with no cookies, shows no money, and stops 
   // Stop sharing: the same address is no longer available.
   await dialog.getByRole("button", { name: "Stop sharing" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Stop sharing" }).click();
-  await expect(dialog.getByText("SHARING IS OFF")).toBeVisible();
+  await expect(dialog.getByText("Sharing is off")).toBeVisible();
   await v.reload();
   await expect(v.getByText("This link is not available")).toBeVisible();
   await visitor.close();

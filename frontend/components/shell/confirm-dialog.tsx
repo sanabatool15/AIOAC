@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input, Field } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 
 interface ConfirmDialogProps {
   title: string;
@@ -17,7 +18,8 @@ interface ConfirmDialogProps {
   requireCheck?: string;
 }
 
-// Destructive confirm dialog shared by delete project / model / key (screen 31).
+// Destructive confirm dialog shared by delete project / model / key and by Stop/Cancel run. Render it only while it is
+// open (same as before); it sits on the shared Modal (scrim, focus trap, Esc, focus restore). Cancel gets focus first.
 export function ConfirmDialog({
   title,
   body,
@@ -33,18 +35,8 @@ export function ConfirmDialog({
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    cancelRef.current?.focus();
-    const onKey = (e: KeyboardEvent) =>
-      e.key === "Escape" && !busy && onCancel();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onCancel, busy]);
-
-  const ready =
-    (!requireText || typed === requireText.value) && (!requireCheck || checked);
+  const ready = (!requireText || typed === requireText.value) && (!requireCheck || checked);
 
   async function confirm() {
     setBusy(true);
@@ -52,78 +44,54 @@ export function ConfirmDialog({
     try {
       await onConfirm();
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Something went wrong. Try again.",
-      );
+      setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
       setBusy(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-overlay p-4">
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={`${uid}-t`}
-        aria-describedby={`${uid}-d`}
-        className="flex w-[400px] max-w-full flex-col gap-3 rounded-2xl bg-white p-6"
-      >
-        <h2
-          id={`${uid}-t`}
-          className="text-xl font-semibold leading-[normal] text-ink"
-        >
-          {title}
-        </h2>
-        <p id={`${uid}-d`} className="text-sm leading-5 text-muted">
-          {body}
-        </p>
-        {requireText && (
-          <Field label={requireText.label} htmlFor={`${uid}-in`}>
-            <Input
-              id={`${uid}-in`}
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              placeholder={requireText.value}
-              autoComplete="off"
-            />
-          </Field>
-        )}
-        {requireCheck && (
-          <Checkbox
-            id={`${uid}-ck`}
-            checked={checked}
-            onCheckedChange={setChecked}
-            quiet
-          >
-            {requireCheck}
-          </Checkbox>
-        )}
-        {error && (
-          <p role="alert" className="text-sm leading-[normal] text-danger">
-            {error}
-          </p>
-        )}
-        <div className="flex items-start justify-end gap-2">
-          <Button
-            ref={cancelRef}
-            variant="outline"
-            size="md"
-            onClick={onCancel}
-            disabled={busy}
-          >
+    <Modal
+      open
+      onClose={() => {
+        if (!busy) onCancel();
+      }}
+      title={title}
+      description={body}
+      role="alertdialog"
+      size="sm"
+      hideClose
+      footer={
+        <>
+          <Button data-autofocus variant="outline" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
-          <Button
-            variant="destructive"
-            size="md"
-            className="rounded-[9px]"
-            onClick={confirm}
-            disabled={!ready || busy}
-          >
+          <Button variant="destructive" onClick={confirm} disabled={!ready || busy}>
             {busy ? busyLabel : confirmLabel}
           </Button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {requireText && (
+        <Field label={requireText.label} htmlFor={`${uid}-in`}>
+          <Input
+            id={`${uid}-in`}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder={requireText.value}
+            autoComplete="off"
+          />
+        </Field>
+      )}
+      {requireCheck && (
+        <Checkbox id={`${uid}-ck`} checked={checked} onCheckedChange={setChecked} quiet>
+          {requireCheck}
+        </Checkbox>
+      )}
+      {error && (
+        <p role="alert" className="text-body text-danger">
+          {error}
+        </p>
+      )}
+    </Modal>
   );
 }

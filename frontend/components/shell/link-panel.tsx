@@ -26,7 +26,7 @@ export function LinkPanel({ projectId, onChanged }: { projectId: string; onChang
 
   return (
     <Panel title="Paste a link to an open dataset" label="Paste a link to an open dataset">
-      <p className="text-sm leading-5 text-ink-2">
+      <p className="text-body text-ink-2">
         We accept dataset pages on Hugging Face, UCI and OpenML. Other web addresses are not used.
       </p>
       <Field label="Dataset link" htmlFor="dataset-link">
@@ -41,23 +41,23 @@ export function LinkPanel({ projectId, onChanged }: { projectId: string; onChang
             setUrl(e.target.value);
             setError(null);
           }}
-          className="w-full rounded-lg border border-border bg-white px-3 py-2.5 text-sm text-ink"
+          className="w-full rounded-md border border-border bg-card px-3.5 py-2.5 text-body text-ink focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand-edge"
         />
       </Field>
       {!found && (
-        <Button size="md" disabled={busy || !url.trim()} onClick={fetchIt}>
+        <Button disabled={busy || !url.trim()} onClick={fetchIt}>
           {busy ? "Getting the dataset…" : "Get this dataset"}
         </Button>
       )}
       {found && (
         <>
-          <p className="text-sm text-ink-2">Found a table with {found.rows.toLocaleString()} rows.</p>
+          <p className="text-body text-ink-2">Found a table with {found.rows.toLocaleString()} rows.</p>
           <Field label="Which column should we predict?" htmlFor="link-target-col">
             <select
               id="link-target-col"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              className="w-full rounded-lg border border-border bg-white px-3 py-2.5 text-sm text-ink"
+              className="w-full rounded-md border border-border bg-card px-3.5 py-2.5 text-body text-ink focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand-edge"
             >
               {found.cols.map((c) => (
                 <option key={c} value={c}>
@@ -67,7 +67,7 @@ export function LinkPanel({ projectId, onChanged }: { projectId: string; onChang
             </select>
           </Field>
           <Button
-            size="md"
+            
             disabled={busy || !target}
             onClick={() =>
               void run(async () => {

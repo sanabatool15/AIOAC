@@ -14,13 +14,13 @@ export function DataPicker({ projectId, pc, onChanged }: { projectId: string; pc
   const [open, setOpen] = useState<Choice | null>(null);
   const chatOff = pc.state.unavailable;
   const busy = pc.state.busy || pc.state.items === null;
-  const base = "flex flex-col items-start gap-1 rounded-xl border bg-white p-4 text-left text-sm transition-colors";
+  const base = "flex flex-col items-start gap-1 rounded-lg border bg-card p-4 text-left text-body transition-colors";
   const on = "border-brand ring-1 ring-brand";
   const off = "border-border hover:border-brand";
 
   return (
     <section aria-label="Bring your data" className="flex flex-col gap-3">
-      <h2 className="text-sm font-medium text-ink">How do you want to bring your data?</h2>
+      <h2 className="text-section text-ink">How do you want to bring your data?</h2>
       <div className="grid gap-3 sm:grid-cols-3">
         <button type="button" aria-pressed={open === "upload"} className={`${base} ${open === "upload" ? on : off}`} onClick={() => setOpen(open === "upload" ? null : "upload")}>
           <FileUp aria-hidden className="size-5 text-brand" />
