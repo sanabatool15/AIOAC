@@ -31,6 +31,7 @@ Implementation detail comes from PayPal's own documentation and OpenAPI schemas.
    - If the job fails on our side (training error, verification error, lost worker), void everything.
 8. **Result screen** shows forecast and verified result side by side.
 9. **Target missed:** "you paid compute only, no success fee". The best model is kept and a free-pilot "Improve" round is offered (the project reopens at the pilot step; a new quote needs a new hold).
+10. **Target reached, "Try a higher target" (2026-11-08):** a finished run that reached its target can start a new round with a strictly higher target (compared out of 100; otherwise a plain 400 naming both numbers). The project reopens at the pilot step exactly like Improve; the dataset version, the earlier model, the settled payment record and the history stay. A new pilot, quote, hold, training and verification follow, and a new model version is saved. Free until the user approves a new price and a new hold. `lifecycle.reopen_for_improvement(session, project, new_target)`; HUMAN REVIEW.
 
 A user stop mid-run captures the compute used so far and skips the fee (no verification). A cancel before the run voids the whole hold.
 
@@ -89,6 +90,8 @@ There is one internal id, the project id. `/chats/{id}`, `/jobs/{id}` and `/agre
 Payment code, webhook verification, the ledger and spend caps are reviewed by a person before they are considered done. Changes there are kept small and explained.
 
 ## 9. Where the code is
+
+(`services/lifecycle.py` also holds the new-round rule: Improve after a miss, Try a higher target after a hit.)
 
 - `services/payments.py`: confirm the hold, settle, void, cancel, expire, webhook cross-check. `services/training.py` runs the job, verifies, then settles.
 - `services/data/pilot.py` and `forecast.py`: the free pilot and the forecast maths. `services/data/verification.py`: the locked test set and the one independent check.

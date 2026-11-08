@@ -79,6 +79,13 @@ Small changes only, each with a test on the mock provider, each explained to the
 | G5 | Activity feed showed raw ids, approval text, and `[redacted key]` inside ids | `services/activity.py`, `runlog.py` | Titles only, synthetic text dropped; `sk-` pattern no longer matches inside a word or id | fixed on branch claude/fix-agent |
 | G6 | Slow first turn (many looks and fetches) | `context.py` | Prompt: look at or fetch at most the top 2, do not search again. Existing limits (50,000 rows, 50 MB, 30 s HTTP, 60 s tool) kept; effect not measured offline | fixed on branch claude/fix-agent (effect unmeasured) |
 
+### 3c. Done status (2026-11-08)
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| A6 | At `done` the model offered to run a higher target (no tools there, Improve refused after a hit), so the promise could not be kept | `lifecycle.py`, `routes/forecast.py`, `context.py`, `guards.py`, `result-step.tsx` | `POST /chats/{id}/pilot` starts a new round after a hit with a strictly higher target; result screen button "Try a higher target"; the agent still has no tools at `done` (NEXT_STEP says to point to the button) and the claim guard replaces a "I will run it" reply | fixed |
+| H10 | New chat replies were rendered above the tall step cards, far from the composer | `chat-screen.tsx`, `use-follow-chat.ts`, `lib/scroll.ts` | Step cards first, chat under them (data step keeps chat first); the newest message scrolls into view after a reply unless the reader scrolled up | fixed |
+
 ## 4. Demo and project risks
 
 | Id | Problem | Where | Fix | Status |

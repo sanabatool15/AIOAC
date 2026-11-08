@@ -60,7 +60,7 @@ Conventions (built):
 
 `POST /chats/{id}/pilot` body `{target: number}`, `0 < target < 1` (422 otherwise) -> 200 `{forecast_id, metric, target, is_estimate, predicted_metric, band_low, band_high, confidence, eligible, reason, pilot, min_confidence, suggested_target, issues}`.
 - Free. Needs status `baseline_done` or `quoted`, else 409 `run the free baseline first`.
-- If the project is `done` and the last run missed its target, it first reopens to `baseline_done` (the Improve round). If the target was met: 409 `the finished run reached its target, so there is nothing to improve`.
+- If the project is `done` and the last run missed its target, it first reopens to `baseline_done` (the Improve round). If the target was met, the pilot is allowed only with a strictly higher target (the "Try a higher target" round): otherwise 400 with a plain message naming both numbers out of 100 (`the finished run already reached 94 out of 100; the new target must be higher than that`). 409 `there is no finished run to start a new round from` for a done project without a verified result.
 - 400 with a plain message when the pilot cannot run (no dataset, too few rows). 404 `not found`.
 - "Not eligible" is a 200 with `eligible: false`, a `reason`, `issues[]` and a `suggested_target`.
 
