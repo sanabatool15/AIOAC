@@ -84,26 +84,43 @@ def load(session: Session, storage: Storage, project: Project, model_id: str | N
     return Loaded(row, pipeline, trained_with, len(data))
 
 
+def _step(trans, name: str):
+    """A step of a (possibly plain, possibly Pipeline) transformer, or None."""
+    named = getattr(trans, "named_steps", None)
+    if named is not None:
+        return named.get(name)
+    return trans if name == "imp" else None
+
+
 def _imputer_values(m: Loaded) -> dict[str, object]:
-    """Example value per column from the pipeline's own fitted imputers (median for numbers, most common for text)."""
+    """Example value per column from the pipeline's own fitted imputers (median for numbers, most common for text).
+    A group with no columns is never fitted by scikit-learn, so every lookup is tolerant."""
     out: dict[str, object] = {}
     pre = m.pipeline.named_steps["pre"]
     for name, trans, cols in pre.transformers_:
-        if name == "num":
-            for c, v in zip(cols, getattr(trans, "statistics_", [])):
+        if name not in ("num", "cat") or not len(cols):
+            continue
+        stats = getattr(_step(trans, "imp"), "statistics_", None)
+        if stats is None:
+            continue
+        for c, v in zip(cols, stats):
+            if name == "num":
                 out[c] = None if v != v else float(v)
-        elif name == "cat":
-            for c, v in zip(cols, getattr(trans.named_steps["imp"], "statistics_", [])):
+            else:
                 out[c] = None if v is None else str(v)
     return out
 
 
 def _choices(m: Loaded) -> dict[str, list[str]]:
+    """Known values of each text column. No text columns (or an unfitted encoder) means no choices, never an error."""
     pre = m.pipeline.named_steps["pre"]
     for name, trans, cols in pre.transformers_:
-        if name == "cat":
-            cats = trans.named_steps["oh"].categories_
-            return {c: [str(x) for x in cs] for c, cs in zip(cols, cats) if len(cs) <= MAX_CHOICES}
+        if name != "cat" or not len(cols):
+            continue
+        cats = getattr(_step(trans, "oh"), "categories_", None)
+        if cats is None:
+            return {}
+        return {c: [str(x) for x in cs] for c, cs in zip(cols, cats) if len(cs) <= MAX_CHOICES}
     return {}
 
 
@@ -127,7 +144,10 @@ def describe(session: Session, storage: Storage, project: Project, model_id: str
         m = load(session, storage, project, row.id)
     except ModelUnusable as exc:
         return {**base, "unusable_reason": str(exc)}
-    examples, choices = _imputer_values(m), _choices(m)
+    try:
+        examples, choices = _imputer_values(m), _choices(m)
+    except Exception:  # hints only: never let them break the description
+        examples, choices = {}, {}
     cols = [{"name": c, "kind": "number" if c in m.num else "text", "example": examples.get(c), "choices": choices.get(c)}
             for c in m.columns]
     classes = [x.item() if hasattr(x, "item") else x for x in getattr(m.pipeline, "classes_", [])]

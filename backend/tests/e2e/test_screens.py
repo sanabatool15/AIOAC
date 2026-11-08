@@ -482,3 +482,23 @@ def test_share_shows_only_the_version_in_use_without_other_versions_or_cost(api,
     assert pub["version_no"] == 1 and pub["verification"]["value"] == 0.55 and pub["verification"]["passed"] is False
     text = json.dumps(pub)
     assert "cents" not in text and "model_id" not in text and "payment" not in text
+
+
+def test_model_of_an_all_numeric_dataset_is_described_and_usable(api, session, storage, project, provider):
+    """Spambase-like data has no text columns: scikit-learn never fits the text group, and /model must still answer 200."""
+    import numpy as np
+    from app.services.data import datasets
+    rng = np.random.default_rng(1)
+    y = rng.integers(0, 2, 1500)
+    lines = ["f1,f2,f3,spam"] + [f"{a:.3f},{b:.3f},{c:.3f},{t}" for a, b, c, t in
+                                  zip(rng.normal(size=1500) + y, rng.normal(size=1500), rng.normal(size=1500) - y, y)]
+    c = datasets.add_candidate(session, storage, project, "numbers", "bundled", "\n".join(lines).encode())
+    datasets.select_candidate(session, storage, project, c.id, "spam")
+    held(session, storage, project, provider)
+    assert training.run_training(session, project, LocalBackend(), storage, provider).status == "done"
+    r = api.get(f"/projects/{project.id}/model")
+    assert r.status_code == 200
+    m = r.json()
+    assert m["usable"] is True and {c["kind"] for c in m["columns"]} == {"number"}
+    assert all(c["choices"] is None for c in m["columns"])
+    assert api.post(f"/projects/{project.id}/predict", json={"record": {"f1": 1.0}}).status_code == 200
