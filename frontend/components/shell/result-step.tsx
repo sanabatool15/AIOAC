@@ -1,13 +1,12 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EstimateNote } from "@/components/ui/estimate-note";
 import { Tag } from "@/components/ui/tag";
 import type { BProject, BReceipt, BTraining } from "@/lib/api";
 import * as real from "@/lib/api-real";
 import { higherStart, improveStart, needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "@/lib/result-view";
-import { cn } from "@/lib/utils";
 import { TargetAction } from "./step-actions";
 import { ErrorLine, Row, useAction } from "./step-parts";
 
@@ -37,22 +36,22 @@ export function MoneyRecap({ receipt, note }: { receipt: BReceipt | null; note?:
   const r = toRecap(receipt);
   if (!r) return null;
   const items = [
-    { label: "HELD", value: r.held },
-    { label: "CHARGED", value: r.charged },
-    { label: "RELEASED", value: r.released },
+    { label: "Held", value: r.held },
+    { label: "Charged", value: r.charged },
+    { label: "Released", value: r.released },
   ];
   return (
-    <Card variant="peach" aria-label="What happened to the money" data-testid="money-recap" className="gap-2.5 p-[18px] leading-[normal] shadow-card-tight">
-      <p className="text-xs font-semibold whitespace-nowrap text-muted">WHAT HAPPENED TO THE MONEY</p>
-      <div className="flex items-start gap-2.5 font-semibold whitespace-nowrap">
+    <Card variant="plain" aria-label="What happened to the money" data-testid="money-recap" className="gap-2.5 p-4">
+      <h2 className="text-section text-ink">What happened to the money</h2>
+      <dl className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {items.map((i) => (
-          <div key={i.label} className="flex min-w-px flex-1 flex-col gap-0.5 overflow-clip rounded-[10px] bg-surface p-3">
-            <p className="text-xs text-muted">{i.label}</p>
-            <p className="text-xl text-ink">{i.value}</p>
+          <div key={i.label} className="flex min-w-0 flex-col gap-0.5 rounded-lg bg-surface p-3">
+            <dt className="text-small text-muted">{i.label}</dt>
+            <dd className="text-title text-ink tabular-nums">{i.value}</dd>
           </div>
         ))}
-      </div>
-      {note && <p className="text-sm font-normal text-muted">{note}</p>}
+      </dl>
+      {note && <p className="text-sm text-muted">{note}</p>}
     </Card>
   );
 }
@@ -61,8 +60,8 @@ export function ReceiptCard({ receipt }: { receipt: BReceipt | null }) {
   const r = toRecap(receipt);
   if (!r) return null;
   return (
-    <Card variant="mint" aria-label="Receipt" data-testid="receipt" className="gap-2.5 p-4 shadow-card-tight">
-      <h2 className="text-sm font-semibold text-ink">Receipt</h2>
+    <Card variant="plain" aria-label="Receipt" data-testid="receipt" className="gap-2.5 p-4">
+      <h2 className="text-section text-ink">Receipt</h2>
       <dl className="flex flex-col gap-1.5">
         <Row label="PayPal hold (the cap)" value={r.held} />
         <Row label="Compute charged" value={r.compute} />
@@ -70,7 +69,7 @@ export function ReceiptCard({ receipt }: { receipt: BReceipt | null }) {
         <Row label="Released back to you" value={r.released} />
         <Row label="Total charged" value={r.charged} strong />
       </dl>
-      <p className="text-xs text-muted">PayPal sandbox: test money only.</p>
+      <p className="text-micro text-muted">PayPal sandbox: test money only.</p>
     </Card>
   );
 }
@@ -80,7 +79,7 @@ function RetrySettle({ project, receipt, refresh, onChanged }: { project: BProje
   const { busy, error, run } = useAction();
   if (!needsSettleRetry(receipt)) return null;
   return (
-    <Card variant="amber" aria-label="Finishing your payment" className="gap-3 p-4 shadow-card-tight">
+    <Card variant="warning" aria-label="Finishing your payment" className="gap-3 p-4">
       <h2 className="text-sm font-semibold text-ink">Finishing your payment</h2>
       <p className="text-sm leading-5 text-ink-2">
         The run is over but the last PayPal step has not finished yet. It is safe to try again. Nothing is charged twice.
@@ -88,7 +87,7 @@ function RetrySettle({ project, receipt, refresh, onChanged }: { project: BProje
       <div>
         <Button
           variant="outline"
-          size="md"
+         
           disabled={busy}
           onClick={() =>
             run(async () => {
@@ -121,23 +120,23 @@ export function ResultStep({ project, onChanged }: StepProps) {
   return (
     <>
       <Card
-        variant={v.kind === "verified" ? "green" : v.kind === "missed" ? "amber" : "plain"}
+        variant={v.kind === "verified" ? "success" : v.kind === "missed" ? "warning" : "plain"}
         aria-label={v.title}
         data-testid={`result-${v.kind}`}
-        className="gap-3 p-5 shadow-card-tight"
+        className="gap-3 p-5"
       >
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold leading-[normal] text-ink">{v.title}</h2>
-          {v.kind !== "unchecked" && <Tag variant={v.kind === "verified" ? "success" : "muted"}>{v.kind === "verified" ? "VERIFIED" : "NOT MET"}</Tag>}
+          <h2 className="text-section text-ink">{v.title}</h2>
+          {v.kind !== "unchecked" && <Tag variant={v.kind === "verified" ? "success" : "warning"}>{v.kind === "verified" ? "Verified" : "Not met"}</Tag>}
         </div>
         {v.kind !== "unchecked" && (
           <div className="flex gap-3">
-            <Figure label="VERIFIED RESULT" value={`${v.value} out of 100`} />
-            <Figure label="YOUR TARGET" value={`${v.target} out of 100`} />
+            <Figure label="Verified result" value={`${v.value} out of 100`} />
+            <Figure label="Your target" value={`${v.target} out of 100`} />
           </div>
         )}
         <p className="text-sm leading-5 text-ink-2">{v.body}</p>
-        <p className="text-xs text-muted">One check on data the model never saw. A measured result for this data, not a promise for new data.</p>
+        <EstimateNote>One check on data the model never saw. A measured result for this data, not a promise for new data.</EstimateNote>
       </Card>
       <MoneyRecap receipt={receipt} note={recapNote(v.kind, toRecap(receipt))} />
       <ReceiptCard receipt={receipt} />
@@ -161,11 +160,11 @@ function HigherTarget({ project, reached, onChanged }: { project: BProject; reac
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
-      <Card variant="violet" aria-label="Try a higher target" data-testid="higher-target" className="gap-2 p-4 shadow-card-tight">
+      <Card variant="highlight" aria-label="Try a higher target" data-testid="higher-target" className="gap-2 p-4">
         <h2 className="text-sm font-semibold text-ink">Want a higher result?</h2>
-        <p className="text-sm leading-5 text-ink-2">Pick a higher target and we run a free small test first. Nothing is charged until you approve a new price and a new PayPal hold.</p>
+        <p className="text-sm leading-5 text-ink-2">A free small test comes first. Nothing is charged until you approve a new price and a new PayPal hold.</p>
         <div>
-          <Button variant="outline" size="md" onClick={() => setOpen(true)}>
+          <Button variant="outline" onClick={() => setOpen(true)}>
             Try a higher target
           </Button>
         </div>
@@ -180,7 +179,7 @@ function HigherTarget({ project, reached, onChanged }: { project: BProject; reac
       title="Try a higher target"
       mustBeAbove={reached}
       buttonLabel="Run the free small test"
-      intro={`You reached ${reached ?? "your target"} out of 100. Pick a higher number. The free small test gives an estimate of the chance a new run gets there. It is an estimate, not a promise. Your earlier model and receipt stay as they are.`}
+      intro={`You reached ${reached ?? "your target"} out of 100. Pick a higher number. The free small test estimates the chance a new run gets there. Your earlier model and receipt stay as they are.`}
     />
   );
 }
@@ -197,13 +196,13 @@ function ModelLink({ projectId }: { projectId: string }) {
   }, [projectId]);
   if (!has) return null;
   return (
-    <Card variant="violet" aria-label="Use your model" data-testid="model-link" className="gap-2 p-4 shadow-card-tight">
+    <Card variant="highlight" aria-label="Use your model" data-testid="model-link" className="gap-2 p-4">
       <h2 className="text-sm font-semibold text-ink">Use your model</h2>
       <p className="text-sm leading-5 text-ink-2">Try it on one record, run it on a CSV, or download it. This is free.</p>
       <div>
-        <Link href={`/projects/${projectId}?tab=model`} className="text-sm font-semibold text-brand-ink underline">
+        <LinkButton href={`/projects/${projectId}?tab=model`} variant="outline" size="sm">
           Open the model
-        </Link>
+        </LinkButton>
       </div>
     </Card>
   );
@@ -211,9 +210,9 @@ function ModelLink({ projectId }: { projectId: string }) {
 
 function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <div className={cn("flex min-w-px flex-1 flex-col gap-[3px] rounded-xl bg-surface p-3.5 leading-[normal]")}>
-      <p className="text-xs font-semibold text-muted">{label}</p>
-      <p className="text-xl font-semibold text-ink">{value}</p>
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg bg-card p-3">
+      <p className="text-small text-muted">{label}</p>
+      <p className="text-section text-ink tabular-nums">{value}</p>
     </div>
   );
 }
@@ -223,8 +222,8 @@ export function StoppedStep({ project, onChanged }: StepProps) {
   const { receipt, refresh } = useReceipt(project);
   return (
     <>
-      <Card variant="amber" aria-label="You stopped the run" className="gap-3 p-5 shadow-card-tight">
-        <h2 className="text-base font-semibold text-ink">You stopped the run</h2>
+      <Card variant="warning" aria-label="You stopped the run" className="gap-3 p-5">
+        <h2 className="text-section text-ink">You stopped the run</h2>
         <p className="text-sm leading-5 text-ink-2">
           You pay for the compute used so far. There is no success fee, and the rest of the PayPal hold is released.
         </p>
@@ -244,8 +243,8 @@ export function VoidedStep({ project }: StepProps) {
   const cancelled = project.status === "voided" && !project.run;
   return (
     <>
-      <Card variant="red" aria-label="Nothing was charged" className="gap-3 p-5 shadow-card-tight">
-        <h2 className="text-base font-semibold text-ink">{cancelled ? "Nothing was charged" : "Something went wrong on our side"}</h2>
+      <Card variant="danger" aria-label="Nothing was charged" className="gap-3 p-5">
+        <h2 className="text-section text-ink">{cancelled ? "Nothing was charged" : "Something went wrong on our side"}</h2>
         <p className="text-sm leading-5 text-ink-2">
           {cancelled
             ? "This run did not go ahead. You pay $0. The whole hold was released."
@@ -253,9 +252,11 @@ export function VoidedStep({ project }: StepProps) {
               ? "We are releasing your PayPal hold now. You pay $0."
               : OUR_FAILURE_TEXT}
         </p>
-        <Link href="/" className="text-sm font-semibold text-brand-ink underline">
-          Start a new project
-        </Link>
+        <div>
+          <LinkButton href="/" variant="outline" size="sm">
+            Start a new project
+          </LinkButton>
+        </div>
       </Card>
       <MoneyRecap receipt={receipt} />
     </>
@@ -265,13 +266,15 @@ export function VoidedStep({ project }: StepProps) {
 export function UnknownStep({ project }: StepProps) {
   return (
     <Card aria-label="Unknown state" className="gap-3 p-5">
-      <h2 className="text-base font-semibold text-ink">We are not sure what to show here</h2>
+      <h2 className="text-section text-ink">We are not sure what to show here</h2>
       <p className="text-sm leading-5 text-ink-2">
         This project is in a state this page does not know ({project.status}). Nothing has been charged by this page.
       </p>
-      <Link href="/" className="text-sm font-semibold text-brand-ink underline">
-        Back to start
-      </Link>
+      <div>
+        <LinkButton href="/" variant="outline" size="sm">
+          Back to start
+        </LinkButton>
+      </div>
     </Card>
   );
 }

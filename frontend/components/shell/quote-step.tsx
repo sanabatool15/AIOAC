@@ -3,19 +3,23 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EstimateNote } from "@/components/ui/estimate-note";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Tag } from "@/components/ui/tag";
 import { quoteFromProject, toForecast } from "@/lib/adapters";
 import type { BProject } from "@/lib/api";
 import * as real from "@/lib/api-real";
+import { phaseView, projectMoney } from "@/lib/money-summary";
+import { ConfirmDialog } from "./confirm-dialog";
 import { ErrorLine, Row, useAction } from "./step-parts";
-import { ForecastCard } from "./step-cards";
+import { ForecastCard, MoneyTriplet } from "./step-cards";
 
 interface StepProps {
   project: BProject;
   onChanged: () => void | Promise<void>;
 }
 
-// Step 7 of the plan. Quote and pay on the polished cards. Every figure is an estimate except the cap, which is a limit.
+// Step 7 of the plan. Quote and pay. Every figure is an estimate except the cap, which is a limit.
 
 export function QuoteStep({ project, onChanged }: StepProps) {
   const f = toForecast(project.forecast);
@@ -25,7 +29,6 @@ export function QuoteStep({ project, onChanged }: StepProps) {
   const requote = (
     <Button
       variant="outline"
-      size="md"
       disabled={busy}
       onClick={() =>
         run(async () => {
@@ -39,39 +42,38 @@ export function QuoteStep({ project, onChanged }: StepProps) {
   );
   return (
     <>
-      {f && <ForecastCard f={f} />}
+      {f && <ForecastCard f={f} note={!q} />}
       {!q ? (
         <Card aria-label="Your price" className="gap-3 p-4">
-          <h2 className="text-base font-semibold leading-[normal] text-ink">Your price</h2>
+          <h2 className="text-section text-ink">Your price</h2>
           <p className="text-sm leading-5 text-ink-2">
-            The pilot looks good enough to offer a run. I will work out one price for the full run. This is free.
+            The pilot looks good enough to offer a run. Working out one price for the full run is free.
           </p>
           <div>{requote}</div>
           <ErrorLine message={error} />
         </Card>
       ) : (
-        <Card variant="peach" aria-label="Your price (estimate)" data-testid="quote-card" className="gap-3 p-5 shadow-card-tight">
+        <Card variant="highlight" aria-label="Your price (estimate)" data-testid="quote-card" className="gap-3 p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold leading-[normal] text-ink">Your price</h2>
-            <Tag>ESTIMATE</Tag>
+            <h2 className="text-section text-ink">Your price</h2>
+            <Tag>Estimate</Tag>
           </div>
+          <MoneyTriplet summary={projectMoney(project, false)} />
           <dl className="flex flex-col gap-1.5">
             <Row label="Estimated total (estimate)" value={q.estimate} strong />
             <Row label="Likely range (estimate)" value={q.range} />
             {q.modelType && <Row label="Model type" value={q.modelType.name} />}
             <Row label="Compute, up to" value={q.computeMax} />
             <Row label="Success fee, up to (only if verified)" value={q.feeMax} />
-            <Row label="The most you can ever be charged (the cap)" value={q.cap} strong />
           </dl>
-          {q.modelType && <p className="text-xs text-muted">{q.modelType.note}</p>}
+          {q.modelType && <p className="text-micro text-muted">{q.modelType.note}</p>}
           <p className="text-sm leading-5 text-ink-2">
-            PayPal will hold {q.cap} (the cap) and charge nothing yet. When the run is over, we charge the compute
-            actually used and release the rest of the hold. {q.terms}
+            PayPal holds {q.cap} (the cap) and charges nothing yet. When the run ends we charge the compute actually used
+            and release the rest. {q.terms}
           </p>
-          <p className="text-xs text-muted">PayPal sandbox: this is test money, no real money is used.</p>
+          <EstimateNote>PayPal sandbox: test money only. Figures are estimates, except the cap, which is a limit.</EstimateNote>
           <div className="flex flex-wrap gap-2">
             <Button
-              size="md"
               disabled={busy}
               onClick={() =>
                 run(async () => {
@@ -99,23 +101,26 @@ export function PayStep({ project, onChanged }: StepProps) {
   const pay = project.payment;
   const dead = pay && ["declined", "expired", "voided"].includes(pay.state);
   const q = quoteFromProject(project);
+  const summary = projectMoney(project);
+  const phase = phaseView(summary.phase);
   return (
-    <Card variant="peach" aria-label="Waiting for your PayPal approval" className="gap-3 p-5 shadow-card-tight">
-      <h2 className="text-base font-semibold leading-[normal] text-ink">Waiting for your PayPal approval</h2>
+    <Card variant={dead ? "danger" : "highlight"} aria-label="Waiting for your PayPal approval" className="gap-3 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-section text-ink">{dead ? "PayPal hold did not go through" : "Waiting for your PayPal approval"}</h2>
+        <StatusChip tone={phase.tone}>{phase.label}</StatusChip>
+      </div>
+      <MoneyTriplet summary={summary} />
       {dead ? (
-        <p className="text-sm leading-5 text-ink-2">
-          That PayPal hold did not go through ({pay?.state}). Nothing was charged. Get a new price to try again.
-        </p>
+        <p className="text-sm leading-5 text-ink-2">Nothing was charged. Get a new price to try again.</p>
       ) : (
         <p className="text-sm leading-5 text-ink-2">
           PayPal will hold up to {q?.cap ?? "the cap"} and charge nothing yet. Approve it on PayPal (sandbox, no real
-          money), then come back here. If you already approved it, press &quot;Check my approval&quot;.
+          money), then come back here. Already approved? Press &quot;Check my approval&quot;.
         </p>
       )}
       <div className="flex flex-wrap gap-2">
         {dead ? (
           <Button
-            size="md"
             disabled={busy}
             onClick={() =>
               run(async () => {
@@ -129,7 +134,6 @@ export function PayStep({ project, onChanged }: StepProps) {
         ) : (
           <>
             <Button
-              size="md"
               disabled={busy}
               onClick={() =>
                 run(async () => {
@@ -142,7 +146,6 @@ export function PayStep({ project, onChanged }: StepProps) {
             </Button>
             <Button
               variant="outline"
-              size="md"
               disabled={busy}
               onClick={() =>
                 run(async () => {
@@ -153,37 +156,25 @@ export function PayStep({ project, onChanged }: StepProps) {
             >
               Check my approval
             </Button>
-            <Button variant="outline" size="md" disabled={busy} onClick={() => setConfirmingCancel(true)}>
+            <Button variant="outline" disabled={busy} onClick={() => setConfirmingCancel(true)}>
               Cancel
             </Button>
           </>
         )}
       </div>
       {confirmingCancel && (
-        <div role="alertdialog" aria-label="Cancel this run" className="flex flex-col gap-2 rounded-lg border border-border bg-white p-3">
-          <p className="text-sm leading-5 text-ink-2">
-            Cancel this run? Nothing has been charged. If PayPal placed a hold, the whole hold is released and you pay $0.
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="destructive"
-              size="md"
-              disabled={busy}
-              onClick={() =>
-                run(async () => {
-                  await real.cancelHold(project.id);
-                  setConfirmingCancel(false);
-                  await onChanged();
-                })
-              }
-            >
-              {busy ? "Cancelling…" : "Yes, cancel"}
-            </Button>
-            <Button variant="outline" size="md" disabled={busy} onClick={() => setConfirmingCancel(false)}>
-              Keep it
-            </Button>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Cancel this run"
+          body="Cancel this run? Nothing has been charged. If PayPal placed a hold, the whole hold is released and you pay $0."
+          confirmLabel="Yes, cancel"
+          busyLabel="Cancelling…"
+          onCancel={() => setConfirmingCancel(false)}
+          onConfirm={async () => {
+            await real.cancelHold(project.id);
+            setConfirmingCancel(false);
+            await onChanged();
+          }}
+        />
       )}
       <ErrorLine message={error} />
     </Card>

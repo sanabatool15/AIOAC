@@ -1,23 +1,25 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EstimateNote } from "@/components/ui/estimate-note";
 import { Tag } from "@/components/ui/tag";
 import { toBaseline, toFindings, toForecast, type ForecastView } from "@/lib/adapters";
 import type { BProject } from "@/lib/api";
 import * as real from "@/lib/api-real";
+import { AXIS_TICKS, barPercent } from "@/lib/chart-scale";
+import type { MoneySummary } from "@/lib/money-summary";
 import { cn } from "@/lib/utils";
 import { FixPanel } from "./fix-panel";
 import { ErrorLine, Row, useAction } from "./step-parts";
 
 // Result cards of the free steps, in plain words. They read the project (server state), never the chat text.
-// Same look as the polished screens: gradient grade tile, bars, tinted cards.
 
 export function DatasetCard({ project }: { project: BProject }) {
   const d = project.dataset;
   if (!d) return null;
   return (
     <Card aria-label="Your data" className="gap-2.5 p-4">
-      <h2 className="text-sm font-semibold text-ink">Your data</h2>
+      <h2 className="text-section text-ink">Your data</h2>
       <dl className="flex flex-col gap-1.5">
         <Row label="Rows" value={d.rows.toLocaleString()} />
         <Row label="Columns" value={d.columns} />
@@ -33,20 +35,18 @@ export function ReadinessCard({ project }: { project: BProject }) {
   if (!r) return null;
   const findings = toFindings(project);
   return (
-    <Card variant="green" aria-label="Data check" data-testid="readiness-card" className="gap-3 p-4 shadow-card-tight">
+    <Card aria-label="Data check" data-testid="readiness-card" className="gap-3 p-4">
       <div className="flex items-center gap-4">
-        <div className="flex size-[54px] shrink-0 items-center justify-center rounded-xl bg-brand-gradient text-[28px] font-semibold leading-[normal] text-white shadow-glow">
-          {r.grade}
-        </div>
-        <div className="flex min-w-px flex-1 flex-col gap-0.5 text-sm leading-[normal]">
-          <p className="font-semibold text-ink">Data check: grade {r.grade}</p>
-          <p className="text-muted">A grade for how ready your data is. It is a guide, not a promise.</p>
+        <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-brand text-title text-on-brand">{r.grade}</div>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-sm">
+          <h2 className="text-section text-ink">Data check: grade {r.grade}</h2>
+          <p className="text-muted">How ready your data is. A guide, not a promise.</p>
         </div>
       </div>
       <ul className="flex flex-col gap-1.5 text-sm">
         {findings.map((f, i) => (
           <li key={i} className="flex gap-2">
-            <Tag variant={f.ok ? "brand" : "muted"} className="shrink-0">
+            <Tag variant={f.ok ? "success" : "warning"} className="shrink-0">
               {f.ok ? "OK" : "NOTE"}
             </Tag>
             <span className="text-ink-2">{f.text}</span>
@@ -57,15 +57,51 @@ export function ReadinessCard({ project }: { project: BProject }) {
   );
 }
 
-const BAR_PX_PER_PCT = 1.0845;
+interface BarSpec {
+  value: number;
+  label: string;
+  className: string;
+}
 
-function Bar({ pct, label, className }: { pct: number; label: string; className: string }) {
+// Bars on a fixed 0 to 100 scale with an axis, so heights are proportional. Values are the server's, out of 100.
+export function ScoreChart({ bars }: { bars: BarSpec[] }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 leading-[normal]">
-      <p className="text-sm font-semibold text-ink">{pct} out of 100</p>
-      <div role="img" aria-label={`${label}: ${pct} out of 100`} className={cn("w-[52px] rounded-md", className)} style={{ height: Math.round(pct * BAR_PX_PER_PCT) }} />
-      <p className="text-xs text-muted">{label}</p>
-    </div>
+    <figure
+      className="flex shrink-0 flex-col gap-1.5"
+      role="img"
+      aria-label={bars.map((b) => `${b.label}: ${b.value} out of 100`).join(". ")}
+    >
+      <div className="flex gap-2">
+        <div aria-hidden className="relative h-40 w-7 text-micro text-muted tabular-nums">
+          {AXIS_TICKS.map((t) => (
+            <span key={t} className="absolute right-0 translate-y-1/2 leading-none" style={{ bottom: `${t}%` }}>
+              {t}
+            </span>
+          ))}
+        </div>
+        <div aria-hidden className="relative h-40 flex-1 border-b border-border">
+          {AXIS_TICKS.filter((t) => t > 0).map((t) => (
+            <div key={t} className="absolute inset-x-0 border-t border-border" style={{ bottom: `${t}%` }} />
+          ))}
+          <div className="absolute inset-0 flex items-end justify-around gap-4 px-3">
+            {bars.map((b) => (
+              <div key={b.label} className={cn("w-12 rounded-t-md", b.className)} style={{ height: `${barPercent(b.value)}%` }} />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2 text-center text-micro text-muted">
+        <span aria-hidden className="w-7 shrink-0" />
+        <div className="flex flex-1 justify-around gap-4 px-3">
+          {bars.map((b) => (
+            <div key={b.label} className="flex w-20 flex-col">
+              <span className="text-small font-semibold text-ink tabular-nums">{b.value} out of 100</span>
+              <span>{b.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </figure>
   );
 }
 
@@ -73,21 +109,22 @@ export function FreeTestCard({ project }: { project: BProject }) {
   const b = toBaseline(project);
   if (!b || b.right === null || b.guess === null) return null;
   return (
-    <Card variant="blue" aria-label="Free test" data-testid="baseline-result" className="gap-3 p-[18px] shadow-card-tight">
-      <p className="text-sm font-semibold leading-[normal] text-ink">Free test</p>
-      <div className="flex items-center gap-7">
-        <p className="min-w-px flex-1 text-sm leading-5 text-ink-2">
+    <Card aria-label="Free test" data-testid="baseline-result" className="gap-3 p-4">
+      <h2 className="text-section text-ink">Free test</h2>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <p className="min-w-0 flex-1 text-sm leading-5 text-ink-2">
           On data it had not seen, a simple first model got about <strong>{b.right} out of 100</strong> right. Always
           guessing the most common answer would get about {b.guess} out of 100.{" "}
           {b.beatsGuess ? "So the data does carry a signal." : "So it is not clearly better than a simple guess."}
         </p>
-        <div className="flex items-end gap-[22px] pt-1.5">
-          <Bar pct={b.right} label="First model" className="bg-bar-baseline" />
-          <Bar pct={b.guess} label="Simple guess" className="bg-bar-target" />
-        </div>
+        <ScoreChart
+          bars={[
+            { value: b.right, label: "First model", className: "bg-bar-baseline" },
+            { value: b.guess, label: "Simple guess", className: "bg-bar-target" },
+          ]}
+        />
       </div>
       {project.trust_level && <p className="text-sm text-muted">How much to trust this so far: {project.trust_level}</p>}
-      <p className="text-xs text-muted">A first signal on a small test. It is not a promise of the final result.</p>
     </Card>
   );
 }
@@ -103,27 +140,47 @@ export function History({ project }: { project: BProject }) {
   );
 }
 
+// Cap / Held / Charged. Values are built by lib/money-summary.ts from server figures; unknown ones read "Not yet".
+export function MoneyTriplet({ summary }: { summary: MoneySummary }) {
+  const items = [
+    { label: "Cap", value: summary.cap, note: "The most you can ever be charged (the cap)" },
+    { label: "Held", value: summary.held, note: "A hold on PayPal, not a charge" },
+    { label: "Charged", value: summary.charged, note: "Taken only after the run ends" },
+  ];
+  return (
+    <dl data-testid="money-triplet" aria-label="Cap, held and charged" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {items.map((i) => (
+        <div key={i.label} className="flex min-w-0 flex-col gap-0.5 rounded-lg bg-surface p-3">
+          <dt className="text-small text-muted">{i.label}</dt>
+          <dd className={cn("text-section tabular-nums", i.value === "Not yet" ? "text-muted" : "text-ink")}>{i.value}</dd>
+          <dd className="text-micro text-muted">{i.note}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 // After a data fix and a new pilot: the estimate before and after, side by side. Both are estimates.
 function BeforeAfter({ f }: { f: ForecastView }) {
   if (!f.before) return null;
   return (
-    <div aria-label="Before and after the data fix" data-testid="fix-before-after" className="flex flex-col gap-1 rounded-lg border border-border bg-white p-3 text-sm">
+    <div aria-label="Before and after the data fix" data-testid="fix-before-after" className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 text-sm">
       <p className="font-semibold text-ink">After your data fix</p>
       <p className="text-ink-2">
-        Before: about {f.before.expected} out of 100, a {f.before.confidence}% chance of reaching {f.before.target} out of 100 (estimate).
+        Before: about {f.before.expected} out of 100, a {f.before.confidence}% chance of reaching {f.before.target} out of 100.
       </p>
       <p className="text-ink-2">
-        Now: about {f.expected} out of 100, a {f.confidence}% chance of reaching {f.target} out of 100 (estimate).
+        Now: about {f.expected} out of 100, a {f.confidence}% chance of reaching {f.target} out of 100.
       </p>
-      <p className="text-xs text-muted">We tested whether the fix changes the estimate. It is a small free test, not a promise.</p>
     </div>
   );
 }
 
-export function ForecastCard({ f }: { f: ForecastView }) {
+// `note` is false where the screen shows its own EstimateNote (the price card).
+export function ForecastCard({ f, note = true }: { f: ForecastView; note?: boolean }) {
   return (
-    <Card variant="blue" aria-label="Forecast (estimate)" data-testid="forecast-card" className="gap-2.5 p-4 shadow-card-tight">
-      <h2 className="text-sm font-semibold text-ink">Forecast (estimate)</h2>
+    <Card aria-label="Forecast (estimate)" data-testid="forecast-card" className="gap-2.5 p-4">
+      <h2 className="text-section text-ink">Forecast (estimate)</h2>
       <dl className="flex flex-col gap-1.5">
         <Row label="Your target" value={`${f.target} out of 100`} />
         <Row label="Expected result (estimate)" value={`about ${f.expected} out of 100`} />
@@ -131,9 +188,9 @@ export function ForecastCard({ f }: { f: ForecastView }) {
         <Row label="Chance of reaching your target (estimate)" value={`about ${f.confidence}%`} />
         {f.modelType && <Row label="Model type tested" value={f.modelType.name} />}
       </dl>
-      {f.modelType && <p className="text-xs text-muted">{f.modelType.note}</p>}
+      {f.modelType && <p className="text-micro text-muted">{f.modelType.note}</p>}
       <BeforeAfter f={f} />
-      <p className="text-xs text-muted">An estimate from a small free pilot, not a promise.</p>
+      {note && <EstimateNote>From a small free pilot. An estimate, not a promise.</EstimateNote>}
     </Card>
   );
 }
@@ -144,32 +201,31 @@ export function EligibilityCard({ project, onChanged }: { project: BProject; onC
   const { busy, error, run } = useAction();
   if (!f) return null;
   return (
-    <Card variant="amber" aria-label="Not eligible for a price yet" data-testid="eligibility-card" className="gap-3 p-5 shadow-card-tight">
+    <Card variant="warning" aria-label="Not eligible for a price yet" data-testid="eligibility-card" className="gap-3 p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold leading-[normal] text-ink">We cannot offer a price for this target yet</h2>
+        <h2 className="text-section text-ink">We cannot offer a price for this target yet</h2>
         <Tag>Nothing charged</Tag>
       </div>
       <p className="text-sm leading-5 text-ink-2">{f.reason || "The forecast is too uncertain to sell a run."}</p>
       {f.issues.length > 0 && (
         <>
-          <p className="text-xs font-semibold leading-[normal] text-muted">WHAT HOLDS THE RESULT BACK</p>
+          <h3 className="text-small font-semibold text-ink">What holds the result back</h3>
           <ul className="flex flex-col gap-2.5">
             {f.issues.map((r, i) => (
-              <li key={i} className="flex items-center gap-2.5 text-sm leading-[normal] text-ink">
-                <span aria-hidden className="size-2 shrink-0 rounded-full bg-brand-gradient" />
-                <span className="min-w-px flex-1">{r}</span>
+              <li key={i} className="flex items-center gap-2.5 text-sm text-ink">
+                <span aria-hidden className="size-2 shrink-0 rounded-full bg-warning" />
+                <span className="min-w-0 flex-1">{r}</span>
               </li>
             ))}
           </ul>
         </>
       )}
       <BeforeAfter f={f} />
-      <p className="text-sm text-muted">The pilot is free, so you can try again as often as you like.</p>
+      <p className="text-small text-muted">The pilot is free, so you can try again as often as you like.</p>
       <FixPanel project={project} onChanged={onChanged} />
       {f.suggestedTarget !== null && (
         <div className="flex flex-wrap items-center gap-3">
           <Button
-            size="md"
             disabled={busy}
             onClick={() =>
               run(async () => {
@@ -180,7 +236,7 @@ export function EligibilityCard({ project, onChanged }: { project: BProject; onC
           >
             {busy ? "Running the free pilot…" : `Try ${f.suggestedTarget} out of 100 instead (free)`}
           </Button>
-          <Tag variant="brand">SUGGESTED</Tag>
+          <Tag variant="brand">Suggested</Tag>
         </div>
       )}
       <ErrorLine message={error} />
