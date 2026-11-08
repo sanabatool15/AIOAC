@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { ErrorState, Skeleton } from "@/components/ui/state";
 import { ApiError, type BProject } from "@/lib/api";
 import { getProject, rememberProject } from "@/lib/api-real";
-import { isSettling, screenFor, STEP_LABELS, stepIndex } from "@/lib/status";
+import { isSettling, screenFor, stepIndex } from "@/lib/status";
 import { ChatComposer, ChatThread, useProjectChat } from "./project-chat";
 import { DataPicker } from "./data-picker";
 import { InlineChatFrame } from "./inline-chat";
-import { Stepper } from "./step-parts";
+import { ProjectStepper } from "./step-parts";
+import { ChatLayout, stepChanged } from "./chat-layout";
 import { StepArea } from "./step-area";
 import { PROJECTS_CHANGED } from "./sidebar";
 import { useFollowChat } from "./use-follow-chat";
@@ -54,7 +55,7 @@ export function ChatScreen({ chatId }: { chatId: string }) {
     ) : (
       <div className="flex min-w-0 flex-1 flex-col gap-4 p-8" aria-busy="true" aria-label="Loading project">
         <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-40 w-full max-w-[640px]" />
+        <Skeleton className="h-40 w-full max-w-form" />
       </div>
     );
   }
@@ -67,20 +68,24 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
   const idx = stepIndex(screen);
   const onData = screen === "data";
   const bottom = useRef<HTMLDivElement>(null);
+  const stepRef = useRef<HTMLDivElement>(null);
+  const lastScreen = useRef<string | null>(null);
   const items = pc.state.items;
   const lastIsUser = items?.[items.length - 1]?.role === "user";
   // The newest chat message (or the live steps) stays next to the composer. A reader who scrolled up is not moved.
   useFollowChat(bottom, `${items?.length ?? 0}:${pc.state.busy}:${pc.state.liveSteps.length}`, !!lastIsUser, items !== null);
+  // A new step brings its card into view (the first render is left alone: the page opens from the top).
+  useEffect(() => {
+    if (stepChanged(lastScreen.current, screen)) stepRef.current?.scrollIntoView?.({ block: "start" });
+    lastScreen.current = screen;
+  }, [screen]);
 
   return (
     <InlineChatFrame
       projectId={project.id}
       projectName={project.goal.length > 48 ? `${project.goal.slice(0, 48)}…` : project.goal}
-      stepLabel={`Step ${idx + 1} of ${STEP_LABELS.length}: ${STEP_LABELS[idx]}`}
-      wide
       composer={<ChatComposer pc={pc} />}
     >
-      <Stepper index={idx} />
       {error && (
         <p role="alert" className="flex items-center gap-3 text-sm text-danger">
           {error.message}
@@ -89,12 +94,13 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
           </Button>
         </p>
       )}
-      {/* The step cards come first and the chat under them, so a new reply is read right above the composer.
-          On the data step the chat comes first: the picker answers it. */}
-      {!onData && <StepArea screen={screen} project={project} onChanged={reload} />}
-      <ChatThread pc={pc} projectStatus={project.status} />
-      {onData && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
-      <div ref={bottom} />
+      <ChatLayout
+        stepRef={stepRef}
+        endRef={bottom}
+        progress={<ProjectStepper index={idx} />}
+        step={onData ? <DataPicker projectId={project.id} pc={pc} onChanged={reload} /> : <StepArea screen={screen} project={project} onChanged={reload} />}
+        conversation={<ChatThread pc={pc} projectStatus={project.status} />}
+      />
     </InlineChatFrame>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { dollars, outOf100 } from "@/lib/adapters";
 import { cardFacts, cardTitle, type ChatBlock, type ChatCard } from "@/lib/chat";
@@ -10,12 +10,12 @@ export function ChatBlockView({ b }: { b: ChatBlock }) {
   if (b.type === "readiness") {
     const r = b as Extract<ChatBlock, { type: "readiness" }>;
     return (
-      <Card variant="green" aria-label="Data check" className="gap-2 p-4">
+      <Card variant="plain" aria-label="Data check" className="gap-2 p-4">
         <h3 className="text-sm font-semibold text-ink">Data check: grade {r.grade}</h3>
         <ul className="flex flex-col gap-1 text-sm">
           {r.findings.map((f, i) => (
             <li key={i} className="flex gap-2">
-              <span className={f.kind === "OK" ? "font-semibold text-success" : "font-semibold text-muted"}>{f.kind}</span>
+              <span className={f.kind === "OK" ? "font-semibold text-success" : "font-semibold text-warning"}>{f.kind}</span>
               <span className="text-ink-2">{f.text}</span>
             </li>
           ))}
@@ -27,12 +27,11 @@ export function ChatBlockView({ b }: { b: ChatBlock }) {
   if (b.type === "baseline") {
     const r = b as Extract<ChatBlock, { type: "baseline" }>;
     return (
-      <Card variant="blue" aria-label="Free test" className="gap-2 p-4">
+      <Card variant="plain" aria-label="Free test" className="gap-2 p-4">
         <h3 className="text-sm font-semibold text-ink">Free test</h3>
         <p className="text-sm leading-5 text-ink-2">
           On data it had not seen, a simple first model got about <strong>{outOf100(r.accuracy)}</strong> right. Always
-          guessing the most common answer would get about {outOf100(r.simple_guess_accuracy)}. This is a first signal, not a
-          promise.
+          guessing the most common answer would get about {outOf100(r.simple_guess_accuracy)}.
         </p>
         {r.trust && <p className="text-sm text-muted">How much to trust this so far: {r.trust}</p>}
       </Card>
@@ -41,7 +40,7 @@ export function ChatBlockView({ b }: { b: ChatBlock }) {
   if (b.type === "quote") {
     const r = b as Extract<ChatBlock, { type: "quote" }>;
     return (
-      <Card variant="peach" aria-label="Price estimate" className="gap-2 p-4">
+      <Card variant="plain" aria-label="Price estimate" className="gap-2 p-4">
         <h3 className="text-sm font-semibold text-ink">Price (estimate)</h3>
         <p className="text-sm leading-5 text-ink-2">
           Estimated {dollars(r.estimate_cents)}, most likely between {dollars(r.low_cents)} and {dollars(r.high_cents)}. The most
@@ -53,16 +52,16 @@ export function ChatBlockView({ b }: { b: ChatBlock }) {
   if (b.type === "pay") {
     const r = b as Extract<ChatBlock, { type: "pay" }>;
     return (
-      <Card variant="peach" aria-label="Payment hold" className="gap-2 p-4">
+      <Card variant="highlight" aria-label="Payment hold" className="gap-2 p-4">
         <h3 className="text-sm font-semibold text-ink">Payment hold (PayPal sandbox)</h3>
         <p className="text-sm leading-5 text-ink-2">
           A hold of up to {dollars(r.hold_cents)} is placed on test PayPal money. Nothing is charged until the run is
           finished. The payment step of this page is where you pay.
         </p>
         {r.approve_url && (
-          <a href={r.approve_url} className="w-fit rounded-[10px] bg-brand px-3 py-2 text-sm font-medium text-white">
+          <LinkButton href={r.approve_url} size="md" className="w-fit">
             Go to PayPal (sandbox)
-          </a>
+          </LinkButton>
         )}
       </Card>
     );
@@ -101,12 +100,12 @@ export function ApprovalCard({
   const facts = cardFacts(card);
   const title = cardTitle(card);
   return (
-    <Card variant="amber" aria-label="Approval needed" className="gap-3 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{declined ? "You chose not to use this one" : pending ? "Needs your OK" : "Asked for your OK"}</p>
-      <h3 className="text-base font-semibold text-ink">{title}</h3>
+    <Card variant={pending && !declined ? "warning" : "plain"} aria-label="Approval needed" className="gap-3 p-4">
+      <p className="text-small font-semibold text-ink-2">{declined ? "You chose not to use this one" : pending ? "Needs your OK" : "Asked for your OK"}</p>
+      <h3 className="text-section text-ink">{title}</h3>
       {title !== card.what && <p className="text-sm leading-5 text-ink-2">{card.what}</p>}
       {facts.length > 0 && (
-        <dl aria-label={card.tool === "apply_data_fix" ? "What changes" : "The dataset"} className="flex flex-col gap-1.5 rounded-lg border border-border bg-white p-3">
+        <dl aria-label={card.tool === "apply_data_fix" ? "What changes" : "The dataset"} className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3">
           {facts.map((f) => (
             <Fact key={f.label} label={f.label} value={f.value} note={f.note} />
           ))}

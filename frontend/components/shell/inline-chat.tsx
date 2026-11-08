@@ -1,71 +1,36 @@
 "use client";
-import { Tag } from "@/components/ui/tag";
-import { cn } from "@/lib/utils";
 import { Composer } from "./composer";
 import { MarkdownText } from "./markdown-text";
 import { ShareButton } from "./share-dialog";
 import { TopBar } from "./top-bar";
 
-// Shared frame for the chat-first screens (4, 5, 6): top bar with step tag, a centered thread, the composer.
-// `wide` = 720px column (screens 5, 6); default 680px (screen 4).
+// Shared frame for the project chat: top bar, one centred column that scrolls, the composer under it.
 export function InlineChatFrame({
   projectName,
   projectId,
-  stepLabel,
-  wide = false,
-  width: widthProp,
   onSend,
   composer,
   children,
 }: {
   projectName: string;
   projectId?: string; // shows the Share button
-  stepLabel?: string;
-  wide?: boolean;
-  width?: "narrow"; // 560px thread (screen 10, with the canvas open)
   onSend?: (text: string) => void;
   composer?: React.ReactNode; // replaces the default composer (the project chat brings its own)
   children: React.ReactNode;
 }) {
-  const width =
-    widthProp === "narrow" ? "w-[560px]" : wide ? "w-[720px]" : "w-[680px]";
   return (
-    <section
-      aria-label="Chat"
-      className="flex h-full min-w-0 flex-1 flex-col bg-bg"
-    >
+    <section aria-label="Chat" className="flex h-full min-w-0 flex-1 flex-col bg-bg">
       <TopBar
-        left={
-          <h1 className="whitespace-pre text-sm font-normal leading-[normal] text-muted">{`${projectName}  /  Chat`}</h1>
-        }
-        actions={
-          stepLabel || projectId ? (
-            <>
-              {stepLabel && <Tag variant="brand">{stepLabel}</Tag>}
-              {projectId && <ShareButton projectId={projectId} />}
-            </>
-          ) : undefined
-        }
+        left={<h1 className="whitespace-pre text-small font-normal text-muted">{`${projectName}  /  Chat`}</h1>}
+        actions={projectId ? <ShareButton projectId={projectId} /> : undefined}
       />
-      <div className="flex min-h-0 flex-1 justify-center overflow-y-auto pb-2.5 pt-[26px]">
-        <div
-          className={cn(
-            "flex h-fit max-w-[calc(100%-48px)] flex-col gap-[18px]",
-            width,
-          )}
-        >
-          {children}
-        </div>
+      <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-4 pb-2.5 pt-6 sm:px-6">
+        <div className="flex h-fit w-full max-w-chat flex-col gap-6">{children}</div>
       </div>
-      <div className="flex shrink-0 justify-center pb-[22px] pt-2">
-        <div className={cn("max-w-[calc(100%-48px)]", width)}>
+      <div className="flex shrink-0 justify-center px-4 pb-5 pt-2 sm:px-6">
+        <div className="w-full max-w-chat">
           {composer ??
-            (onSend && (
-              <Composer
-                onSend={onSend}
-                placeholder="Ask AIOAC anything, or describe what to predict..."
-              />
-            ))}
+            (onSend && <Composer onSend={onSend} placeholder="Ask AIOAC anything, or describe what to predict..." />)}
         </div>
       </div>
     </section>
@@ -75,8 +40,8 @@ export function InlineChatFrame({
 export function UserBubble({ text }: { text: string }) {
   return (
     <div className="flex justify-end">
-      <div className="rounded-2xl bg-surface px-4 py-2.5">
-        <p className="w-[360px] max-w-full text-sm leading-[22px] text-ink">
+      <div className="rounded-xl bg-surface px-4 py-2.5">
+        <p className="max-w-sm text-body text-ink">
           {text}
         </p>
       </div>
@@ -89,7 +54,7 @@ export function AgentRow({ text, children }: { text: string; children?: React.Re
     <div className="flex items-start gap-3">
       <div
         aria-hidden
-        className="size-6 shrink-0 rounded-xl bg-brand-gradient shadow-glow"
+        className="size-6 shrink-0 rounded-full bg-brand"
       />
       <div className="flex min-w-px flex-1 flex-col gap-3">
         {text && <MarkdownText text={text} />}

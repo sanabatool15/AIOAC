@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { ArrowUp, Mic, Paperclip, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FieldShell } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 // Identical on every chat screen: attach (only when the screen supports it), mic, send.
@@ -81,7 +82,7 @@ export function Composer({
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
   return (
-    <div className="flex w-full flex-col gap-2 rounded-2xl border border-border bg-card p-3 shadow-composer">
+    <FieldShell className="flex w-full flex-col gap-2 p-3 shadow-card">
       <textarea
         rows={1}
         value={value}
@@ -95,17 +96,17 @@ export function Composer({
         }}
         placeholder={placeholder}
         aria-label="Message AIOAC"
-        className="w-full resize-none bg-transparent text-[15px] leading-[22px] text-ink outline-none placeholder:text-muted"
+        className="w-full resize-none bg-transparent text-body text-ink outline-none placeholder:text-muted"
       />
       <div className="flex items-center gap-1">
         {onAttach && (
-          <Button variant="icon" size="icon" aria-label="Attach data" onClick={onAttach}>
+          <Button variant="ghost" size="icon" aria-label="Attach data" onClick={onAttach}>
             <Paperclip />
           </Button>
         )}
         <div className="flex-1" />
         <Button
-          variant="icon"
+          variant="ghost"
           size="icon"
           aria-label={recording ? "Stop recording" : "Dictate message"}
           aria-pressed={recording}
@@ -130,6 +131,6 @@ export function Composer({
           </Button>
         )}
       </div>
-    </div>
+    </FieldShell>
   );
 }

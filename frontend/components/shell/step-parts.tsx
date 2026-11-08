@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Stepper } from "@/components/ui/stepper";
 import { cn } from "@/lib/utils";
 import { STEP_LABELS } from "@/lib/status";
 
@@ -31,25 +32,13 @@ export function ErrorLine({ message }: { message: string | null }) {
   );
 }
 
-export function Stepper({ index }: { index: number }) {
-  return (
-    <ol aria-label="Steps" className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-      {STEP_LABELS.map((label, i) => (
-        <li
-          key={label}
-          aria-current={i === index ? "step" : undefined}
-          className={cn(
-            "font-medium",
-            i < index && "text-success",
-            i === index && "font-semibold text-brand-ink",
-            i > index && "text-pending",
-          )}
-        >
-          {i + 1}. {label}
-        </li>
-      ))}
-    </ol>
-  );
+// The seven project steps (lib/status.ts) on the shared Stepper. `index` is 0-based. Short labels so all seven fit in
+// the chat column without being cut off; STEP_LABELS keeps the full names for other screens.
+export const SHORT_STEP_LABELS = ["Data", "Check", "Free test", "Target", "Pay", "Train", "Result"] as const;
+export const PROJECT_STEPS = STEP_LABELS.map((id, i) => ({ id, label: SHORT_STEP_LABELS[i] ?? id }));
+
+export function ProjectStepper({ index }: { index: number }) {
+  return <Stepper label="Steps" steps={PROJECT_STEPS} current={index} />;
 }
 
 export function Row({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
@@ -74,7 +63,7 @@ export function Panel({
 }) {
   return (
     <Card variant={variant} aria-label={label ?? title}>
-      <h2 className="text-base font-semibold leading-[normal] text-ink">{title}</h2>
+      <h2 className="text-section text-ink">{title}</h2>
       {children}
     </Card>
   );
