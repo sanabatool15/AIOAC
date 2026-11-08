@@ -64,6 +64,6 @@ test("not eligible -> Try a fix -> confirm -> pilot again shows before and after
   await expect(page.getByTestId("fix-before-after")).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId("fix-before-after").getByText(/Before: about/)).toBeVisible();
   await expect(page.getByTestId("fix-before-after").getByText(/Now: about/)).toBeVisible();
-  // One shared estimate note per screen (UI pass), instead of a repeated line inside the card.
-  await expect(page.getByText(/estimate, not a promise/i).first()).toBeVisible();
+  // The before/after figures are estimates: the card carries the shared estimate note.
+  await expect(page.getByTestId("fix-before-after").getByText(/estimates, not promises/)).toBeVisible();
 });

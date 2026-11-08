@@ -172,6 +172,7 @@ function BeforeAfter({ f }: { f: ForecastView }) {
       <p className="text-ink-2">
         Now: about {f.expected} out of 100, a {f.confidence}% chance of reaching {f.target} out of 100.
       </p>
+      <EstimateNote />
     </div>
   );
 }
