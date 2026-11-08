@@ -35,16 +35,15 @@ export function UploadPanel({ projectId, onChanged }: { projectId: string; onCha
 
   return (
     <Panel title="Upload your own data" label="Upload your own data">
-      <p className="text-sm leading-5 text-ink-2">
-        A CSV file is a table with one row per case and a header row. Then tell us which column holds the answer you want
-        predicted.
+      <p className="text-body text-ink-2">
+        A CSV is a table with a header row and one row per case. Then pick the column holding the answer.
       </p>
       <input
         ref={fileRef}
         type="file"
         accept=".csv,text/csv"
         aria-label="CSV file"
-        className="text-sm"
+        className="text-body"
         onChange={(e) => void pick(e.target.files?.[0])}
       />
       {file && (
@@ -54,7 +53,7 @@ export function UploadPanel({ projectId, onChanged }: { projectId: string; onCha
               id="target-col"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              className="w-full rounded-lg border border-border bg-white px-3 py-2.5 text-sm text-ink"
+              className="w-full rounded-md border border-border bg-card px-3.5 py-2.5 text-body text-ink focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand-edge"
             >
               {file.cols.map((c) => (
                 <option key={c} value={c}>
@@ -64,7 +63,7 @@ export function UploadPanel({ projectId, onChanged }: { projectId: string; onCha
             </select>
           </Field>
           <Button
-            size="md"
+            
             disabled={busy || !target}
             onClick={() =>
               run(async () => {
