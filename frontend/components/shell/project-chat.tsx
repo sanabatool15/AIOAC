@@ -1,6 +1,7 @@
 "use client";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import { EstimateNote } from "@/components/ui/estimate-note";
 import { askedForSearch, pendingCard } from "@/lib/chat";
 import { ChatController } from "@/lib/chat-controller";
 import { thinkingMessage } from "@/lib/thinking";
@@ -52,11 +53,11 @@ function Thinking({
   );
   if (steps.length > 0) {
     return (
-      <div role="status" aria-live="polite" aria-label="What the assistant is doing" className="flex flex-col gap-1 pl-9 text-sm text-muted">
+      <div role="status" aria-live="polite" aria-label="What the assistant is doing" className="flex flex-col gap-1 pl-9 text-body text-muted">
         <ul className="flex flex-col gap-1">
           {steps.map((t, i) => (
             <li key={`${i}-${t}`} className="flex items-center gap-2" data-live-step>
-              {i === steps.length - 1 ? dots : <span aria-hidden className="w-[22px] text-center">✓</span>}
+              {i === steps.length - 1 ? dots : <span aria-hidden className="min-w-6 text-center text-success">✓</span>}
               {t}
             </li>
           ))}
@@ -65,21 +66,27 @@ function Thinking({
     );
   }
   return (
-    <p role="status" aria-live="polite" className="flex items-center gap-2 pl-9 text-sm text-muted">
+    <p role="status" aria-live="polite" className="flex items-center gap-2 pl-9 text-body text-muted">
       {dots}
       {thinkingMessage(seconds, findingData, readingGoal)}
     </p>
   );
 }
 
+export function hasEstimateBlock(b: { type: string }): boolean {
+  return b.type === "baseline" || b.type === "quote";
+}
+
 export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStatus: string }) {
   const { chat, state } = pc;
   const waiting = state.items ? pendingCard(state.items, projectStatus) : null;
   const { error } = state;
+  // One shared note for the whole thread instead of a repeated "estimate" sentence in each block.
+  const hasEstimate = !!state.items?.some((m) => m.blocks.some((b) => hasEstimateBlock(b)));
 
   return (
-    <section aria-label="Chat with the assistant" className="flex flex-col gap-[18px]">
-      {state.items === null && <p className="text-sm text-muted">Opening your chat…</p>}
+    <section aria-label="Chat with the assistant" className="flex flex-col gap-4">
+      {state.items === null && <p className="text-body text-muted">Opening your chat…</p>}
       {state.items?.map((m) =>
         m.role === "user" ? (
           <UserBubble key={m.id} text={m.text} />
@@ -101,11 +108,12 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
             ))}
           </AgentRow>
           {m.card && chat.isDeclined(m.id) && (
-            <p className="pl-9 text-sm text-muted">No problem. Tell me what you would like instead, or upload your own file.</p>
+            <p className="pl-9 text-body text-muted">No problem. Tell me what you would like instead, or upload your own file.</p>
           )}
           </Fragment>
         ),
       )}
+      {hasEstimate && <EstimateNote className="pl-9" />}
       {state.busy && state.items !== null && (
         <Thinking
           findingData={projectStatus === "described" && askedForSearch(state.items)}
@@ -115,7 +123,7 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
         />
       )}
       {error && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 pl-9 text-sm text-danger">
+        <div role="alert" className="flex flex-wrap items-center gap-3 pl-9 text-body text-danger">
           <span>{error.text}</span>
           {error.busy && (
             <Button variant="outline" disabled={state.busy} onClick={() => void chat.checkAgain()}>
@@ -138,7 +146,7 @@ export function ChatComposer({ pc, onAttach }: { pc: ProjectChat; onAttach?: () 
   const { chat, state } = pc;
   if (state.unavailable) {
     return (
-      <p className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
+      <p className="rounded-lg border border-border bg-surface px-4 py-3 text-body text-muted">
         The AI assistant is not set up on this server, so chat is off. You can still use the steps on this page.
       </p>
     );
