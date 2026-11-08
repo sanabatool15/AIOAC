@@ -24,6 +24,10 @@ Fields: project, source, source link, license, size, expiry time, status (candid
 The chosen dataset and each cleaned version of it.
 Fields: project, parent version, storage location, row and column counts, target column, notes on what was changed.
 
+### Column labels (table `column_labels`)
+Plain-English names for a dataset version's columns, shown on the Model tab (for example `Attribute1` -> "Checking account status"). A cache of one small LLM call per dataset version.
+Fields: `dataset_version_id` (foreign key, unique), `labels` (JSON, raw column name -> short plain label, at most 60 characters), `model` (which model wrote them). Only successful, validated labels are saved; a failed call saves nothing and is retried later. Column names, values and the dataset title sent to the model are untrusted data. New table: run `python -m app.db.init --upgrade --yes` (or `python -m app.db.init`); on Supabase enable row level security on it (no policies).
+
 ### Insight report
 Measurements and plain-language findings for a dataset version.
 Fields: dataset version, measurements, findings (OK or NOTE), readiness grade.

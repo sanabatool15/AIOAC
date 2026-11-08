@@ -10,7 +10,7 @@ import { outOf100 } from "@/lib/adapters";
 import type { BBatch, BModel, BModelColumn, BModelVersion } from "@/lib/api";
 import { downloadModel, getModel, getModelVersions, predictBatch, predictOne, switchModelVersion } from "@/lib/api-real";
 import { useAsync } from "@/lib/hooks";
-import { batchProblem, buildRecord, cellText, compareLine, fileSize, formatWhen, sklearnNote, toPrediction, toVersions, type PredictionView } from "@/lib/screens";
+import { batchProblem, buildRecord, cellText, columnTitle, compareLine, fileSize, formatWhen, sklearnNote, toPrediction, toVersions, type PredictionView } from "@/lib/screens";
 import { ErrorLine, useAction } from "./step-parts";
 
 type Available = Extract<BModel, { available: true }>;
@@ -200,6 +200,16 @@ function Available({
   );
 }
 
+function ColumnTitle({ column }: { column: BModelColumn }) {
+  const { main, raw } = columnTitle(column);
+  return (
+    <>
+      <span className={raw ? "text-ink" : undefined}>{main}</span>
+      {raw && <span className="ml-1.5 text-xs font-normal text-muted">{raw}</span>}
+    </>
+  );
+}
+
 function OneRecord({ projectId, columns, modelId }: { projectId: string; columns: BModelColumn[]; modelId?: string }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [result, setResult] = useState<PredictionView | null>(null);
@@ -227,7 +237,7 @@ function OneRecord({ projectId, columns, modelId }: { projectId: string; columns
       <form onSubmit={submit} noValidate className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-2">
           {columns.map((c) => (
-            <Field key={c.name} label={c.name} htmlFor={`f-${c.name}`}>
+            <Field key={c.name} label={<ColumnTitle column={c} />} htmlFor={`f-${c.name}`}>
               {c.choices && c.choices.length > 0 ? (
                 <select
                   id={`f-${c.name}`}

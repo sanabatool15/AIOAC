@@ -88,3 +88,21 @@ class ReactiveFake:
         self.i += 1
         self.pending = ToolCall(f"call-{self.i}", name, self._args(name))
         return LLMResponse(tool_calls=[self.pending])
+
+
+class LabelFake:
+    """Offline stand-in for the small model that writes plain-English column labels (browser tests only).
+    Labels the columns it knows by name and leaves the others out, like a real model that is unsure."""
+
+    model = "label-fake"
+    KNOWN = {"months_active": "Months as a customer", "days_since_last_purchase": "Days since the last purchase",
+             "orders_this_year": "Orders this year"}
+
+    def __init__(self):
+        self.calls: list[list[dict]] = []
+
+    def chat(self, messages, tools):
+        self.calls.append(messages)
+        data = json.loads(messages[-1]["content"].split("\n", 1)[1])
+        names = [c["name"] for c in data["columns"]]
+        return LLMResponse(text=json.dumps({n: self.KNOWN[n] for n in names if n in self.KNOWN}))

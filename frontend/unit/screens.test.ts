@@ -68,7 +68,7 @@ test("overview line covers every status", () => {
   assert.equal(overviewLine("???"), "");
 });
 
-import { batchProblem, buildRecord, cellText, csvRowCount, fileSize, sklearnNote, tabFromQuery, toPrediction } from "../lib/screens";
+import { batchProblem, buildRecord, cellText, columnTitle, csvRowCount, fileSize, sklearnNote, tabFromQuery, toPrediction } from "../lib/screens";
 import type { BBatch, BModel, BPredict } from "../lib/api";
 
 const model = sx.model as unknown as Extract<BModel, { available: true }>;
@@ -278,4 +278,19 @@ test("the public view names only the version in use", () => {
   assert.equal(toPublic(r).versionLabel, "Version 2");
   assert.equal(toPublic({ ...r, version_no: null }).versionLabel, null);
   assert.equal(toPublic({ ...r, version_no: undefined }).versionLabel, null);
+});
+
+test("columnTitle shows the plain label as the main text and the raw name as small text", () => {
+  assert.deepEqual(columnTitle({ name: "Attribute1", label: "Checking account status" }), { main: "Checking account status", raw: "Attribute1" });
+});
+
+test("columnTitle falls back to the raw name when there is no label (or it only repeats the name)", () => {
+  assert.deepEqual(columnTitle({ name: "plan", label: null }), { main: "plan", raw: null });
+  assert.deepEqual(columnTitle({ name: "plan", label: "  " }), { main: "plan", raw: null });
+  assert.deepEqual(columnTitle({ name: "plan", label: "plan" }), { main: "plan", raw: null });
+});
+
+test("buildRecord and the form keep using the raw column name, whatever the label says", () => {
+  const cols = [{ name: "Attribute1", label: "Checking account status", kind: "text" as const }];
+  assert.deepEqual(buildRecord(cols, { Attribute1: "A11" }).record, { Attribute1: "A11" });
 });

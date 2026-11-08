@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..db import Session, get_session
 from ..db.tables import Project, User
-from ..deps import current_user, owned_project
+from ..deps import current_user, get_label_llm, owned_project
 from ..integrations.factory import get_storage
 from ..services import account, activity, history, model_use, share
 from ..services.ratelimit import RateLimiter
@@ -59,8 +59,9 @@ def _guard(call):
 
 
 @router.get("/projects/{pid}/model")
-def model_info(pid: str, model_id: str | None = None, p: Project = Depends(owned_project), s: Session = Depends(get_session)):
-    return _guard(lambda: model_use.describe(s, get_storage(), p, model_id))
+def model_info(pid: str, model_id: str | None = None, p: Project = Depends(owned_project), s: Session = Depends(get_session),
+               label_llm=Depends(get_label_llm)):
+    return _guard(lambda: model_use.describe(s, get_storage(), p, model_id, label_llm))
 
 
 @router.get("/projects/{pid}/model/versions")

@@ -219,6 +219,7 @@ export interface BActivityItem {
 
 export interface BModelColumn {
   name: string;
+  label: string | null; // plain-English label from the server, null when unknown (show the raw name only)
   kind: "number" | "text";
   example: number | string | null;
   choices: string[] | null;

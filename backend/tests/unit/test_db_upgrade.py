@@ -118,3 +118,17 @@ def test_upgrade_adds_model_version_columns_and_keeps_old_rows(tmp_path, capsys)
     assert "dataset_version_id" in {c["name"] for c in inspect(eng).get_columns("training_runs")}
     with eng.connect() as c:
         assert c.execute(text("SELECT id, version_no, is_current FROM models")).one() == ("m1", None, 0)
+
+
+def test_database_without_column_labels_gets_the_table_added(tmp_path, capsys):
+    eng = create_engine(f"sqlite:///{tmp_path / 'nolabels.db'}")
+    Base.metadata.create_all(eng)
+    with eng.begin() as c:
+        c.execute(text("DROP TABLE column_labels"))
+    assert main(["--check"], eng) == 1
+    assert "MISSING TABLE  column_labels" in capsys.readouterr().out
+    assert main(["--upgrade", "--yes"], eng) == 0
+    assert main(["--check"], eng) == 0
+    cols = {c["name"] for c in inspect(eng).get_columns("column_labels")}
+    assert {"dataset_version_id", "labels", "model", "created_at"} <= cols
+    assert any(i["unique"] for i in inspect(eng).get_indexes("column_labels"))

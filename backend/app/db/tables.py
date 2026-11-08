@@ -85,6 +85,14 @@ class DatasetVersion(Stamped, Base):
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class ColumnLabel(Stamped, Base):
+    """Plain-English labels for a dataset version's columns (Model tab). One row per version: a cache of one LLM call."""
+    __tablename__ = "column_labels"
+    dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"), unique=True, index=True)
+    labels: Mapped[dict] = mapped_column(JSON)  # {raw column name: short plain label}
+    model: Mapped[str | None] = mapped_column(String, nullable=True)  # which model wrote them
+
+
 class InsightReport(Stamped, Base):
     __tablename__ = "insight_reports"
     dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"), index=True)

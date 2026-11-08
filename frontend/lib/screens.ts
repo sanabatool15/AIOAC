@@ -179,6 +179,13 @@ export const MAX_BATCH_ROWS = 5000;
 
 // What the user typed in the "try one record" form -> the body of POST /predict.
 // Empty fields are left out (the model fills them in). A number column needs a number.
+// How a model input column is titled on the form: the plain label as the main text and the raw column name as small
+// text next to it. Without a label the raw name is the main text. Field ids and CSV headers always use the raw name.
+export function columnTitle(c: Pick<BModelColumn, "name" | "label">): { main: string; raw: string | null } {
+  const label = c.label?.trim();
+  return label && label !== c.name ? { main: label, raw: c.name } : { main: c.name, raw: null };
+}
+
 export function buildRecord(
   columns: Pick<BModelColumn, "name" | "kind">[],
   values: Record<string, string>,

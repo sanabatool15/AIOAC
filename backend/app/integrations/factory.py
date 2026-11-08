@@ -48,11 +48,12 @@ def llm_configured() -> bool:
     return _real_value(settings.openrouter_api_key)
 
 
-def get_llm(model: str | None = None) -> LLMClient:
+def get_llm(model: str | None = None, timeout: float | None = None) -> LLMClient:
+    kw = {} if timeout is None else {"timeout": timeout}
     if settings.llm_provider == "azure":
         from .llm.azure import AzureFoundryClient
-        return AzureFoundryClient(model=model)
-    return OpenRouterClient(model=model)
+        return AzureFoundryClient(model=model, **kw)
+    return OpenRouterClient(model=model, **kw)
 
 
 @lru_cache
