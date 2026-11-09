@@ -2,9 +2,9 @@
 name: data-leakage
 description: Spots columns that give away the answer. Use only when a finding says a column copies the answer or a name looks like an outcome (cancel_date, final_*).
 ---
-# Columns that give away the answer (leakage)
+# Columns that give away the answer
 
-A column leaks when it contains the answer, or is only known after the answer happens. A model that sees it looks brilliant
+A column gives the answer away when it contains the answer, or is only known after the answer happens. A model that sees it looks brilliant
 in the test and then fails on real, new cases.
 
 Analogy: it is like a test where the answer sheet is stapled to the paper. The score looks great, and the skill is not real.
@@ -25,5 +25,6 @@ Analogy: it is like a test where the answer sheet is stapled to the paper. The s
    and ask the user whether to keep that dataset. You have no tool that removes a column, so say so honestly.
 
 ## Do not
+- Never use the words "leak" or "leakage" with the user. Say "gives away the answer".
 - Do not claim a column is safe because the name looks harmless. Say what you checked.
 - Do not hide the issue to keep the flow moving. A NOTE the user understands is better than a good-looking number.

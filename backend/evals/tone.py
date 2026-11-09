@@ -38,8 +38,22 @@ def load_cases(only: list[str] | None = None) -> list[dict]:
     return [c for c in cases if not only or c["id"] in only]
 
 
+def case_system(case: dict) -> str:
+    """The real prompt shape: BASE + a state block (status, goal, next step) + the skill index, plus what the tools measured.
+
+    Without a state block the model thinks no data has been chosen yet and falls back to 'pick one of the 3 choices'
+    (seen in the first real run). A case may set `status` (default baseline_done: the free test already ran).
+    """
+    from app.services.agent import skills
+    from app.services.agent.context import NEXT_STEP
+    status = case.get("status", "baseline_done")
+    state = f"Goal: {case['user']}\nStatus: {status}\nNext: {NEXT_STEP.get(status, 'Reply helpfully.')}"
+    return (f"{BASE}\nCurrent state:\n{state}\n\nSkills (use load_skill):\n{skills.index()}\n\n"
+            "What the tools have measured so far (the only numbers you may use):\n" + case["tool_results"])
+
+
 def generate_reply(llm: LLMClient, case: dict) -> str:
-    system = BASE + "\nWhat the tools have measured so far (the only numbers you may use):\n" + case["tool_results"]
+    system = case_system(case)
     r = llm.chat([{"role": "system", "content": system}, {"role": "user", "content": case["user"]}], [])
     return (r.text or "").strip()
 
