@@ -16,6 +16,14 @@ for (const [name, size] of [["desktop", { width: 1440, height: 900 }], ["phone",
     await toggle.click();
     const thread = page.getByLabel("Chat with the assistant");
     await expect(thread).toBeVisible();
+    // wait until the stored history has finished loading, so the count below is not taken mid-load
+    await expect
+      .poll(async () => {
+        const first = await thread.locator("> *").count();
+        await page.waitForTimeout(1500);
+        return first > 0 && first === (await thread.locator("> *").count());
+      }, { timeout: 30_000 })
+      .toBe(true);
     const before = await thread.locator("> *").count();
     await page.getByLabel("Message AIOAC").fill("What does this result mean?");
     await page.getByLabel("Send message").click();
