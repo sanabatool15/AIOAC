@@ -86,6 +86,8 @@ def stub_for(name: str, result) -> str:
     if name == "run_pilot" and "predicted_out_of_100" in result:
         return (f"run_pilot: ok, target_out_of_100={result.get('target_out_of_100')}, predicted_out_of_100={result['predicted_out_of_100']}, "
                 f"confidence={result.get('confidence')}, eligible={result.get('eligible')}")
+    if name == "profile_data" and "suspects" in result:
+        return f"profile_data: ok, {result.get('rows')} rows, {result.get('columns_total')} columns (details were shown earlier)"
     bits = []
     for k, v in result.items():
         if isinstance(v, list):

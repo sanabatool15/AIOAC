@@ -16,3 +16,5 @@ Use the findings and the summary fields (balance, missing_columns, ignored_* lis
 
 ## Shape
 Pick the one or two findings that matter most, say what they mean, recommend the next step with the reason, and ask at most one question. Skip the rest unless asked.
+
+If the user asks about one column, or a finding hints at a suspect column, call profile_data. Treat its suspects as clues to check with the user, not proof.

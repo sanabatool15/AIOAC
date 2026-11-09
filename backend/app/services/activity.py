@@ -43,7 +43,7 @@ _TAG = re.compile(r"</?\s*untrusted_dataset_text\s*>", re.I)
 DROP_REASONS = ("needs a login or approval", "not a plain table", "not a prediction of a category", "too few rows")
 IN_PROGRESS = {"search_datasets": "Searching open datasets", "discover_datasets": "Searching open datasets",
                "look_at_dataset": "Looking at a dataset", "fetch_dataset": "Downloading a dataset",
-               "inspect_candidate": "Checking the columns of a dataset", "run_readiness": "Checking data readiness",
+               "inspect_candidate": "Checking the columns of a dataset", "run_readiness": "Checking data readiness", "profile_data": "Looking at the columns of your data",
                "run_baseline": "Running the free test", "run_pilot": "Running the free pilot",
                "create_quote": "Preparing a price estimate"}
 IN_PROGRESS_MAX_AGE = timedelta(minutes=3)  # a call with no result after this long is not shown (a crashed turn must not look busy forever)
@@ -122,6 +122,8 @@ def _tool_lines(name: str, args: dict, result: dict, titles: dict[str, str]) -> 
         return [("test", f"Ran the free test: about {round(acc * 100)} out of 100 right" if isinstance(acc, (int, float)) else "Ran the free test")]
     if name == "run_pilot":
         return [("forecast", "Ran the free pilot on a small part of your data to forecast the full result")]
+    if name == "profile_data":
+        return [("check", "Looked at the columns of your data")]
     if name == "propose_data_fix":
         return [("check", "Looked at what a data fix could change (nothing was changed)")]
     if name == "apply_data_fix":
@@ -151,7 +153,7 @@ def _remember_titles(result, titles: dict[str, str]) -> None:
 
 
 # trace tool name -> the step a stored row also records
-TRACE_STEP = {"apply_data_fix": "datafix", "run_readiness": "readiness", "run_baseline": "baseline", "run_pilot": "pilot", "create_quote": "quote",
+TRACE_STEP = {"profile_data": "profile", "apply_data_fix": "datafix", "run_readiness": "readiness", "run_baseline": "baseline", "run_pilot": "pilot", "create_quote": "quote",
               "request_payment": "payment", "start_training": "training"}
 DUPLICATE_WINDOW = timedelta(minutes=2)
 

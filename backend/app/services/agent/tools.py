@@ -15,7 +15,7 @@ from ...integrations.jobs.inline import InlineJobRunner
 from ...integrations.datasets.registry import SourceRegistry, as_registry
 from ...ports import PaymentProvider, Storage, TrainingBackend
 from ..data.samples import CATALOG
-from ..data import analysis, datasets, discovery, families, fixes, pilot
+from ..data import analysis, datasets, discovery, families, fixes, pilot, profile as data_profile
 from ..cost import cost, quotes
 from .. import gate, payments, training
 from . import clarity, data_choice, memory, skills, target as target_rule
@@ -295,6 +295,25 @@ def run_readiness(ctx, a):
     return out
 
 
+def profile_data(ctx, a):
+    """Free: a column-by-column look at the chosen dataset (kinds, gaps, top values, suspects). Dataset-derived text is marked."""
+    if not ctx.project.chosen_dataset_version_id:
+        return {"error": "no dataset has been chosen yet"}
+    version = datasets_repo.get_version(ctx.session, ctx.project.chosen_dataset_version_id)
+    if version is None:
+        return {"error": "no dataset has been chosen yet"}
+    df = pd.read_csv(ctx.storage.path(version.storage_key))
+    wanted = a.get("columns")
+    if wanted:
+        bad = [c for c in wanted if c not in df.columns]
+        if bad:
+            return {"error": "no such column: " + ", ".join(repr(c[:40]) for c in bad[:3]), "columns": mark(list(df.columns)[:40], 60)}
+    p = data_profile.profile(df, version.target_column, wanted or None)
+    return {"rows": p["rows"], "columns_total": p["columns_total"], "target": mark(p["target"], 120),
+            "columns": mark(p["columns"], 60), "suspects": mark(p["suspects"], 140),
+            "next": "explain the one or two things that matter most in plain words; suspects are clues to check with the user, not proof"}
+
+
 def run_baseline_tool(ctx, a):
     r, o = analysis.baseline_detailed(ctx.session, ctx.storage, ctx.project)
     out = {"accuracy": round(r.accuracy, 3), "simple_guess_accuracy": round(r.simple_guess_accuracy, 3),
@@ -439,6 +458,10 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
                                            "target_meaning": {"type": "string"}}, "required": ["candidate_id", "target"]},
          gate.Action.SELECT_DATASET, select_dataset),
     Tool("run_readiness", "Readiness grade and findings for the chosen dataset.", _obj(), gate.Action.ANALYZE, run_readiness),
+    Tool("profile_data", "Free: look at the chosen data column by column (kind, gaps, common values, ranges) and flag suspects such as a column that gives the answer away. "
+         "Use when the user asks about a column or you saw a suspect. Optionally name up to 8 columns.",
+         {"type": "object", "properties": {"columns": {"type": "array", "items": {"type": "string"}, "maxItems": 8}}, "required": []},
+         gate.Action.ANALYZE, profile_data),
     Tool("run_baseline", "Free test on held-out data; also measures timings for the quote.", _obj(), gate.Action.BASELINE, run_baseline_tool),
     Tool("propose_data_fix", "Free, changes nothing: what removing repeated rows or mostly empty columns would change. Use when the forecast is too low and the findings mention repeats or gaps. "
          "Never say it will raise the estimate: say we will test whether it changes the estimate.", _obj(), gate.Action.ANALYZE, propose_data_fix),
