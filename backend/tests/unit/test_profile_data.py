@@ -58,7 +58,7 @@ def test_text_numbers_outliers_id_constant():
     df = churn()
     one = lambda *cols: sus(profile.profile(df[list(cols) + ["churned"]], "churned"))
     assert "numbers stored as text" in one("spend_text")["spend_text"]["reason"]
-    assert "extreme" in one("income")["income"]["reason"]
+    assert "income" not in one("income")            # extreme values are a fact about the column, never a suspect
     assert "label" in one("customer")["customer"]["reason"]
     assert "same value" in one("flat")["flat"]["reason"]
     assert len(profile.profile(df, "churned")["suspects"]) <= profile.MAX_SUSPECTS
@@ -156,3 +156,76 @@ def test_stub_and_activity_sentence():
     assert activity.TRACE_STEP["profile_data"]
     lines = activity._tool_lines("profile_data", {}, {"rows": 5}, {})
     assert lines == [("check", "Looked at the columns of your data")]
+
+
+# ------------------------------------------------------------------ real-dataset fixes
+
+def frame(n=400, seed=3, **cols):
+    rng = np.random.default_rng(seed)
+    y = rng.integers(0, 2, n)
+    d = {"noise": rng.normal(size=n), "kind": rng.choice(["a", "b", "c"], n)}
+    d.update({k: (v(y, rng) if callable(v) else v) for k, v in cols.items()})
+    return pd.DataFrame(d), y
+
+
+@pytest.mark.parametrize("labels", [("0", "1"), ("1", "2"), (0, 1), (True, False)])
+def test_numeric_looking_target_is_groups(labels):
+    df, y = frame(gone=lambda y, r: np.where(y == 1, r.choice([1.0, np.nan], len(y), p=[0.95, 0.05]), np.nan))
+    df["t"] = [labels[i] for i in y]
+    t = profile.profile(df, "t")["target"]
+    assert t["kind"] == "category" and "groups_out_of_100" in t and "in 100" in t["balance_text"]
+    # target based checks are on again: a column filled only for one answer is flagged
+    assert "gone" in sus(profile.profile(df, "t"))
+
+
+def test_many_valued_target_is_still_a_number():
+    n = 300
+    df = pd.DataFrame({"x": np.arange(n, dtype=float), "price": np.arange(n) * 3.5})
+    assert profile.profile(df, "price")["target"]["balance_text"] == "a number, not a few groups"
+    df["price"] = df["price"].astype(str)          # numbers stored as text
+    assert profile.profile(df, "price")["target"]["kind"] == "number"
+
+
+def test_extreme_values_are_not_suspects_but_a_column_fact():
+    n = 500
+    rng = np.random.default_rng(0)
+    v = rng.normal(50, 5, n)
+    v[:40] = 1e6
+    df = pd.DataFrame({"fare": v, "y": rng.choice(["a", "b"], n)})
+    p = profile.profile(df, "y")
+    assert "fare" not in sus(p)
+    assert {c["name"]: c for c in p["columns"]}["fare"]["note"] == "a few very large values"
+
+
+def test_one_sided_missing_column_is_a_strong_suspect():
+    n = 500
+    rng = np.random.default_rng(1)
+    y = rng.choice(["lived", "died"], n, p=[0.6, 0.4])
+    body = np.where((y == "died") & (rng.random(n) < 0.45), rng.integers(1, 300, n).astype(float), np.nan)
+    df = pd.DataFrame({"body": body, "age": rng.normal(30, 5, n), "y": y})
+    assert (df.body.isna().mean()) >= 0.8
+    s = sus(profile.profile(df, "y"))["body"]
+    assert s["strength"] == "strong" and "empty" in s["reason"] and "one kind of answer" in s["reason"]
+    # empty for everyone alike is not one-sided
+    df["body"] = np.where(rng.random(n) < 0.1, rng.normal(size=n), np.nan)
+    assert "body" not in sus(profile.profile(df, "y"))
+
+
+def test_placeholder_markers_count_as_missing_and_input_is_untouched():
+    n = 100
+    df = pd.DataFrame({"a": ["?", "NA", "N/A", "n/a", "null", "None", "-", " ", "x"] + ["x"] * (n - 9),
+                       "b": ["1"] * 50 + ["?"] * 50, "y": ["p", "q"] * 50})
+    before = df.copy()
+    cols = {c["name"]: c for c in profile.profile(df, "y", columns=["a", "b"])["columns"]}
+    assert cols["a"]["missing_percent"] == 8 and cols["b"]["missing_percent"] == 50
+    pd.testing.assert_frame_equal(df, before)
+
+
+def test_duration_name_is_only_a_weak_question():
+    n = 300
+    rng = np.random.default_rng(2)
+    df = pd.DataFrame({"contract_duration": rng.integers(1, 70, n), "call_length": rng.normal(size=n), "y": rng.choice(["a", "b"], n)})
+    s = sus(profile.profile(df, "y"))
+    for c in ("contract_duration", "call_length"):
+        assert s[c]["strength"] == "weak" and "?" in s[c]["reason"] and "after the answer" in s[c]["reason"]
+    assert not any(w in json.dumps(s).lower() for w in BANNED)

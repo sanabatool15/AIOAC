@@ -15,21 +15,30 @@ MAX_SUSPECTS = 5
 MAX_TARGET_GROUPS = 6
 ID_SHARE = 0.95
 OUTLIER_SHARE = 0.03
+MAX_CATEGORY_TARGET = 20   # a target with this many distinct values or fewer is a few groups, even if they look like numbers
+SPARSE_SHARE = 0.80        # "almost always empty"
+ONE_SIDED_SHARE = 0.90     # filled values that fall in one answer group
+MISSING_MARKERS = frozenset({"?", "na", "n/a", "null", "none", "-"})
 
 NAME_HINTS = re.compile(r"cancel|refund|outcome|result|resolution|churn|status_after|after_|post_|_after|final_|settled|terminat|closed_(on|date)", re.I)
 DATE_VALUE = re.compile(r"^\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.]\d{1,2}[/.]\d{2,4})")
+# after-the-fact names that are common words elsewhere (contract duration), so only a weak question for the user
+DURATION_HINTS = re.compile(r"duration|call_?length|call_?time|length_?of_?stay|talk_?time|time_?spent", re.I)
 STRENGTH = {"weak": 1, "strong": 2}
 
 
 def _clean(df: pd.DataFrame) -> pd.DataFrame:
-    """A sample, with empty strings counted as missing."""
+    """A sample (a copy, the caller's frame is never changed) with empty strings and placeholders like '?' or 'NA' counted as missing."""
     if len(df) > MAX_ROWS:
         df = df.sample(MAX_ROWS, random_state=0)
     df = df.copy()
     for c in df.columns:
-        if df[c].dtype == object:
-            s = df[c].astype("string").str.strip()
-            df[c] = s.mask(s == "").astype(object)
+        if isinstance(df[c].dtype, pd.CategoricalDtype):
+            df[c] = df[c].astype(object)
+        if pd.api.types.is_numeric_dtype(df[c]) or pd.api.types.is_bool_dtype(df[c]) or pd.api.types.is_datetime64_any_dtype(df[c]):
+            continue
+        s = df[c].astype("string").str.strip()
+        df[c] = s.mask(s.str.lower().isin(MISSING_MARKERS) | (s == "")).astype(object)
     return df
 
 
@@ -90,10 +99,12 @@ def _shares(y: pd.Series) -> dict[str, int]:
 
 def _target_part(df: pd.DataFrame, target: str) -> dict:
     y = df[target]
-    kind, _ = _kind(y)
-    if pd.api.types.is_numeric_dtype(y) and y.nunique(dropna=True) > 20:
+    distinct = int(y.nunique(dropna=True))
+    if pd.api.types.is_bool_dtype(y) or distinct <= MAX_CATEGORY_TARGET:
+        kind = "category"          # '0'/'1', 1/2 and the like are groups, whatever they look like
+    elif pd.api.types.is_numeric_dtype(y) or _text_numbers(y):
         kind = "number"
-    elif kind not in ("category", "number"):
+    else:
         kind = "category"
     out: dict = {"name": target, "kind": kind}
     if kind == "number":
@@ -161,6 +172,8 @@ def _suspects(df: pd.DataFrame, target: str, kinds: dict, target_part: dict) -> 
         miss = float(s.isna().mean())
         if NAME_HINTS.search(str(c)):
             _add(sus, c, "its name suggests it is filled in after the answer is known", "weak")
+        elif DURATION_HINTS.search(str(c)):
+            _add(sus, c, "from its name: is this only known after the answer? worth checking with you", "weak")
         if kind == "id":
             _add(sus, c, "different for almost every row, so it is a label and I would ignore it", "weak")
             continue
@@ -169,13 +182,10 @@ def _suspects(df: pd.DataFrame, target: str, kinds: dict, target_part: dict) -> 
             continue
         if _text_numbers(s):
             _add(sus, c, "numbers stored as text; I read them as numbers", "weak")
-        if kind == "number":
-            v = pd.to_numeric(s, errors="coerce").dropna()
-            if len(v) >= 20:
-                q1, q3 = v.quantile(0.25), v.quantile(0.75)
-                iqr = q3 - q1
-                if iqr > 0 and float(((v < q1 - 3 * iqr) | (v > q3 + 3 * iqr)).mean()) > OUTLIER_SHARE:
-                    _add(sus, c, "a few extreme values stretch the range", "weak")
+        if cat_target and miss >= SPARSE_SHARE and miss < 1.0:
+            filled = y[s.notna()].value_counts(normalize=True)
+            if len(filled) and (~s.isna()).sum() >= 5 and filled.iloc[0] >= ONE_SIDED_SHARE and filled.iloc[0] - float((y == filled.index[0]).mean()) >= 0.15:
+                _add(sus, c, "almost always empty, and filled in only for one kind of answer, so it may be written after the fact", "strong")
         if cat_target and len(groups) >= 2 and 0.0 < miss < 1.0:
             rates = [float(s[y == g].isna().mean()) for g in groups]
             spread = max(rates) - min(rates)
@@ -219,6 +229,10 @@ def _describe(df: pd.DataFrame, c: str, kinds: dict, hinted: bool) -> dict:
         v = pd.to_numeric(s, errors="coerce").dropna()
         if len(v):
             d.update(min=_num(v.min()), median=_num(v.median()), max=_num(v.max()))
+            if len(v) >= 20:
+                q1, q3 = v.quantile(0.25), v.quantile(0.75)
+                if q3 > q1 and float((v > q3 + 3 * (q3 - q1)).mean()) > OUTLIER_SHARE:
+                    d["note"] = "a few very large values"
     if looks:
         d["looks_like"] = looks
     return d
