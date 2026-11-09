@@ -23,7 +23,7 @@ const points = [
 const copy = {
   login: {
     title: "Welcome back",
-    sub: "Log in to continue your projects.",
+    sub: "Log in to continue your chats.",
     submit: "Log in",
     busy: "Logging in...",
     switchText: "New here? Sign up",

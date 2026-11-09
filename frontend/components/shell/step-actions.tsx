@@ -20,7 +20,7 @@ export function ReadinessAction({ project, onChanged }: Props) {
   return (
     <Card aria-label="Check your data" className="gap-3 p-4">
       <h2 className="text-section text-ink">Check your data</h2>
-      <p className="text-sm leading-5 text-ink-2">
+      <p className="text-body text-ink-2">
         I will look for missing values, copies and other problems, and give your data a grade. This is free.
       </p>
       <div>
@@ -47,7 +47,7 @@ export function FreeTestAction({ project, onChanged }: Props) {
   return (
     <Card aria-label="Run the free test" className="gap-3 p-4">
       <h2 className="text-section text-ink">Run the free test</h2>
-      <p className="text-sm leading-5 text-ink-2">
+      <p className="text-body text-ink-2">
         I will train a small first model here, at no cost, and test it on rows it has not seen. It is a first signal, not the final result.
       </p>
       <div>
@@ -87,7 +87,7 @@ export function TargetAction({
   return (
     <Card variant="highlight" aria-label={title ?? "Pick your target"} className="gap-3 p-4">
       <h2 className="text-section text-ink">{title ?? "Pick your target"}</h2>
-      <p className="text-sm leading-5 text-ink-2">
+      <p className="text-body text-ink-2">
         {intro ??
           "How many predictions out of 100 do you want to be right? A small free pilot estimates the chance a full run gets there."}
       </p>
@@ -106,7 +106,7 @@ export function TargetAction({
         </Field>
       </div>
       {tooLow && (
-        <p className="text-xs text-muted" role="status">
+        <p className="text-micro text-muted" role="status">
           The new target must be higher than the {mustBeAbove} out of 100 already reached.
         </p>
       )}

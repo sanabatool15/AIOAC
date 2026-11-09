@@ -1,7 +1,7 @@
 import { ChatScreen } from "@/components/shell/chat-screen";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Project" };
+export const metadata: Metadata = { title: "Chat" };
 
 export default async function ChatPage({
   params,

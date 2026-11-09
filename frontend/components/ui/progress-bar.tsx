@@ -18,9 +18,9 @@ export function ProgressBar({ value, label, size = "default", className }: Progr
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
-      className={cn("w-full overflow-clip rounded-full bg-brand-tint", size === "sm" ? "h-1.5" : "h-2.5", className)}
+      className={cn("w-full overflow-clip rounded-full bg-brand-track", size === "sm" ? "h-1.5" : "h-2.5", className)}
     >
-      <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+      <div className="h-full rounded-full bg-grad-brand-x" style={{ width: `${pct}%` }} />
     </div>
   );
 }

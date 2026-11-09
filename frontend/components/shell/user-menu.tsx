@@ -1,8 +1,9 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut } from "lucide-react";
+import { ChevronsUpDown, LogOut } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { logout } from "@/lib/api-real";
 import { useRealUser } from "@/lib/hooks";
@@ -72,6 +73,16 @@ export function UserMenu() {
   }
 
   const email = user?.email ?? "";
+  // A name from the part of the address before the @: "sana.batool6678" becomes "Sana Batool".
+  const name =
+    email
+      .split("@")[0]
+      .replace(/[0-9_.\-]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0].toUpperCase() + w.slice(1))
+      .join(" ") || "Your account";
   return (
     <>
       <button
@@ -81,13 +92,14 @@ export function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-card p-2.5 text-left shadow-card"
+        className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-body text-muted">
-          {email.charAt(0).toUpperCase()}
+        <Image src="/avatar.png" alt="" width={32} height={32} className="size-8 shrink-0 rounded-full border border-border object-cover" />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-body font-medium text-ink">{name}</span>
+          <span className="truncate text-micro text-muted">{email}</span>
         </span>
-        <span className="min-w-0 flex-1 truncate text-body font-medium text-ink">{email}</span>
-        <ChevronDown aria-hidden size={14} className="text-ink-2" />
+        <ChevronsUpDown aria-hidden size={14} className="shrink-0 text-muted" />
       </button>
 
       {open && (

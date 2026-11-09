@@ -2,28 +2,32 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CHAT_REGIONS, ChatLayout, stepChanged } from "../components/shell/chat-layout";
+import { stepChanged } from "../components/shell/chat-layout";
+import { InlineChatFrame } from "../components/shell/inline-chat";
 import { PROJECT_STEPS, ProjectStepper, SHORT_STEP_LABELS } from "../components/shell/step-parts";
 import { hasEstimateBlock } from "../components/shell/project-chat";
 import { isNearBottom, shouldFollow } from "../lib/scroll";
 import { STEP_LABELS } from "../lib/status";
 
-function regionOrder(html: string): string[] {
-  return [...html.matchAll(/data-region="([a-z]+)"/g)].map((m) => m[1]);
+function frame(canvas: string, thread: string, progress = "P"): string {
+  return renderToStaticMarkup(
+    h(InlineChatFrame, { projectName: "Goal", canvas: h("i", null, canvas), progress: h("i", null, progress), children: h("i", null, thread) }),
+  );
 }
 
-test("the page has one fixed order: progress, current step, conversation (newest last)", () => {
-  const html = renderToStaticMarkup(
-    h(ChatLayout, { progress: h("i", null, "P"), step: h("i", null, "S"), conversation: h("i", null, "C") }),
-  );
-  assert.deepEqual(regionOrder(html), [...CHAT_REGIONS]);
-  assert.ok(html.indexOf(">S<") < html.indexOf(">C<"), "step cards come before the thread");
+test("steps live in their own pane: the canvas holds progress and the step, the thread holds only the conversation", () => {
+  const html = frame("STEP", "THREAD");
+  const aside = html.slice(html.indexOf("<aside"), html.indexOf("</aside>"));
+  assert.ok(aside.includes(">STEP<") && aside.includes(">P<"), "progress and step are in the canvas pane");
+  assert.ok(!aside.includes(">THREAD<"), "the thread is not in the canvas pane");
+  assert.ok(html.slice(html.indexOf("</aside>")).includes(">THREAD<"), "the thread is in the other pane");
 });
 
-test("the order does not depend on what the step is (data picker or cards)", () => {
-  const a = renderToStaticMarkup(h(ChatLayout, { progress: "1", step: h("b", null, "picker"), conversation: "x" }));
-  const b = renderToStaticMarkup(h(ChatLayout, { progress: "4", step: h("b", null, "cards"), conversation: "x" }));
-  assert.deepEqual(regionOrder(a), regionOrder(b));
+test("the chat bar has no Share button, and the layout is the same whatever the step is", () => {
+  const a = frame("picker", "x");
+  const b = frame("cards", "x");
+  assert.ok(!a.includes("Share"));
+  assert.equal(a.replace("picker", "#"), b.replace("cards", "#"));
 });
 
 test("a step change scrolls the step region, the first render does not", () => {
@@ -54,5 +58,5 @@ test("the project stepper lists every step once, marks done steps and the curren
   assert.equal((html.match(/<li /g) ?? []).length, STEP_LABELS.length);
   assert.equal((html.match(/data-state="done"/g) ?? []).length, 3);
   assert.equal((html.match(/aria-current="step"/g) ?? []).length, 1);
-  assert.match(html, new RegExp(`Step 4 of ${STEP_LABELS.length}`)); // small-screen summary
+  assert.match(html, new RegExp(`Step 4 of ${STEP_LABELS.length}`));
 });

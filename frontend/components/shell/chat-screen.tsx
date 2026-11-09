@@ -6,10 +6,13 @@ import { ApiError, type BProject } from "@/lib/api";
 import { getProject, rememberProject } from "@/lib/api-real";
 import { isSettling, screenFor, stepIndex } from "@/lib/status";
 import { ChatComposer, ChatThread, useProjectChat } from "./project-chat";
-import { DataPicker } from "./data-picker";
+import { BudgetButton } from "./budget-panel";
+import { PayPrompt } from "./pay-prompt";
+import { AddDataDialog, type AddDataKind } from "./data-dialog";
 import { InlineChatFrame } from "./inline-chat";
-import { ProjectStepper } from "./step-parts";
-import { ChatLayout, stepChanged } from "./chat-layout";
+import { ModelPanel } from "./model-panel";
+import { ProjectPanel } from "./project-panel";
+import { stepChanged } from "./chat-layout";
 import { StepArea } from "./step-area";
 import { PROJECTS_CHANGED } from "./sidebar";
 import { useFollowChat } from "./use-follow-chat";
@@ -71,6 +74,14 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
   const stepRef = useRef<HTMLDivElement>(null);
   const lastScreen = useRef<string | null>(null);
   const items = pc.state.items;
+  // A new chat has nothing to show yet, so the right panel starts closed and opens once the process starts.
+  // After the reader opens or closes it themselves, their choice stays.
+  const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
+  const panelOpen = panelChoice ?? !onData; // closed until the process starts, then it opens by itself
+  // Attach (the clip) and dropping a file on the chat both open "Add data". Only while no data is chosen yet.
+  const [adding, setAdding] = useState<AddDataKind | null>(null);
+  const [attached, setAttached] = useState<File | null>(null); // a CSV waiting under the text in the box
+  const [pendingText, setPendingText] = useState("");
   const lastIsUser = items?.[items.length - 1]?.role === "user";
   // The newest chat message (or the live steps) stays next to the composer. A reader who scrolled up is not moved.
   useFollowChat(bottom, `${items?.length ?? 0}:${pc.state.busy}:${pc.state.liveSteps.length}`, !!lastIsUser, items !== null);
@@ -82,24 +93,68 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
 
   return (
     <InlineChatFrame
-      projectId={project.id}
       projectName={project.goal.length > 48 ? `${project.goal.slice(0, 48)}…` : project.goal}
-      composer={<ChatComposer pc={pc} />}
+      composer={
+        <ChatComposer
+          pc={pc}
+          onPickFile={onData ? setAttached : undefined}
+          attachment={onData ? attached : null}
+          onRemoveAttachment={() => setAttached(null)}
+          onSendWithFile={(text) => {
+            setPendingText(text);
+            setAdding("upload");
+          }}
+        />
+      }
+      onDropFile={
+        onData
+          ? (f) => setAttached(f)
+          : undefined
+      }
+      extraActions={<BudgetButton project={project} />}
+      panelOpen={panelOpen}
+      onTogglePanel={() => setPanelChoice(!panelOpen)}
+      canvas={
+        <ProjectPanel project={project} index={onData ? -1 : idx} showTarget={["quote", "pay", "paid", "training"].includes(screen)} onChanged={reload}>
+          {!onData && (
+            <div ref={stepRef} data-region="step" aria-label="Current step" className="flex scroll-mt-4 flex-col gap-4">
+              <StepArea screen={screen} project={project} onChanged={reload} />
+            </div>
+          )}
+        </ProjectPanel>
+      }
     >
       {error && (
-        <p role="alert" className="flex items-center gap-3 text-sm text-danger">
+        <p role="alert" className="flex items-center gap-3 text-body text-danger">
           {error.message}
           <Button variant="outline" onClick={() => void reload()}>
             Try again
           </Button>
         </p>
       )}
-      <ChatLayout
-        stepRef={stepRef}
-        endRef={bottom}
-        progress={<ProjectStepper index={idx} />}
-        step={onData ? <DataPicker projectId={project.id} pc={pc} onChanged={reload} /> : <StepArea screen={screen} project={project} onChanged={reload} />}
-        conversation={<ChatThread pc={pc} projectStatus={project.status} />}
+      <div data-region="conversation" className="flex flex-col gap-4">
+        <ChatThread pc={pc} projectStatus={project.status} />
+        {project.run && project.status === "done" && (
+          <div className="pl-9">
+            <ModelPanel projectId={project.id} />
+          </div>
+        )}
+      </div>
+      {(screen === "quote" || screen === "pay") && (
+        <PayPrompt project={project} />
+      )}
+      <div ref={bottom} aria-hidden />
+      <AddDataDialog
+        projectId={project.id}
+        kind={adding}
+        file={attached}
+        onClose={() => setAdding(null)}
+        onChanged={async () => {
+          await reload();
+          setAttached(null);
+          if (pendingText) void pc.chat.send(pendingText);
+          setPendingText("");
+        }}
       />
     </InlineChatFrame>
   );

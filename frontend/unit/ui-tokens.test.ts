@@ -42,9 +42,9 @@ for (const [fg, bg] of PAIRS) {
   });
 }
 
-test("no gradients or purple glow left in globals.css", () => {
-  assert.doesNotMatch(css, /linear-gradient|radial-gradient/);
-  assert.doesNotMatch(css, /rgb\(91 33 182|rgb\(124 58 237/);
+test("gradients live only in the --grad tokens of globals.css", () => {
+  const stray = css.split("\n").filter((l) => /linear-gradient|radial-gradient/.test(l) && !/^\s*--grad-/.test(l));
+  assert.deepEqual(stray, []);
 });
 
 test("scrim token exists", () => {

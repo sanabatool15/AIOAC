@@ -38,12 +38,12 @@ export function ReadinessCard({ project }: { project: BProject }) {
     <Card aria-label="Data check" data-testid="readiness-card" className="gap-3 p-4">
       <div className="flex items-center gap-4">
         <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-brand text-title text-on-brand">{r.grade}</div>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-sm">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-body">
           <h2 className="text-section text-ink">Data check: grade {r.grade}</h2>
           <p className="text-muted">How ready your data is. A guide, not a promise.</p>
         </div>
       </div>
-      <ul className="flex flex-col gap-1.5 text-sm">
+      <ul className="flex flex-col gap-1.5 text-body">
         {findings.map((f, i) => (
           <li key={i} className="flex gap-2">
             <Tag variant={f.ok ? "success" : "warning"} className="shrink-0">
@@ -111,8 +111,8 @@ export function FreeTestCard({ project }: { project: BProject }) {
   return (
     <Card aria-label="Free test" data-testid="baseline-result" className="gap-3 p-4">
       <h2 className="text-section text-ink">Free test</h2>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <p className="min-w-0 flex-1 text-sm leading-5 text-ink-2">
+      <div className="flex flex-col gap-4">
+        <p className="min-w-0 flex-1 text-body text-ink-2">
           On data it had not seen, a simple first model got about <strong>{b.right} out of 100</strong> right. Always
           guessing the most common answer would get about {b.guess} out of 100.{" "}
           {b.beatsGuess ? "So the data does carry a signal." : "So it is not clearly better than a simple guess."}
@@ -124,7 +124,7 @@ export function FreeTestCard({ project }: { project: BProject }) {
           ]}
         />
       </div>
-      {project.trust_level && <p className="text-sm text-muted">How much to trust this so far: {project.trust_level}</p>}
+      {project.trust_level && <p className="text-body text-muted">How much to trust this so far: {project.trust_level}</p>}
     </Card>
   );
 }
@@ -164,7 +164,7 @@ export function MoneyTriplet({ summary }: { summary: MoneySummary }) {
 function BeforeAfter({ f }: { f: ForecastView }) {
   if (!f.before) return null;
   return (
-    <div aria-label="Before and after the data fix" data-testid="fix-before-after" className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 text-sm">
+    <div aria-label="Before and after the data fix" data-testid="fix-before-after" className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 text-body">
       <p className="font-semibold text-ink">After your data fix</p>
       <p className="text-ink-2">
         Before: about {f.before.expected} out of 100, a {f.before.confidence}% chance of reaching {f.before.target} out of 100.
@@ -207,13 +207,13 @@ export function EligibilityCard({ project, onChanged }: { project: BProject; onC
         <h2 className="text-section text-ink">We cannot offer a price for this target yet</h2>
         <Tag>Nothing charged</Tag>
       </div>
-      <p className="text-sm leading-5 text-ink-2">{f.reason || "The forecast is too uncertain to sell a run."}</p>
+      <p className="text-body text-ink-2">{f.reason || "The forecast is too uncertain to sell a run."}</p>
       {f.issues.length > 0 && (
         <>
           <h3 className="text-small font-semibold text-ink">What holds the result back</h3>
           <ul className="flex flex-col gap-2.5">
             {f.issues.map((r, i) => (
-              <li key={i} className="flex items-center gap-2.5 text-sm text-ink">
+              <li key={i} className="flex items-center gap-2.5 text-body text-ink">
                 <span aria-hidden className="size-2 shrink-0 rounded-full bg-warning" />
                 <span className="min-w-0 flex-1">{r}</span>
               </li>

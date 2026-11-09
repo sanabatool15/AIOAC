@@ -141,7 +141,7 @@ test("usage from the real body: counts, dollars, tokens, no AI cost when zero", 
   const v = toUsage(sx.usage as unknown as BUsage);
   assert.ok(v);
   const t = Object.fromEntries(v.tiles.map((x) => [x.label, x.value]));
-  assert.equal(t["Projects"], "1");
+  assert.equal(t["Chats"], "1");
   assert.equal(t["Training runs"], "1");
   assert.equal(t["Compute charged"], "$0.00");
   assert.equal(t["Released back to you"], "$0.56");

@@ -321,7 +321,7 @@ export function toUsage(u: BUsage | null | undefined): UsageView | null {
   const llmCost = llmCostText(u.llm_cost_micros);
   return {
     tiles: [
-      { label: "Projects", value: u.projects.toLocaleString("en-US") },
+      { label: "Chats", value: u.projects.toLocaleString("en-US") },
       { label: "Training runs", value: u.training_runs.toLocaleString("en-US") },
       { label: "Compute charged", value: dollars(u.compute_charged_cents), note: "PayPal sandbox, test money" },
       { label: "Success fees charged", value: dollars(u.success_fees_cents), note: "Only when a result was verified" },

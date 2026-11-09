@@ -3,20 +3,22 @@ import { cn } from "@/lib/utils";
 
 // Colour carries meaning, never position: success = verified or done, warning =
 // needs attention, danger = failed, highlight = the one thing to look at.
-const cardVariants = cva("flex w-full flex-col rounded-xl border shadow-card", {
+const cardVariants = cva("flex w-full flex-col rounded-xl border", {
   variants: {
     variant: {
       plain: "border-border bg-card",
       success: "border-success-line bg-success-soft",
-      warning: "border-warning-line bg-warning-soft",
+      warning: "border-money-line bg-grad-money shadow-card",
       danger: "border-danger-line bg-danger-soft",
-      highlight: "border-brand-line bg-brand-soft",
+      highlight: "border-card-line bg-grad-card shadow-card",
+      live: "border-live-line bg-grad-live shadow-card",
+      money: "border-money-line bg-grad-money shadow-card",
     },
   },
   defaultVariants: { variant: "plain" },
 });
 
-type CardVariant = "plain" | "success" | "warning" | "danger" | "highlight";
+type CardVariant = "plain" | "success" | "warning" | "danger" | "highlight" | "live" | "money";
 /** @deprecated Old pastel names. They map to the new variants, see CARD_ALIAS. Migrate the call site. */
 type DeprecatedCardVariant = "violet" | "blue" | "peach" | "mint" | "green" | "red" | "amber";
 

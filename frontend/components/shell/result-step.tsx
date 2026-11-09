@@ -6,7 +6,7 @@ import { EstimateNote } from "@/components/ui/estimate-note";
 import { Tag } from "@/components/ui/tag";
 import type { BProject, BReceipt, BTraining } from "@/lib/api";
 import * as real from "@/lib/api-real";
-import { higherStart, improveStart, needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "@/lib/result-view";
+import { improveStart, needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "@/lib/result-view";
 import { TargetAction } from "./step-actions";
 import { ErrorLine, Row, useAction } from "./step-parts";
 
@@ -51,7 +51,7 @@ export function MoneyRecap({ receipt, note }: { receipt: BReceipt | null; note?:
           </div>
         ))}
       </dl>
-      {note && <p className="text-sm text-muted">{note}</p>}
+      {note && <p className="text-body text-muted">{note}</p>}
     </Card>
   );
 }
@@ -80,8 +80,8 @@ function RetrySettle({ project, receipt, refresh, onChanged }: { project: BProje
   if (!needsSettleRetry(receipt)) return null;
   return (
     <Card variant="warning" aria-label="Finishing your payment" className="gap-3 p-4">
-      <h2 className="text-sm font-semibold text-ink">Finishing your payment</h2>
-      <p className="text-sm leading-5 text-ink-2">
+      <h2 className="text-body font-semibold text-ink">Finishing your payment</h2>
+      <p className="text-body text-ink-2">
         The run is over but the last PayPal step has not finished yet. It is safe to try again. Nothing is charged twice.
       </p>
       <div>
@@ -117,6 +117,7 @@ export function ResultStep({ project, onChanged }: StepProps) {
     };
   }, [project.id]);
   const v = toResultView(t);
+  const recap = toRecap(receipt);
   return (
     <>
       <Card
@@ -135,14 +136,15 @@ export function ResultStep({ project, onChanged }: StepProps) {
             <Figure label="Your target" value={`${v.target} out of 100`} />
           </div>
         )}
-        <p className="text-sm leading-5 text-ink-2">{v.body}</p>
+        <p className="text-body text-ink-2">{v.body}</p>
+        {recap && (
+          <p className="text-body text-ink-2">
+            {recapNote(v.kind, recap)} Charged {recap.charged}. Released back to you {recap.released}.
+          </p>
+        )}
         <EstimateNote>One check on data the model never saw. A measured result for this data, not a promise for new data.</EstimateNote>
       </Card>
-      <MoneyRecap receipt={receipt} note={recapNote(v.kind, toRecap(receipt))} />
-      <ReceiptCard receipt={receipt} />
       <RetrySettle project={project} receipt={receipt} refresh={refresh} onChanged={onChanged} />
-      <ModelLink projectId={project.id} />
-      {v.kind === "verified" && <HigherTarget project={project} reached={v.target} onChanged={onChanged} />}
       {v.kind === "missed" && (
         <TargetAction
           project={project}
@@ -152,59 +154,6 @@ export function ResultStep({ project, onChanged }: StepProps) {
         />
       )}
     </>
-  );
-}
-
-// After a verified run: a new round at a higher target. Free to start; a new run needs a new price and a new PayPal hold.
-function HigherTarget({ project, reached, onChanged }: { project: BProject; reached: number | null; onChanged: () => void | Promise<void> }) {
-  const [open, setOpen] = useState(false);
-  if (!open) {
-    return (
-      <Card variant="highlight" aria-label="Try a higher target" data-testid="higher-target" className="gap-2 p-4">
-        <h2 className="text-sm font-semibold text-ink">Want a higher result?</h2>
-        <p className="text-sm leading-5 text-ink-2">A free small test comes first. Nothing is charged until you approve a new price and a new PayPal hold.</p>
-        <div>
-          <Button variant="outline" onClick={() => setOpen(true)}>
-            Try a higher target
-          </Button>
-        </div>
-      </Card>
-    );
-  }
-  return (
-    <TargetAction
-      project={project}
-      onChanged={onChanged}
-      initial={higherStart(reached)}
-      title="Try a higher target"
-      mustBeAbove={reached}
-      buttonLabel="Run the free small test"
-      intro={`You reached ${reached ?? "your target"} out of 100. Pick a higher number. The free small test estimates the chance a new run gets there. Your earlier model and receipt stay as they are.`}
-    />
-  );
-}
-
-// Shown only when a model has been saved for this project (GET /model says available).
-function ModelLink({ projectId }: { projectId: string }) {
-  const [has, setHas] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    real.getModel(projectId).then((m) => alive && setHas(m.available)).catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [projectId]);
-  if (!has) return null;
-  return (
-    <Card variant="highlight" aria-label="Use your model" data-testid="model-link" className="gap-2 p-4">
-      <h2 className="text-sm font-semibold text-ink">Use your model</h2>
-      <p className="text-sm leading-5 text-ink-2">Try it on one record, run it on a CSV, or download it. This is free.</p>
-      <div>
-        <LinkButton href={`/projects/${projectId}?tab=model`} variant="outline" size="sm">
-          Open the model
-        </LinkButton>
-      </div>
-    </Card>
   );
 }
 
@@ -224,12 +173,11 @@ export function StoppedStep({ project, onChanged }: StepProps) {
     <>
       <Card variant="warning" aria-label="You stopped the run" className="gap-3 p-5">
         <h2 className="text-section text-ink">You stopped the run</h2>
-        <p className="text-sm leading-5 text-ink-2">
+        <p className="text-body text-ink-2">
           You pay for the compute used so far. There is no success fee, and the rest of the PayPal hold is released.
         </p>
       </Card>
       <MoneyRecap receipt={receipt} />
-      <ReceiptCard receipt={receipt} />
       <RetrySettle project={project} receipt={receipt} refresh={refresh} onChanged={onChanged} />
     </>
   );
@@ -245,7 +193,7 @@ export function VoidedStep({ project }: StepProps) {
     <>
       <Card variant="danger" aria-label="Nothing was charged" className="gap-3 p-5">
         <h2 className="text-section text-ink">{cancelled ? "Nothing was charged" : "Something went wrong on our side"}</h2>
-        <p className="text-sm leading-5 text-ink-2">
+        <p className="text-body text-ink-2">
           {cancelled
             ? "This run did not go ahead. You pay $0. The whole hold was released."
             : releasing
@@ -254,7 +202,7 @@ export function VoidedStep({ project }: StepProps) {
         </p>
         <div>
           <LinkButton href="/" variant="outline" size="sm">
-            Start a new project
+            Start a new chat
           </LinkButton>
         </div>
       </Card>
@@ -267,7 +215,7 @@ export function UnknownStep({ project }: StepProps) {
   return (
     <Card aria-label="Unknown state" className="gap-3 p-5">
       <h2 className="text-section text-ink">We are not sure what to show here</h2>
-      <p className="text-sm leading-5 text-ink-2">
+      <p className="text-body text-ink-2">
         This project is in a state this page does not know ({project.status}). Nothing has been charged by this page.
       </p>
       <div>

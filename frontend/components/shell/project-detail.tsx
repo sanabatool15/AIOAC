@@ -11,10 +11,11 @@ import { Tabs } from "@/components/ui/tabs";
 import { Tag } from "@/components/ui/tag";
 import { toBaseline, toForecast } from "@/lib/adapters";
 import type { BProject } from "@/lib/api";
-import { getActivity, getHistory, getProject } from "@/lib/api-real";
+import { getHistory, getProject } from "@/lib/api-real";
+import { ActivityCard } from "./activity-card";
 import { truncateGoal } from "@/lib/goal";
 import { useAsync } from "@/lib/hooks";
-import { overviewLine, TABS, toActivity, toHistory, type TabId } from "@/lib/screens";
+import { overviewLine, TABS, toHistory, type TabId } from "@/lib/screens";
 import { statusLabel } from "@/lib/status";
 import { ModelTab } from "./model-tab";
 import { ShareButton } from "./share-dialog";
@@ -56,7 +57,7 @@ export function ProjectDetail({ projectId, initialTab = "Overview" }: { projectI
             <Skeleton className="h-44" />
           </div>
         ) : error || !data ? (
-          <ErrorState message={error?.message ?? "Project unavailable."} onRetry={retry} />
+          <ErrorState message={error?.message ?? "Chat unavailable."} onRetry={retry} />
         ) : (
           <>
             <PageHeader
@@ -71,7 +72,7 @@ export function ProjectDetail({ projectId, initialTab = "Overview" }: { projectI
               }
             />
             <Tabs
-              label="Project tabs"
+              label="Chat tabs"
               tabs={TAB_ITEMS}
               value={tab}
               onValueChange={(id) => setTab(TABS.find((t) => t === id) ?? "Overview")}
@@ -94,8 +95,8 @@ function Overview({ project }: { project: BProject }) {
   const base = toBaseline(project);
   const fc = toForecast(project.forecast);
   return (
-    <Card aria-label="Where this project is" className="gap-3 p-5">
-      <h2 className="text-section text-ink">Where this project is</h2>
+    <Card aria-label="Where this chat is" className="gap-3 p-5">
+      <h2 className="text-section text-ink">Where this chat is</h2>
       <dl className="flex flex-col gap-1.5">
         <Row label="Goal" value={project.goal} />
         <Row label="Status" value={statusLabel(project.status)} />
@@ -204,26 +205,5 @@ function Item({ title, meta, body, tag }: { title: string; meta: string; body: s
 }
 
 function Activity({ projectId }: { projectId: string }) {
-  const { data, error, loading, retry } = useAsync(() => getActivity(projectId), projectId);
-  if (loading && !data) return <Skeleton className="h-40" />;
-  if (error || !data) return <ErrorState message={error?.message ?? "Activity unavailable."} onRetry={retry} />;
-  const items = toActivity(data);
-  return (
-    <Card aria-label="What the agent did" className="gap-3 p-5">
-      <h2 className="text-section text-ink">What the agent did</h2>
-      {items.length === 0 ? (
-        <p className="text-body text-muted">Nothing yet. Start in the chat.</p>
-      ) : (
-        <ol className="flex flex-col gap-2">
-          {items.map((a) => (
-            <li key={a.key} className="flex items-start gap-3 text-body">
-              <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-brand" />
-              <span className="min-w-0 flex-1 text-ink">{a.text}</span>
-              <time className="shrink-0 text-micro text-muted">{a.when}</time>
-            </li>
-          ))}
-        </ol>
-      )}
-    </Card>
-  );
+  return <ActivityCard projectId={projectId} />;
 }

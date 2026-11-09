@@ -11,8 +11,6 @@ import { TopBar } from "./top-bar";
 
 // Colour carries meaning: money taken is highlighted, money given back is success, counts stay plain.
 const TILE_VARIANT: Record<string, CardProps["variant"]> = {
-  "Compute charged": "highlight",
-  "Success fees charged": "highlight",
   "Released back to you": "success",
 };
 
@@ -22,7 +20,7 @@ export function UsageScreen() {
   const v = toUsage(data);
   return (
     <section aria-label="Usage" className="flex h-full min-w-0 flex-1 flex-col bg-bg">
-      <TopBar left={<h2 className="text-body font-normal whitespace-pre text-muted">{"Account  /  Usage"}</h2>} />
+      <TopBar left={<nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-body text-muted"><span>Account</span><span aria-hidden>/</span><span aria-current="page" className="text-ink">Usage</span></nav>} />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 sm:p-8">
         <PageHeader
           title="Usage"
@@ -55,7 +53,7 @@ export function UsageScreen() {
             <Card aria-label="Recent activity" className="gap-3 p-5">
               <h2 className="text-section text-ink">Recent activity</h2>
               {v.activity.length === 0 ? (
-                <EmptyState icon={Inbox} title="Nothing yet" body="Start a project and it will show up here." />
+                <EmptyState icon={Inbox} title="Nothing yet" body="Start a chat and it will show up here." />
               ) : (
                 <ul className="flex flex-col gap-2">
                   {v.activity.map((a) => (

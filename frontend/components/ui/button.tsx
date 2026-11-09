@@ -8,8 +8,8 @@ const baseButtonVariants = cva(
   {
     variants: {
       variant: {
-        primary: "bg-brand text-on-brand hover:bg-brand-hover",
-        outline: "border border-border bg-card text-ink hover:bg-surface",
+        primary: "bg-grad-brand text-on-brand shadow-btn-primary hover:brightness-95",
+        outline: "border border-border bg-card text-ink shadow-btn-neutral hover:bg-surface",
         ghost: "bg-transparent text-ink-2 hover:bg-surface hover:text-ink",
         destructive: "bg-danger text-on-brand hover:brightness-95",
       },

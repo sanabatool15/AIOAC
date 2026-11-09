@@ -44,7 +44,7 @@ function Inlines({ xs }: { xs: Inline[] }) {
 export function MarkdownText({ text }: { text: string }) {
   const blocks = parseMarkdown(text);
   return (
-    <div className="flex flex-col gap-2 text-sm leading-[23px] text-ink">
+    <div className="flex flex-col gap-2 text-body leading-6 text-ink">
       {blocks.map((b, i) =>
         b.t === "p" ? (
           <p key={i}>

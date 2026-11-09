@@ -1,6 +1,6 @@
 "use client";
-import { useRef, useState } from "react";
-import { ArrowUp, Mic, Paperclip, Square } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowUp, FileSpreadsheet, Mic, Paperclip, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldShell } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,10 @@ import { cn } from "@/lib/utils";
 interface ComposerProps {
   onSend: (text: string) => void;
   onAttach?: () => void;
+  onPickFile?: (file: File) => void; // the clip opens the file picker and the file shows under the text, like other chat apps
+  attachment?: File | null;
+  onRemoveAttachment?: () => void;
+  onSendWithFile?: (text: string) => void; // Send while a file is attached
   streaming?: boolean;
   onStop?: () => void;
   busy?: boolean;
@@ -33,6 +37,10 @@ type SpeechCtor = new () => SpeechRec;
 export function Composer({
   onSend,
   onAttach,
+  onPickFile,
+  attachment = null,
+  onRemoveAttachment,
+  onSendWithFile,
   streaming = false,
   onStop,
   busy = false,
@@ -42,10 +50,25 @@ export function Composer({
   const [value, setValue] = useState("");
   const [recording, setRecording] = useState(false);
   const recRef = useRef<SpeechRec | null>(null);
-  const canSend = value.trim().length > 0 && !busy && !disabled;
+  const fileRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const canSend = (value.trim().length > 0 || !!attachment) && !busy && !disabled;
+
+  // The box grows with the text, up to its maximum height, then scrolls.
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 192)}px`;
+  }, [value]);
 
   function send() {
     if (!canSend) return;
+    if (attachment && onSendWithFile) {
+      onSendWithFile(value.trim());
+      setValue("");
+      return;
+    }
     onSend(value.trim());
     setValue("");
   }
@@ -84,6 +107,7 @@ export function Composer({
   return (
     <FieldShell className="flex w-full flex-col gap-2 p-3 shadow-card">
       <textarea
+        ref={boxRef}
         rows={1}
         value={value}
         disabled={disabled}
@@ -96,13 +120,40 @@ export function Composer({
         }}
         placeholder={placeholder}
         aria-label="Message AIOAC"
-        className="w-full resize-none bg-transparent text-body text-ink outline-none placeholder:text-muted"
+        className="max-h-48 w-full resize-none overflow-y-auto bg-transparent text-body text-ink outline-none placeholder:text-muted"
       />
-      <div className="flex items-center gap-1">
-        {onAttach && (
-          <Button variant="ghost" size="icon" aria-label="Attach data" onClick={onAttach}>
-            <Paperclip />
+      {attachment && (
+        <div className="flex w-fit max-w-full items-center gap-2 rounded-md border border-border bg-surface py-1 pl-2 pr-1">
+          <FileSpreadsheet aria-hidden className="size-4 shrink-0 text-brand" />
+          <span className="min-w-0 truncate text-small font-medium text-ink">{attachment.name}</span>
+          <span className="shrink-0 text-micro text-muted">{(attachment.size / 1024).toFixed(attachment.size < 10240 ? 1 : 0)} KB</span>
+          <Button variant="ghost" size="icon" aria-label="Remove file" onClick={onRemoveAttachment} className="size-6">
+            <X />
           </Button>
+        </div>
+      )}
+      <div className="flex items-center gap-1">
+        {(onPickFile || onAttach) && (
+          <>
+            <Button variant="ghost" size="icon" aria-label="Attach data" onClick={() => (onPickFile ? fileRef.current?.click() : onAttach?.())}>
+              <Paperclip />
+            </Button>
+            {onPickFile && (
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv,text/csv"
+                aria-label="CSV file"
+                tabIndex={-1}
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onPickFile(f);
+                  e.target.value = "";
+                }}
+              />
+            )}
+          </>
         )}
         <div className="flex-1" />
         <Button

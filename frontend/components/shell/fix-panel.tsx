@@ -43,7 +43,7 @@ export function FixPanel({ project, onChanged }: Props) {
   if (!fix.available) {
     return (
       <div role="status" aria-label="No fix available" className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
-        <p className="text-sm leading-5 text-ink-2">{fix.message}</p>
+        <p className="text-body text-ink-2">{fix.message}</p>
         <div>
           <Button variant="outline" onClick={() => setFix(null)}>
             Close
@@ -55,8 +55,8 @@ export function FixPanel({ project, onChanged }: Props) {
 
   return (
     <div role="group" aria-label="Confirm the data fix" data-testid="fix-confirm" className="flex flex-col gap-2.5 rounded-lg border border-border bg-card p-3">
-      <h3 className="text-sm font-semibold text-ink">Change your data?</h3>
-      <p className="text-sm leading-5 text-ink-2">{fix.message}</p>
+      <h3 className="text-body font-semibold text-ink">Change your data?</h3>
+      <p className="text-body text-ink-2">{fix.message}</p>
       <dl className="flex flex-col gap-1.5">
         <Row label="Rows" value={fix.rows} />
         <Row label="Columns" value={fix.columns} />

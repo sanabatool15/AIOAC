@@ -41,7 +41,7 @@ export function PaidStep({ project, onChanged }: StepProps) {
   return (
     <Card variant="success" aria-label="Payment confirmed" className="gap-3 p-5">
       <h2 className="text-section text-ink">Payment confirmed</h2>
-      <p className="text-sm leading-5 text-ink-2">PayPal confirmed the hold. Nothing is charged yet. Starting your training run…</p>
+      <p className="text-body text-ink-2">PayPal confirmed the hold. Nothing is charged yet. Starting your training run…</p>
       {error && (
         <div>
           <Button disabled={busy} onClick={start}>
@@ -96,16 +96,16 @@ export function TrainingStep({ project, onChanged }: StepProps) {
   const hold = project.payment?.hold_cents;
   return (
     <>
-      <Card aria-label="Training your model" data-testid="training-card" className="gap-3 p-5">
+      <Card variant="live" aria-label="Training your model" data-testid="training-card" className="gap-3 p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-section text-ink">Training your model</h2>
           {!starting && <Tag variant="brand">{v.stopRequested ? "Stopping" : "Running"}</Tag>}
         </div>
         {starting ? (
-          <p className="text-sm text-ink-2">Getting ready to start…</p>
+          <p className="text-body text-ink-2">Getting ready to start…</p>
         ) : (
           <>
-            <p className="text-sm font-medium text-ink" aria-live="polite">
+            <p className="text-body font-medium text-ink" aria-live="polite">
               {v.stopRequested ? "Stopping…" : v.stage}
             </p>
             <ProgressBar value={v.progress} label="Training progress" />
@@ -145,7 +145,7 @@ export function TrainingStep({ project, onChanged }: StepProps) {
         )}
       </Card>
       {hold !== undefined && (
-        <Card aria-label="Your PayPal hold" className="gap-2 p-4">
+        <Card variant="money" aria-label="Your PayPal hold" className="gap-2 p-4">
           <h2 className="text-section text-ink">Your PayPal hold</h2>
           <MoneyTriplet summary={projectMoney(project)} />
           <p className="text-small text-muted">

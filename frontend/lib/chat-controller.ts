@@ -31,6 +31,7 @@ export interface ChatState {
   busySince: number | null; // when the current /chat call started (ms), for the thinking timer
   declined: string[]; // keys of the cards the user answered with "Not now" (kept in this browser, see declined.ts)
   unavailable: boolean; // 503: the AI assistant is not set up, so the input is hidden
+  lastSteps: string[]; // the steps of the turn that just finished, kept so the thread can show what the assistant did
   liveSteps: string[]; // plain lines of what the assistant is doing right now (newest last, at most MAX_LIVE); empty when idle
 }
 
@@ -48,7 +49,7 @@ export interface ChatDeps {
 export const liveDeps: ChatDeps = { boot: bootChat, getMessages, getActivity, postChat };
 
 export class ChatController {
-  private state: ChatState = { items: null, busy: true, busySince: null, error: null, declined: [], unavailable: false, liveSteps: [] };
+  private state: ChatState = { items: null, busy: true, busySince: null, error: null, declined: [], unavailable: false, liveSteps: [], lastSteps: [] };
   private listeners = new Set<() => void>();
   private opened = false;
   private sending = false;
@@ -141,7 +142,7 @@ export class ChatController {
     } finally {
       this.stopPoll();
     }
-    this.set({ items: b.items, error: b.error, unavailable: !!b.error?.unavailable, busy: false, busySince: null, liveSteps: [] });
+    this.set({ items: b.items, error: b.error, unavailable: !!b.error?.unavailable, busy: false, busySince: null, liveSteps: [], lastSteps: this.state.liveSteps.length ? this.state.liveSteps : this.state.lastSteps });
     if (b.items.some((i) => i.role === "assistant") ) void this.onChanged();
   }
 
@@ -161,7 +162,7 @@ export class ChatController {
     } finally {
       this.sending = false;
       this.stopPoll();
-      this.set({ busy: false, busySince: null, liveSteps: [] });
+      this.set({ busy: false, busySince: null, liveSteps: [], lastSteps: this.state.liveSteps.length ? this.state.liveSteps : [] });
     }
   }
 

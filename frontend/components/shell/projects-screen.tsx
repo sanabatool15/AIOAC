@@ -15,16 +15,16 @@ export function ProjectsScreen() {
   const { data, error, loading, retry } = useAsync(() => listProjects());
 
   return (
-    <section aria-label="Projects" className="flex h-full min-w-0 flex-1 flex-col bg-bg">
-      <TopBar left={<p className="text-body text-muted">Projects</p>} />
+    <section aria-label="Chats" className="flex h-full min-w-0 flex-1 flex-col bg-bg">
+      <TopBar left={<p className="text-body text-muted">Chats</p>} />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 sm:p-8">
         <PageHeader
-          title="Projects"
+          title="Chats"
           subtitle="Everything you have started, in one place."
-          actions={<LinkButton href="/">New project</LinkButton>}
+          actions={<LinkButton href="/">New chat</LinkButton>}
         />
         {loading && !data ? (
-          <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading projects">
+          <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading chats">
             <Skeleton className="h-16" />
             <Skeleton className="h-16" />
           </div>
@@ -33,7 +33,7 @@ export function ProjectsScreen() {
         ) : !data || data.length === 0 ? (
           <EmptyState
             icon={FolderOpen}
-            title="No projects yet"
+            title="No chats yet"
             body="Describe what you want to predict to start one."
           />
         ) : (
@@ -41,7 +41,7 @@ export function ProjectsScreen() {
             {data.map((p) => (
               <li key={p.id}>
                 <Link
-                  href={`/projects/${p.id}`}
+                  href={`/c/${p.id}`}
                   className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-4 hover:bg-surface"
                 >
                   <span title={p.goal} className="min-w-0 truncate text-body font-medium text-ink">

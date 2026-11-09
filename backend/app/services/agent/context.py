@@ -21,6 +21,7 @@ BASE = (
     "- Goal does not say what to predict: ask one short question; don't search.\n"
     "- Never choose the target accuracy. Ask: how many out of 100 must be right? The free test got about N. Run the free small test only after they answer.\n"
     "- Reply in the user's language. A target is one column name.\n"
+    "- Table, chart, diagram, buttons: use show_table, show_chart, show_diagram, ask_choice, show_links.\n"
     "- No markdown (no ** or backticks or tables), no ids like uci:144 (use the title). Accuracy as 'about N out of 100', never 0.8 or [0.73, 0.89]. Money in dollars ($0.56), never cents.\n"
     "- Model type: only the type tested. A data fix is a free try: 'we will test if this changes the estimate'.\n"
     "- Explain a price: small compute part plus the fixed platform fee. Say 'the most you can be charged', never 'cap'; the success fee only if verified.\n"
@@ -88,13 +89,13 @@ NEXT_STEP = {
 }
 
 TOOLS_BY_STATUS = {
-    "described": ["load_skill", "discover_datasets", "search_datasets", "look_at_dataset", "fetch_dataset", "inspect_candidate", "select_dataset"],
-    "data_chosen": ["load_skill", "run_readiness"],
-    "readiness_done": ["load_skill", "run_baseline"],
-    "baseline_done": ["load_skill", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
-    "quoted": ["load_skill", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
-    "awaiting_payment": ["load_skill", "request_payment", "create_quote"],  # create_quote: a way out when the quote expired (the gate and the quote service still decide)
-    "paid": ["load_skill", "start_training"],
+    "described": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "discover_datasets", "search_datasets", "look_at_dataset", "fetch_dataset", "inspect_candidate", "select_dataset"],
+    "data_chosen": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "run_readiness"],
+    "readiness_done": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "run_baseline"],
+    "baseline_done": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
+    "quoted": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
+    "awaiting_payment": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "request_payment", "create_quote"],  # create_quote: a way out when the quote expired (the gate and the quote service still decide)
+    "paid": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "start_training"],
 }
 DEFAULT_TOOLS = ["load_skill"]
 

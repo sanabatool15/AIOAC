@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     cookie_samesite: str = "lax"          # lax | strict | none (none needs cookie_secure)
     cookie_name: str = "aioac_session"
     demo_login_enabled: bool = False      # true only for the demo video: POST /auth/demo logs in a fixed demo user
+    demo_project_enabled: bool = False    # true only for testing: POST /projects/demo makes a chat already at the price step
     login_max_failures: int = 10          # per email and ip, within login_window_minutes
     login_window_minutes: int = 10
     cors_origins: str = "http://localhost:3000"  # comma-separated list of browser origins allowed to call the API

@@ -8,7 +8,7 @@ export interface NavItem {
   icon: LucideIcon;
 }
 export const NAV_ITEMS: readonly NavItem[] = [
-  { label: "Projects", href: "/projects", icon: FolderOpen },
+  { label: "Chats", href: "/projects", icon: FolderOpen },
   { label: "Usage", href: "/account/usage", icon: Gauge },
   { label: "Billing history", href: "/account/billing", icon: CreditCard },
 ];

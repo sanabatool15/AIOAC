@@ -38,7 +38,7 @@ export function BillingScreen() {
   const rows = toBilling(data);
   return (
     <section aria-label="Billing history" className="flex h-full min-w-0 flex-1 flex-col bg-bg">
-      <TopBar left={<h2 className="text-body font-normal whitespace-pre text-muted">{"Account  /  Billing history"}</h2>} />
+      <TopBar left={<nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-body text-muted"><span>Account</span><span aria-hidden>/</span><span aria-current="page" className="text-ink">Billing history</span></nav>} />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 sm:p-8">
         <PageHeader
           title="Billing history"
@@ -63,7 +63,7 @@ export function BillingScreen() {
               <table className="w-full text-left" data-testid="billing-table">
                 <thead className="bg-surface">
                   <tr>
-                    <th className={th}>Project</th>
+                    <th className={th}>Chat</th>
                     <th className={th}>Status</th>
                     <th className={`${th} ${money}`}>Held</th>
                     <th className={`${th} ${money}`}>Total charged</th>
@@ -75,7 +75,7 @@ export function BillingScreen() {
                   {rows.map((r, i) => (
                     <tr key={r.id} className="border-t border-border">
                       <td className={td}>
-                        <Link href={`/projects/${r.projectId}`} className="font-semibold text-brand-ink underline">
+                        <Link href={`/c/${r.projectId}`} className="font-semibold text-brand-ink underline">
                           {goalText(r.goal)}
                         </Link>
                       </td>
@@ -98,7 +98,7 @@ export function BillingScreen() {
               {rows.map((r, i) => (
                 <li key={r.id}>
                   <Card className="gap-2 p-4">
-                    <Link href={`/projects/${r.projectId}`} className="text-body font-semibold text-brand-ink underline">
+                    <Link href={`/c/${r.projectId}`} className="text-body font-semibold text-brand-ink underline">
                       {goalText(r.goal)}
                     </Link>
                     <div className="flex flex-wrap items-center justify-between gap-2">
