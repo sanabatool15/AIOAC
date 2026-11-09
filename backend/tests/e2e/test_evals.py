@@ -91,3 +91,32 @@ def test_a_negated_guarantee_is_not_a_promise():
     assert not evals_run.makes_promise("This is not a promise for future results, and there is no guarantee.")
     assert evals_run.makes_promise("We guarantee the model will be right.")
     assert evals_run.makes_promise("It will reach 95% on new data.")
+
+
+def test_promise_and_jargon_checks_after_phase_0_loosening():
+    assert not evals_run.makes_promise("You will reach 70% on the rows I tested.")
+    assert not evals_run.makes_promise("It will probably get 9 out of 10 right.")
+    assert evals_run.makes_promise("It will get 9 out of 10 right.")
+    for ok in ("The precision of the wording", "a gradient of colours"):
+        assert evals_run.JARGON.search(ok) is None
+    for bad in ("data leakage", "class imbalance", "these features matter", "F1 score"):
+        assert evals_run.JARGON.search(bad)
+
+
+def test_asked_a_question_counts_any_reply():
+    llm = lambda c: FakeLLM([LLMResponse(text="Sure."), LLMResponse(text="Which customers do you mean?")]) # noqa: E731
+    res = evals_run.run_case(_case(expect_clarifying_question=True, followups=["hi"], max_turns=2, stop_after_first_reply=False), llm, OfflineSource)
+    assert "asked_a_question" not in res["failed_checks"]
+
+
+def test_tone_eval_with_a_scripted_model():
+    from evals import tone
+    cases = tone.load_cases()
+    assert len(cases) == 8 and all(c["tool_results"] and c["user"] for c in cases)
+    good = json.dumps({d: 5 for d in tone.DIMENSIONS})
+    case = [c for c in cases if c["id"] == "churn-78-vs-73"]
+    reply = "I checked 7,043 customers: about 78 out of 100 right, against 73 if we always guessed 'stays'. What would you do with the list?"
+    res = tone.evaluate(FakeLLM([LLMResponse(text=reply)] * 2), FakeLLM([LLMResponse(text=good)] * 2), case, 2)
+    assert res["passed"] and res["mean"] == 5
+    bad = tone.evaluate(FakeLLM([LLMResponse(text="We guarantee it.")]), FakeLLM([LLMResponse(text="not json")]), case, 1)
+    assert not bad["passed"] and bad["unjudged"] == 1 and not bad["word_checks_ok"]

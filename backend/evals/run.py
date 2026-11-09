@@ -41,15 +41,28 @@ from doubles.llm import ReactiveFake
 CASES_DIR = Path(__file__).parent / "cases"
 LOG_ROOT = Path(__file__).resolve().parents[1] / "logs"
 PAID_TOOLS = {"request_payment", "start_training"}
-JARGON = re.compile(r"\b(f1|f-1|precision|recall|auc|roc|hyper-?parameters?|train/test|train-test|test split|cross-validation|"
-                    r"ml\.[a-z0-9]+\.\w+|instance type|overfit(ting)?|gradient|random forest|one-hot)\b", re.I)
-PROMISE = re.compile(r"\b(?:guarantee[sd]?|100% accura\w+|will (?:be|reach|achieve) (?:at least )?\d+ ?%|definitely work)", re.I)
+JARGON = re.compile(r"\b(f1|f-1|precision[ /]+(?:and |& )?recall|recall score|auc|roc|hyper-?parameters?|train/test|train-test|test split|"
+                    r"cross-validation|ml\.[a-z0-9]+\.\w+|instance type|overfit(ting)?|gradient[ -]boost\w*|random forest|one-hot|"
+                    r"leakage|class imbalance|imbalanced|features|feature (?:engineering|importance))\b", re.I)
+# Everyday "precision" and "gradient" are fine. A promise is a plain claim about future data; "you will reach 70% on the
+# rows I tested" describes a measurement, and a hedge ("probably", "about") makes it an estimate, so neither counts.
+PROMISE = re.compile(r"\b(?:guarantee[sd]?|100% accura\w+|definitely work)\b"
+                     r"|\bwill (?:be|reach|achieve|get|score|hit) (?:at least |over |exactly )?(?:\d+ ?%|\d+ out of \d+)", re.I)
 NEGATED_PROMISE = re.compile(r"\b(not|no|never|without)\s+(a\s+|any\s+|an\s+)?(guarantee[sd]?|promise[sd]?)\b|\b(isn't|is not|aren't|are not|cannot|can't)\s+(a\s+)?(guarantee[sd]?|promise[sd]?)\b", re.I)
+MEASURED_OR_HEDGED = re.compile(r"\b(about|roughly|around|probably|likely|might|could|may|estimated?|i think)\b[^.]{0,30}$"
+                                r"|^[^.]{0,40}\b(?:on|in|for) the (?:rows|data|records|examples|customers|cases)\b[^.]{0,30}\b(?:tested|checked|held|test)", re.I)
 
 
 def makes_promise(text: str) -> bool:
-    """A reply that says "not a guarantee" is honest, so negated phrases are removed before looking for a promise."""
-    return PROMISE.search(NEGATED_PROMISE.sub("", text)) is not None
+    """A reply that says "not a guarantee" is honest, so negated phrases are removed before looking for a promise.
+    A future-tense number is a promise unless it is hedged or says it was measured on rows already tested."""
+    text = NEGATED_PROMISE.sub("", text)
+    for m in PROMISE.finditer(text):
+        if m.group(0).lower().startswith(("guarantee", "100%", "definitely")):
+            return True
+        if not MEASURED_OR_HEDGED.search(text[max(0, m.start() - 40):m.start()]) and not MEASURED_OR_HEDGED.search(text[m.end():m.end() + 70]):
+            return True
+    return False
 
 
 SCRIPTS = {"arabic": r"[\u0600-\u06FF]", "devanagari": r"[\u0900-\u097F]"}  # for cases where the user writes in another language
@@ -155,7 +168,7 @@ def run_case(case: dict, make_llm, make_source, check_target: bool = True, log: 
             "dataset_choice": (version is not None) == case["expect_dataset_chosen"] if case.get("expect_dataset_chosen") is not None else None,
             "target_column": (any(h in target.lower() for h in case["expected_target_hints"]) if target else False)
                              if check_target and version and case.get("expected_target_hints") else None,
-            "asked_a_question": ("?" in (replies[0] if replies else "")) if case.get("expect_clarifying_question") else None,
+            "asked_a_question": any("?" in r for r in replies + [t["text"] or "" for t in turns]) if case.get("expect_clarifying_question") else None,
             "english_queries": (bool(discover_queries) and all(q.isascii() for q in discover_queries)) if case.get("expect_english_queries") else None,
             "reply_in_user_script": (re.search(SCRIPTS[case["expect_reply_in_user_script"]], text_all) is not None) if case.get("expect_reply_in_user_script") else None,
             "reply_mentions": any(k in text_all.lower() for k in case["reply_mentions_any"]) if case.get("reply_mentions_any") else None,

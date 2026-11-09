@@ -1,0 +1,17 @@
+{
+ "id": "why-only-70",
+ "user": "Why is it only 70 out of 100?",
+ "tool_results": "Free test: about 70 out of 100 right; simple guess 66. With more rows the forecast rises slowly: 5% of the data gave 67, 20% gave 69.",
+ "must_contain_any": [
+  [
+   "rows",
+   "more data",
+   "columns",
+   "information"
+  ]
+ ],
+ "must_not_contain": [
+  "guarantee",
+  "will reach"
+ ]
+}

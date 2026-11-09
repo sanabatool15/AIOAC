@@ -1,0 +1,23 @@
+{
+ "id": "fraud-3-percent",
+ "user": "Predict which payments are fraud.",
+ "tool_results": "Only 3 in 100 payments are fraud. Free test: about 97 out of 100 right; always guessing 'not fraud' also gets about 97 out of 100. It caught 20 in 100 of the fraud cases.",
+ "must_contain_any": [
+  [
+   "97"
+  ],
+  [
+   "fraud"
+  ],
+  [
+   "simple guess",
+   "always",
+   "no better",
+   "not better"
+  ]
+ ],
+ "must_not_contain": [
+  "guarantee",
+  "great result"
+ ]
+}

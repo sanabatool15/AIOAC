@@ -1,0 +1,18 @@
+{
+ "id": "leaky-column",
+ "user": "Why does the data look too good?",
+ "tool_results": "One column, 'refund_issued', is an exact copy of the answer and was ignored. Free test without it: about 69 out of 100 right; simple guess 52 out of 100.",
+ "must_contain_any": [
+  [
+   "refund_issued"
+  ],
+  [
+   "copy",
+   "gives away",
+   "answer"
+  ]
+ ],
+ "must_not_contain": [
+  "guarantee"
+ ]
+}
