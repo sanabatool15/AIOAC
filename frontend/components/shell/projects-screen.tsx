@@ -42,7 +42,7 @@ export function ProjectsScreen() {
               <li key={p.id}>
                 <Link
                   href={`/c/${p.id}`}
-                  className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-4 hover:bg-surface"
+                  className="flex items-center justify-between gap-4 rounded-lg border border-trace-line bg-grad-trace shadow-card p-4 hover:bg-surface"
                 >
                   <span title={p.goal} className="min-w-0 truncate text-body font-medium text-ink">
                     {p.goal}

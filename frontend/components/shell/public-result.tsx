@@ -91,7 +91,7 @@ export function PublicResultScreen({ token }: { token: string }) {
                   <p className="text-body text-ink">There is no verified result yet.</p>
                 </Card>
               )}
-              <div className="flex items-center gap-2.5 rounded-lg border border-border bg-card p-3.5">
+              <div className="flex items-center gap-2.5 rounded-lg border border-trace-line bg-grad-trace shadow-card p-3.5">
                 <Lock aria-hidden size={16} className="shrink-0 text-muted" />
                 <p className="min-w-px flex-1 text-body text-muted">{v.note}</p>
               </div>

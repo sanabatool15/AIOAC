@@ -191,7 +191,7 @@ function Section({ title, empty, children }: { title: string; empty: string; chi
 
 function Item({ title, meta, body, tag }: { title: string; meta: string; body: string; tag?: string }) {
   return (
-    <li className="flex flex-col gap-1 rounded-lg border border-border bg-card p-4 shadow-card">
+    <li className="flex flex-col gap-1 rounded-lg border border-trace-line bg-grad-trace shadow-card p-4 shadow-card">
       <div className="flex items-center justify-between gap-3">
         <p className="text-body font-semibold text-ink">{title}</p>
         <div className="flex items-center gap-2">

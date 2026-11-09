@@ -38,7 +38,7 @@ export function Tabs({ tabs, value, onValueChange, label, panels, children, clas
 
   return (
     <div className={className}>
-      <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-border">
+      <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="inline-flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-lg bg-surface p-[3px]">
         {tabs.map((t) => {
           const active = t.id === value;
           return (
@@ -56,8 +56,8 @@ export function Tabs({ tabs, value, onValueChange, label, panels, children, clas
               disabled={t.disabled}
               onClick={() => onValueChange(t.id)}
               className={cn(
-                "-mb-px shrink-0 border-b-2 px-3 py-2 text-body font-medium transition-colors disabled:opacity-50",
-                active ? "border-brand text-brand-ink" : "border-transparent text-muted hover:text-ink",
+                "shrink-0 rounded-lg px-3 py-1 text-body font-medium transition-colors disabled:opacity-50",
+                active ? "bg-grad-brand text-on-brand shadow-btn-primary" : "text-ink hover:bg-card",
               )}
             >
               {t.label}

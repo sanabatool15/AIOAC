@@ -19,7 +19,7 @@ export function ChartBlock({ title, kind, labels, values, unit }: { title?: stri
   const axis = { fontSize: 12, fill: "var(--muted)" };
   const common = { data, margin: { top: 8, right: 8, bottom: 0, left: -12 } };
   return (
-    <figure aria-label={title ?? "Chart"} className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
+    <figure aria-label={title ?? "Chart"} className="flex flex-col gap-2 rounded-lg border border-trace-line bg-grad-trace shadow-card p-4">
       {title && <figcaption className="text-body font-semibold text-ink">{title}{unit ? ` (${unit})` : ""}</figcaption>}
       <div className="h-56 w-full">
         <ResponsiveContainer width="100%" height="100%">
@@ -83,7 +83,7 @@ export function DiagramBlock({ title, source }: { title?: string; source: string
     };
   }, [id, source]);
   return (
-    <figure aria-label={title ?? "Diagram"} className="flex flex-col gap-2 overflow-x-auto rounded-lg border border-border bg-card p-4">
+    <figure aria-label={title ?? "Diagram"} className="flex flex-col gap-2 overflow-x-auto rounded-lg border border-trace-line bg-grad-trace shadow-card p-4">
       {title && <figcaption className="text-body font-semibold text-ink">{title}</figcaption>}
       {failed ? (
         <p className="text-body text-muted">This diagram could not be drawn.</p>
