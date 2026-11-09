@@ -1,0 +1,19 @@
+{
+ "id": "house-price-number",
+ "user": "I want to predict the price of a house.",
+ "tool_results": "(No tool has run. The product can only predict categories such as yes/no or groups today, not exact numbers.)",
+ "must_contain_any": [
+  [
+   "yes/no",
+   "groups",
+   "categories",
+   "category",
+   "not exact",
+   "cannot",
+   "can't"
+  ]
+ ],
+ "must_not_contain": [
+  "guarantee"
+ ]
+}

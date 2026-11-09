@@ -1,0 +1,19 @@
+{
+ "id": "small-80-rows",
+ "user": "Is my file enough to train on?",
+ "tool_results": "The file has 80 rows. Free test: about 71 out of 100 right; simple guess 64 out of 100. The result moves a lot between tries because the file is small.",
+ "must_contain_any": [
+  [
+   "80"
+  ],
+  [
+   "small",
+   "few",
+   "more rows",
+   "more data"
+  ]
+ ],
+ "must_not_contain": [
+  "guarantee"
+ ]
+}

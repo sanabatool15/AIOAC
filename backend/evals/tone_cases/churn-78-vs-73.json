@@ -1,0 +1,16 @@
+{
+ "id": "churn-78-vs-73",
+ "user": "I want to predict which customers will cancel.",
+ "tool_results": "Free test on held-out customers: about 78 out of 100 right. Always guessing 'stays' would get about 73 out of 100. 7,043 rows. Customer ID column ignored.",
+ "must_contain_any": [
+  [
+   "73",
+   "simple guess",
+   "always"
+  ]
+ ],
+ "must_not_contain": [
+  "guarantee",
+  "f1"
+ ]
+}
