@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 const cardVariants = cva("flex w-full flex-col rounded-xl border", {
   variants: {
     variant: {
-      plain: "border-border bg-card",
+      plain: "border-trace-line bg-grad-trace shadow-card",
       success: "border-success-line bg-success-soft",
       warning: "border-money-line bg-grad-money shadow-card",
       danger: "border-danger-line bg-danger-soft",

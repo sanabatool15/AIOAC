@@ -15,7 +15,7 @@ export function ChatBlockView({ b, onChoose, locked = false }: { b: ChatBlock; o
     return (
       <div aria-label={t.title ?? "Table"} className="flex flex-col gap-2">
         {t.title && <h3 className="text-body font-semibold text-ink">{t.title}</h3>}
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="overflow-x-auto rounded-lg border border-trace-line bg-grad-trace shadow-card">
           <table className="w-full border-collapse text-left text-body">
             <thead>
               <tr className="bg-surface">

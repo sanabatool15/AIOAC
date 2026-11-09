@@ -164,7 +164,7 @@ export function MoneyTriplet({ summary }: { summary: MoneySummary }) {
 function BeforeAfter({ f }: { f: ForecastView }) {
   if (!f.before) return null;
   return (
-    <div aria-label="Before and after the data fix" data-testid="fix-before-after" className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 text-body">
+    <div aria-label="Before and after the data fix" data-testid="fix-before-after" className="flex flex-col gap-1 rounded-lg border border-trace-line bg-grad-trace shadow-card p-3 text-body">
       <p className="font-semibold text-ink">After your data fix</p>
       <p className="text-ink-2">
         Before: about {f.before.expected} out of 100, a {f.before.confidence}% chance of reaching {f.before.target} out of 100.

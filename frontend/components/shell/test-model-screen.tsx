@@ -53,7 +53,7 @@ export function TestModelScreen({ chatId }: { chatId: string }) {
             <EmptyState title="This model cannot be tested here" body={`${data.unusable_reason ?? "The saved model could not be opened on this server."} You can still download it from the chat.`} />
           ) : (
             <>
-              <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5">
+              <div className="flex flex-col gap-2 rounded-xl border border-trace-line bg-grad-trace shadow-card p-5">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-section text-ink">Predicts &quot;{data.target}&quot;</h2>
                   <Tag variant="success">Ready</Tag>

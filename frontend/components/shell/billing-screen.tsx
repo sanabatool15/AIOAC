@@ -59,7 +59,7 @@ export function BillingScreen() {
           />
         ) : (
           <>
-            <div className="hidden overflow-x-auto rounded-xl border border-border bg-card shadow-card md:block">
+            <div className="hidden overflow-x-auto rounded-xl border border-trace-line bg-grad-trace shadow-card shadow-card md:block">
               <table className="w-full text-left" data-testid="billing-table">
                 <thead className="bg-surface">
                   <tr>

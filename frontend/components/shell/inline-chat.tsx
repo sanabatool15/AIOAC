@@ -117,7 +117,13 @@ export function AgentRow({ text, stream = false, waiting = false, children }: { 
   const shown = useTypewriter(text, stream);
   return (
     <div className="flex items-start gap-3">
-      <Orb state={waiting ? "waiting" : "base"} size={24} className="shrink-0 text-brand" />
+      {waiting ? (
+        <Orb state="waiting" size={28} className="shrink-0 text-brand" />
+      ) : (
+        <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-grad-brand text-small font-semibold text-on-brand">
+          A
+        </span>
+      )}
       <div className="flex min-w-px flex-1 flex-col gap-3">
         {shown && <MarkdownText text={shown} />}
         {children}
