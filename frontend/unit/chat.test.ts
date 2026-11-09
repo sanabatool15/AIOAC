@@ -1,7 +1,7 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/api";
-import { askedForSearch, NO_DATA_MESSAGE, bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
+import { askedForSearch, profileView, resultLines, NO_DATA_MESSAGE, bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
 
 // Shapes follow specs/api.md A2 and backend/tests/e2e/test_chat_blocks.py.
 const PID = "p1";
@@ -157,4 +157,44 @@ test("only the 'no data' choice counts as asking for a search", () => {
   assert.equal(askedForSearch([u("I want to predict churn"), u(NO_DATA_MESSAGE)]), true);
   assert.equal(askedForSearch([u(NO_DATA_MESSAGE), { role: "assistant", text: "ok" }]), true);
   assert.equal(askedForSearch([u(NO_DATA_MESSAGE), u("something else")]), false);
+});
+
+test("a data-fix card can be approved in chat while the price is not approved; other cards stay describe-only", () => {
+  const fix = { what: "Change your data", level: 1, tool: "apply_data_fix", args: {} };
+  const items: ChatItem[] = [{ id: "f", role: "assistant", text: fix.what, card: fix, blocks: [] }];
+  assert.equal(pendingCard(items, "baseline_done")?.id, "f");
+  assert.equal(pendingCard(items, "quoted")?.id, "f");
+  for (const st of ["described", "awaiting_payment", "paid", "training", "done", "failed", "stopped", "voided"]) assert.equal(pendingCard(items, st), null);
+  const pick: ChatItem[] = [{ id: "p", role: "assistant", text: "x", card, blocks: [] }];
+  assert.equal(pendingCard(pick, "baseline_done"), null);
+});
+
+test("result block reads in out-of-100 words, with no money and no promise", () => {
+  const hit = resultLines({ type: "result", outcome: "done", verified_out_of_100: 82, target_out_of_100: 80, simple_guess_out_of_100: 70, target_met: true, model_type: "a forest of decision trees" });
+  assert.equal(hit.title, "Target reached");
+  const text = hit.lines.join(" ");
+  assert.match(text, /about 82 out of 100/);
+  assert.match(text, /target was 80 out of 100/);
+  assert.match(text, /about 70/);
+  assert.match(text, /not a promise/);
+  assert.doesNotMatch(text, /\$|cents|0\.\d/);
+  const miss = resultLines({ type: "result", outcome: "done", verified_out_of_100: 61, target_out_of_100: 80, simple_guess_out_of_100: 60, target_met: false, model_type: null });
+  assert.equal(miss.title, "Target not reached");
+  assert.equal(resultLines({ type: "result", outcome: "failed", verified_out_of_100: null, target_out_of_100: null, simple_guess_out_of_100: null, target_met: null, model_type: null }).title, "The run did not finish");
+  assert.match(resultLines({ type: "result", outcome: "stopped", verified_out_of_100: null, target_out_of_100: null, simple_guess_out_of_100: null, target_met: null, model_type: null }).lines[0], /no success fee/);
+});
+
+test("profile block shows at most five clues and tolerates missing fields", () => {
+  const many = Array.from({ length: 8 }, (_, i) => ({ column: `c${i}`, reason: "gives the answer away", strength: (i % 2 ? "strong" : "weak") as "strong" | "weak" }));
+  const v = profileView({ type: "profile", rows: 12000, columns_total: 9, target: { name: "left", balance: "yes 30 in 100, no 70 in 100" }, suspects: many });
+  assert.equal(v.suspects.length, 5);
+  assert.equal(v.summary, "12,000 rows, 9 columns");
+  assert.equal(v.suspects[1].strong, true);
+  const bare = profileView({ type: "profile", rows: null, columns_total: null, target: undefined as never, suspects: undefined as never });
+  assert.deepEqual(bare, { summary: "", balance: "", suspects: [] });
+});
+
+test("an unknown block type is carried through and ignored by the reply mapper", () => {
+  const items = itemsFromReply({ status: "reply", text: "Hi", card: null, blocks: [{ type: "something_new", x: 1 }] });
+  assert.equal(items[0].blocks[0].type, "something_new");
 });

@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { dollars, outOf100 } from "@/lib/adapters";
-import { cardFacts, cardTitle, type ChatBlock, type ChatCard } from "@/lib/chat";
+import { cardFacts, cardTitle, profileView, resultLines, type ChatBlock, type ChatCard } from "@/lib/chat";
 
 // Blocks are built by the server from tool results (specs/api.md A2). Plain words, every estimate labelled.
 // The chat never moves money: the pay block only links to PayPal when the server sent a link.
@@ -47,6 +47,43 @@ export function ChatBlockView({ b }: { b: ChatBlock }) {
           Estimated {dollars(r.estimate_cents)}, most likely between {dollars(r.low_cents)} and {dollars(r.high_cents)}. The most
           you could ever be charged is {dollars(r.cap_cents)}. You approve the price and pay on the payment step of this page.
         </p>
+      </Card>
+    );
+  }
+  if (b.type === "profile") {
+    const v = profileView(b as Extract<ChatBlock, { type: "profile" }>);
+    return (
+      <Card variant="blue" aria-label="What I found in your data" className="gap-2 p-4">
+        <h3 className="text-sm font-semibold text-ink">What I found in your data</h3>
+        {v.summary && <p className="text-sm text-muted">{v.summary}</p>}
+        {v.balance && <p className="text-sm leading-5 text-ink-2">The answer column: {v.balance}.</p>}
+        {v.suspects.length > 0 ? (
+          <ul className="flex flex-col gap-1 text-sm">
+            {v.suspects.map((s) => (
+              <li key={s.column} className="flex gap-2">
+                <span className={s.strong ? "shrink-0 font-semibold text-ink" : "shrink-0 font-semibold text-muted"}>{s.column}</span>
+                <span className="text-ink-2">{s.reason}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted">No column stood out as odd.</p>
+        )}
+        <p className="text-xs text-muted">These are clues to check with you, not proof.</p>
+      </Card>
+    );
+  }
+  if (b.type === "result") {
+    const v = resultLines(b as Extract<ChatBlock, { type: "result" }>);
+    const ok = (b as Extract<ChatBlock, { type: "result" }>).target_met;
+    return (
+      <Card variant={ok ? "green" : "plain"} aria-label="Result" className="gap-2 p-4">
+        <h3 className="text-sm font-semibold text-ink">{v.title}</h3>
+        {v.lines.map((l, i) => (
+          <p key={i} className="text-sm leading-5 text-ink-2">
+            {l}
+          </p>
+        ))}
       </Card>
     );
   }

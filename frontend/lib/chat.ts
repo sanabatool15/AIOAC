@@ -90,6 +90,22 @@ export type ChatBlock =
       is_estimate: boolean;
     }
   | { type: "pay"; payment_id: string; approve_url: string | null; hold_cents: number }
+  | {
+      type: "profile";
+      rows: number | null;
+      columns_total: number | null;
+      target: { name: string; balance: string };
+      suspects: { column: string; reason: string; strength: "weak" | "strong" }[];
+    }
+  | {
+      type: "result";
+      outcome: "done" | "stopped" | "failed";
+      verified_out_of_100: number | null;
+      target_out_of_100: number | null;
+      simple_guess_out_of_100: number | null;
+      target_met: boolean | null;
+      model_type: string | null;
+    }
   | { type: string; [k: string]: unknown };
 
 export interface StoredMessage {
@@ -151,10 +167,36 @@ export function itemsFromReply(r: ChatReply): ChatItem[] {
 export const userItem = (text: string): ChatItem => ({ id: localId(), role: "user", text, blocks: [] });
 
 // A card still waits for the user only if it is the last thing said and the project has not moved on.
+// Choosing data is asked at the describe step; a data change (apply_data_fix) is asked while the price is not yet approved.
+export const CARD_STEPS: Record<string, string[]> = { select_dataset: ["described"], apply_data_fix: ["baseline_done", "quoted"] };
 export function pendingCard(items: ChatItem[], projectStatus: string): ChatItem | null {
-  if (projectStatus !== "described") return null;
   const last = items[items.length - 1];
-  return last?.card ? last : null;
+  if (!last?.card) return null;
+  return (CARD_STEPS[last.card.tool] ?? []).includes(projectStatus) ? last : null;
+}
+
+// The plain sentences of the "result" block. Numbers are the server's, words are fixed here. Never a promise.
+export function resultLines(b: Extract<ChatBlock, { type: "result" }>): { title: string; lines: string[] } {
+  if (b.outcome === "failed") return { title: "The run did not finish", lines: ["It failed on our side. The whole hold was released, so nothing was charged."] };
+  if (b.outcome === "stopped") return { title: "The run was stopped", lines: ["You pay only for the compute used so far, with no success fee. The rest of the hold was released."] };
+  const lines: string[] = [];
+  if (b.verified_out_of_100 !== null) lines.push(`On rows kept aside from the start, about ${b.verified_out_of_100} out of 100 were right.`);
+  if (b.target_out_of_100 !== null) lines.push(`Your target was ${b.target_out_of_100} out of 100.`);
+  if (b.simple_guess_out_of_100 !== null) lines.push(`Always guessing the most common answer would get about ${b.simple_guess_out_of_100}.`);
+  if (b.model_type) lines.push(`Model type: ${b.model_type}.`);
+  lines.push("This describes the rows we checked. It is not a promise for new data.");
+  return { title: b.target_met ? "Target reached" : "Target not reached", lines };
+}
+
+// "What I found" card: the answer column's balance and up to five columns worth a second look. Clues, not proof.
+export function profileView(b: Extract<ChatBlock, { type: "profile" }>): { summary: string; balance: string; suspects: { column: string; reason: string; strong: boolean }[] } {
+  const n = (x: number | null) => (typeof x === "number" ? x.toLocaleString("en-US") : null);
+  const parts = [n(b.rows) && `${n(b.rows)} rows`, n(b.columns_total) && `${n(b.columns_total)} columns`].filter(Boolean);
+  return {
+    summary: parts.join(", "),
+    balance: b.target?.balance ?? "",
+    suspects: (Array.isArray(b.suspects) ? b.suspects : []).slice(0, 5).map((s) => ({ column: String(s.column), reason: String(s.reason), strong: s.strength === "strong" })),
+  };
 }
 
 export interface FriendlyError {

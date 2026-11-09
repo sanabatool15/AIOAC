@@ -13,6 +13,7 @@ import { overviewLine, TABS, toActivity, toHistory, type TabId } from "@/lib/scr
 import { statusLabel } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { ModelTab } from "./model-tab";
+import { ChatComposer, ChatThread, useProjectChat } from "./project-chat";
 import { ShareButton } from "./share-dialog";
 import { Row } from "./step-parts";
 import { TopBar } from "./top-bar";
@@ -77,6 +78,7 @@ export function ProjectDetail({ projectId, initialTab = "Overview" }: { projectI
                 </button>
               ))}
             </div>
+            <AskPanel project={data} onChanged={retry} />
             <div role="tabpanel" id="tabpanel" aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
               {tab === "Overview" && <Overview project={data} />}
               {tab === "History" && <History projectId={projectId} />}
@@ -87,6 +89,41 @@ export function ProjectDetail({ projectId, initialTab = "Overview" }: { projectI
         )}
       </div>
     </section>
+  );
+}
+
+// A compact, collapsed chat on the project page: the same project chat (same messages, same approval cards).
+// Nothing is loaded and no model is called until it is opened. It never blocks the tabs below it.
+function AskPanel({ project, onChanged }: { project: BProject; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section aria-label="Ask about this project" className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="ask-panel"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 text-left text-sm font-semibold text-ink outline-offset-2 focus-visible:outline-2 focus-visible:outline-brand"
+      >
+        Ask about this project
+        <span aria-hidden className="text-muted">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open && (
+        <div id="ask-panel" className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
+          <AskChat project={project} onChanged={onChanged} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AskChat({ project, onChanged }: { project: BProject; onChanged: () => void }) {
+  const pc = useProjectChat(project.id, project.goal, project.status, onChanged);
+  return (
+    <>
+      <ChatThread pc={pc} projectStatus={project.status} />
+      <ChatComposer pc={pc} />
+    </>
   );
 }
 
