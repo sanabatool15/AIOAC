@@ -28,6 +28,18 @@ def _profile_block(result: dict) -> list[dict]:
                           for x in suspects[:5] if isinstance(x, dict)]}]
 
 
+def _clues_block(result: dict) -> list[dict]:
+    clues = _unwrap(result.get("top_clues")) or []
+    if not isinstance(clues, list) or not isinstance(result.get("kinds"), list):
+        return []
+    return [{"type": "clues", "verdict": _text(result.get("verdict", ""), 220),
+             "more_data": _text((result.get("effect_of_more_data") or {}).get("text", ""), 260),
+             "clues": [{"column": _text(x.get("column", ""), 80),
+                        "how_much": x.get("how_much") if x.get("how_much") in ("a lot", "some", "a little") else "a little",
+                        "plain_effect": _text(x.get("plain_effect", ""), 160)} for x in clues[:5] if isinstance(x, dict)],
+             "note": _text(result.get("clues_note", ""), 160), "is_estimate": True}]
+
+
 def _result_block(result: dict) -> list[dict]:
     if result.get("outcome") not in ("done", "stopped", "failed"):
         return []
@@ -53,6 +65,8 @@ def blocks_from_result(name: str, result, project) -> list[dict]:
                  **({"model_type": {"name": result["model_type"], "note": families.TYPE_NOTE}} if result.get("model_type") else {})}]
     if name == "profile_data" and "suspects" in result:
         return _profile_block(result)
+    if name == "compare_models" and "kinds" in result:
+        return _clues_block(result)
     if name == "explain_result":
         return _result_block(result)
     if name == "request_payment":

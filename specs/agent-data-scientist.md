@@ -1,6 +1,6 @@
 # Agent as a Data Scientist (plan, not built)
 
-Status: written 2026-11-09 from a read-only review (4 sub-agent passes plus direct greps). **Built so far (2026-11-09): Phases 1, 2, 3 and 4** (4 without `restart_project`; see below), plus the data fix (`propose_data_fix`/`apply_data_fix`), family and quote pinning. Not built: Phase 0 measurement, Phase 5 onward. The rest of this file was the plan. Where this file says "verify", the claim was read from code or specs by a reviewer but not run.
+Status: written 2026-11-09 from a read-only review (4 sub-agent passes plus direct greps). **Built so far (2026-11-09): Phases 1, 2, 3, 4 and 5** (4 without `restart_project`; see below), plus the data fix (`propose_data_fix`/`apply_data_fix`), family and quote pinning. Not built: Phase 0 measurement, Phase 6 onward. The rest of this file was the plan. Where this file says "verify", the claim was read from code or specs by a reviewer but not run.
 
 ## 1. Problem
 
@@ -63,7 +63,9 @@ Built: the F1 limitation was already gone on `/c/[chatId]`; the project page get
 - Backend: offer `profile_data` and read-only explain tools at all statuses; add `explain_result` and `restart_project` (both listed as "Build now" and unbuilt in `specs/agent/03-tools-reference.md`), so the agent works at `done`, `failed`, `stopped`, `voided`.
 - New chat blocks (built by code from tool results, never from model text): "what I found" card, "what seems to drive the answer" (labelled clues, not causes), before/after card, fix approval card.
 
-### Phase 5: Honest model comparison (HUMAN REVIEW decision first)
+### Phase 5: Honest model comparison - BUILT 2026-11-09
+- Status: the forecast/model mismatch is fixed (`services/data/families.py` is the one pipeline factory; quotes pin the family; the paid run trains the pinned family). `compare_models` is built: `services/data/compare.py` (pure), `services/compare_models.py` (reads the work file and the stored forecast's learning curve; never opens the locked file), tool `compare_models` (level 0, `Action.ANALYZE`, offered at `baseline_done` and `quoted` only, 12 s budget, plain 'still working' error past the tool deadline, result under 1,800 characters), `clues` chat block and card. Remaining: not measured with a real model; clues use a 25% hold-out of at most 5,000 work rows, so they are rough for small data.
+- Original plan (kept as record):
 - Open finding: the pilot forecasts for its winning model (logistic/forest/boosting) but the paid run and local run always train the random forest from `baseline._pipeline` (`train_script/train.py:33,50`). So the forecast may describe a model that is not the one trained. Either (a) make the pilot forecast the random forest only, or (b) train the pilot winner (changes `baseline.py`, which ships verbatim to SageMaker, cost samples, 300-tree vs 100-tree timing gap in `integration-testing.md`). Decide, document in `training.md` and `payments.md`, then proceed.
 - Then add `compare_models` (free): models side by side in plain names, rare-group catch rate, effect of more data (from the learning curve), top clues (permutation importance on held-out rows, labelled as clues). Reuse `pilot._model` / `pilot._score`.
 

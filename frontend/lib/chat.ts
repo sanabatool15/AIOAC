@@ -106,6 +106,14 @@ export type ChatBlock =
       target_met: boolean | null;
       model_type: string | null;
     }
+  | {
+      type: "clues";
+      verdict: string;
+      more_data: string;
+      clues: { column: string; how_much: "a lot" | "some" | "a little"; plain_effect: string }[];
+      note: string;
+      is_estimate: boolean;
+    }
   | { type: string; [k: string]: unknown };
 
 export interface StoredMessage {
@@ -196,6 +204,17 @@ export function profileView(b: Extract<ChatBlock, { type: "profile" }>): { summa
     summary: parts.join(", "),
     balance: b.target?.balance ?? "",
     suspects: (Array.isArray(b.suspects) ? b.suspects : []).slice(0, 5).map((s) => ({ column: String(s.column), reason: String(s.reason), strong: s.strength === "strong" })),
+  };
+}
+
+// "What seems to matter most" card (compare_models): up to five columns, a plain size word each. Clues, not causes.
+export function cluesView(b: Extract<ChatBlock, { type: "clues" }>): { verdict: string; moreData: string; clues: { column: string; howMuch: string; effect: string }[]; note: string } {
+  const ok = (h: string) => (h === "a lot" || h === "some" || h === "a little" ? h : "a little");
+  return {
+    verdict: b.verdict ?? "",
+    moreData: b.more_data ?? "",
+    clues: (Array.isArray(b.clues) ? b.clues : []).slice(0, 5).map((c) => ({ column: String(c.column), howMuch: ok(c.how_much), effect: String(c.plain_effect ?? "") })),
+    note: b.note || "These are clues, not causes.",
   };
 }
 

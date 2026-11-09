@@ -1,4 +1,5 @@
 """Agent tools (specs/agent.md section 3). Each tool declares the gate action it needs."""
+import concurrent.futures
 import io
 import re
 from dataclasses import dataclass, field
@@ -17,7 +18,7 @@ from ...ports import PaymentProvider, Storage, TrainingBackend
 from ..data.samples import CATALOG
 from ..data import analysis, datasets, discovery, families, fixes, pilot, profile as data_profile
 from ..cost import cost, quotes
-from .. import explain, gate, payments, training
+from .. import compare_models as compare_service, explain, gate, payments, training
 from . import clarity, data_choice, memory, skills, target as target_rule
 from ...repositories.traces import TraceRepository
 from ..data.insights import analyze, summarize
@@ -319,6 +320,30 @@ def explain_result(ctx, a):
     return explain.result_facts(ctx.session, ctx.project)
 
 
+def _compare_deadline() -> float:
+    """Seconds the comparison may run before the tool answers 'still working': under the free-tool limit, so the turn survives."""
+    return max(5.0, float(settings.agent_tool_timeout_s) - 15.0) if settings.agent_tool_timeout_s > 0 else 45.0
+
+
+def compare_models(ctx, a):
+    """Free and read-only: fit each model type on the work rows only, say which matters and which columns seem to drive the answer."""
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    fut = pool.submit(compare_service.for_project, ctx.session, ctx.storage, ctx.project)
+    try:
+        r = fut.result(timeout=_compare_deadline())
+    except concurrent.futures.TimeoutError:
+        return {"error": "still working on your data, so I could not finish the comparison yet; please ask again in a moment"}
+    finally:
+        pool.shutdown(wait=False)
+    if "error" in r:
+        return r
+    r = dict(r)
+    r.pop("seconds", None)
+    r["top_clues"] = mark(r["top_clues"], 160) if r["top_clues"] else []   # column names come from the user's file
+    r["next"] = ("say plainly whether the model type matters, whether more rows might help, and which columns seem to matter; clues and estimates only")
+    return r
+
+
 def run_baseline_tool(ctx, a):
     r, o = analysis.baseline_detailed(ctx.session, ctx.storage, ctx.project)
     out = {"accuracy": round(r.accuracy, 3), "simple_guess_accuracy": round(r.simple_guess_accuracy, 3),
@@ -470,6 +495,8 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("explain_result", "Free, read-only: plain facts about the finished run (final score against the target and the simple guess, model type, rows, data fixes, "
          "what was charged and released, what could help). Use when the user asks what the result means, why it missed, or what was charged.", _obj(),
          gate.Action.ANALYZE, explain_result),
+    Tool("compare_models", "Free, read-only: compare the kinds of model on your work rows and see which columns seem to drive the answer. Use when the user asks what matters, "
+         "whether a different model or more rows would help, or why the score is low.", _obj(), gate.Action.ANALYZE, compare_models),
     Tool("run_baseline", "Free test on held-out data; also measures timings for the quote.", _obj(), gate.Action.BASELINE, run_baseline_tool),
     Tool("propose_data_fix", "Free, changes nothing: what removing repeated rows or mostly empty columns would change. Use when the forecast is too low and the findings mention repeats or gaps. "
          "Never say it will raise the estimate: say we will test whether it changes the estimate.", _obj(), gate.Action.ANALYZE, propose_data_fix),

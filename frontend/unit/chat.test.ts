@@ -1,7 +1,7 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/api";
-import { askedForSearch, profileView, resultLines, NO_DATA_MESSAGE, bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
+import { askedForSearch, cluesView, profileView, resultLines, NO_DATA_MESSAGE, bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
 
 // Shapes follow specs/api.md A2 and backend/tests/e2e/test_chat_blocks.py.
 const PID = "p1";
@@ -197,4 +197,17 @@ test("profile block shows at most five clues and tolerates missing fields", () =
 test("an unknown block type is carried through and ignored by the reply mapper", () => {
   const items = itemsFromReply({ status: "reply", text: "Hi", card: null, blocks: [{ type: "something_new", x: 1 }] });
   assert.equal(items[0].blocks[0].type, "something_new");
+});
+
+test("clues block shows at most five columns, a plain size word each, and the not-causes note", () => {
+  const many = Array.from({ length: 8 }, (_, i) => ({ column: `c${i}`, how_much: (i === 0 ? "a lot" : i === 1 ? "weird" : "some") as never, plain_effect: "about 4 fewer answers in 100 are right." }));
+  const v = cluesView({ type: "clues", verdict: "The three kinds score within 2 points of each other.", more_data: "More rows barely helped.", clues: many, note: "These are clues, not causes.", is_estimate: true });
+  assert.equal(v.clues.length, 5);
+  assert.equal(v.clues[0].howMuch, "a lot");
+  assert.equal(v.clues[1].howMuch, "a little");
+  assert.match(v.note, /clues, not causes/);
+  const bare = cluesView({ type: "clues", verdict: undefined as never, more_data: undefined as never, clues: undefined as never, note: "", is_estimate: true });
+  assert.deepEqual(bare, { verdict: "", moreData: "", clues: [], note: "These are clues, not causes." });
+  const items = itemsFromReply({ status: "reply", text: "Hi", card: null, blocks: [{ type: "clues", verdict: "v", more_data: "", clues: [], note: "n", is_estimate: true }] });
+  assert.equal(items[0].blocks[0].type, "clues");
 });

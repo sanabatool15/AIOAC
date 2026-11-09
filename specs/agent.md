@@ -88,6 +88,7 @@ Status: sections 3.1 to 3.5 are the original design. Section 3.6 lists what actu
 - `look_at_dataset`: size, columns, and whether it is a plain table, before anything is downloaded.
 - `fetch_dataset`: download into temporary storage, within row and size limits. Gated, non-table and oversized datasets are refused with a plain explanation.
 - `inspect_candidate`, `select_dataset`, `run_readiness`, `run_baseline`, `run_pilot` (free pilot on about 5-10% of the data plus a forecast against the user's target; level 0), `create_quote`, `request_payment`, `start_training`, `load_skill`.
+- Added since (all level 0 unless noted): `profile_data` (column-by-column look, suspects), `explain_result` (read-only facts about a finished run; offered at done/stopped/failed), `compare_models` (model types side by side on the work rows, rare-group catch rate, effect of more rows, top clues; offered at baseline_done/quoted), `propose_data_fix` (read-only preview) and `apply_data_fix` (level 1, approval card), `discover_datasets` (see above).
 - Everything else in section 3 does not exist yet (see the status note under 3.1).
 
 Hugging Face is called directly through its public API, not through MCP. The runtime agent needs tools that are easy to test offline and that pass through our permission gate. MCP servers (Hugging Face, Kaggle) remain useful for developers working with Claude Code, and an MCP client can be added later behind the same tool interface. Kaggle is not part of the MVP.

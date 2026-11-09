@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { dollars, outOf100 } from "@/lib/adapters";
-import { cardFacts, cardTitle, profileView, resultLines, type ChatBlock, type ChatCard } from "@/lib/chat";
+import { cardFacts, cardTitle, cluesView, profileView, resultLines, type ChatBlock, type ChatCard } from "@/lib/chat";
 
 // Blocks are built by the server from tool results (specs/api.md A2). Plain words, every estimate labelled.
 // The chat never moves money: the pay block only links to PayPal when the server sent a link.
@@ -70,6 +70,29 @@ export function ChatBlockView({ b }: { b: ChatBlock }) {
           <p className="text-sm text-muted">No column stood out as odd.</p>
         )}
         <p className="text-xs text-muted">These are clues to check with you, not proof.</p>
+      </Card>
+    );
+  }
+  if (b.type === "clues") {
+    const v = cluesView(b as Extract<ChatBlock, { type: "clues" }>);
+    return (
+      <Card variant="blue" aria-label="What seems to matter most" className="gap-2 p-4">
+        <h3 className="text-sm font-semibold text-ink">What seems to matter most</h3>
+        {v.verdict && <p className="text-sm leading-5 text-ink-2">{v.verdict}</p>}
+        {v.clues.length > 0 && (
+          <ul className="flex flex-col gap-1 text-sm">
+            {v.clues.map((c) => (
+              <li key={c.column} className="flex gap-2">
+                <span className="shrink-0 font-semibold text-ink">{c.column}</span>
+                <span className="text-ink-2">
+                  {c.howMuch}. {c.effect}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {v.moreData && <p className="text-sm leading-5 text-ink-2">{v.moreData}</p>}
+        <p className="text-xs text-muted">{v.note} Estimates, not promises.</p>
       </Card>
     );
   }

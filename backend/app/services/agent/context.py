@@ -79,7 +79,7 @@ NEXT_STEP = {
     "described": "Wait for the user to pick: upload, link, or no data. Only if they said they have no data, call discover_datasets; if they gave a file or link, use that. Then inspect a dataset and ask the user to approve one.",
     "data_chosen": "Say in one plain sentence what you are about to check and why, then run the readiness check. If the user asks about a column, use profile_data.",
     "readiness_done": "Explain what the check found in 2 or 3 plain sentences (name the columns, say what it means for them) with one recommendation and its reason, then run the free baseline test. If you saw a suspect or the user asks about a column, use profile_data.",
-    "baseline_done": "Explain the free test result in 2 or 3 plain sentences with one recommendation and its reason. Ask the user for their target if you do not have it, run the free small test, and explain the forecast. If it is eligible create the quote; if not, say honestly why and you may offer propose_data_fix (never promise it helps).",
+    "baseline_done": "Explain the free test result in 2 or 3 plain sentences with one recommendation and its reason. Ask the user for their target if you do not have it, run the free small test, and explain the forecast. If it is eligible create the quote; if not, say honestly why and you may offer propose_data_fix (never promise it helps). If they ask what matters or whether another model or more rows would help, use compare_models.",
     "quoted": "Wait for the user to approve the quote on screen. A new target means a new free small test.",
     "awaiting_payment": "Request the hold, then wait for the user to approve it in PayPal. Nothing is charged yet. If the quote has expired, create a new quote instead.",
     "paid": "Start training.",
@@ -94,8 +94,8 @@ TOOLS_BY_STATUS = {
     "described": ["load_skill", "discover_datasets", "search_datasets", "look_at_dataset", "fetch_dataset", "inspect_candidate", "select_dataset"],
     "data_chosen": ["load_skill", "profile_data", "run_readiness"],
     "readiness_done": ["load_skill", "profile_data", "run_baseline"],
-    "baseline_done": ["load_skill", "profile_data", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
-    "quoted": ["load_skill", "profile_data", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
+    "baseline_done": ["load_skill", "profile_data", "compare_models", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
+    "quoted": ["load_skill", "profile_data", "compare_models", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
     "awaiting_payment": ["load_skill", "request_payment", "create_quote"],  # create_quote: a way out when the quote expired (the gate and the quote service still decide)
     "paid": ["load_skill", "start_training"],
     "done": ["load_skill", "explain_result"],      # read-only: stored facts about the finished run

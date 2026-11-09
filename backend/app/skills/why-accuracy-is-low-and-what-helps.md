@@ -13,6 +13,8 @@ Read the fields the tools gave you: right_out_of_100, simple_guess_out_of_100, r
 - Rare group: if rare_group_caught_out_of_100 is low, say "it finds only about N of every 100 who really left, even though the overall score looks fine".
 - Repeats, gaps, ignored columns in summary: say which columns, and that fixing them might help a little.
 
+- To check the model type, more rows and which columns matter in one go, call compare_models (free). Say "clues, not causes" and that the numbers are estimates.
+
 ## End every branch with
 1. One recommendation and the reason.
 2. An honest "this might not help". Never promise a better number.
