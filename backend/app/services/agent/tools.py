@@ -20,7 +20,7 @@ from ..cost import cost, quotes
 from .. import gate, payments, training
 from . import clarity, data_choice, memory, skills, target as target_rule
 from ...repositories.traces import TraceRepository
-from ..data.insights import analyze
+from ..data.insights import analyze, summarize
 from .context import mark, sanitise_license
 
 
@@ -235,7 +235,8 @@ def inspect_candidate(ctx, a):
     if a["target"] not in df.columns:
         return {"error": f"column '{a['target'][:60]}' not found", "columns": mark(list(df.columns), 80)}
     res = analyze(df, a["target"])
-    return {"grade": res["grade"], "findings": res["findings"], "preview": mark(df.head(3).to_dict("records"), 80)}
+    return {"grade": res["grade"], "findings": res["findings"], "summary": _marked_summary(df, a["target"]),
+            "preview": mark(df.iloc[:3, :6].round(3).to_dict("records"), 80)}
 
 
 def select_dataset(ctx, a):
@@ -272,16 +273,36 @@ def select_dataset_card(ctx, a) -> dict:
     return {"what": what, "detail": detail}
 
 
+def _marked_summary(df, target: str) -> dict:
+    """insights.summarize with every dataset-derived string (column names, group labels) wrapped as untrusted data."""
+    s = summarize(df, target)
+    if s["balance"]:
+        b = s["balance"]
+        s["balance"] = {"groups": b["groups"], "smallest_group_out_of_100": b["smallest_group_out_of_100"],
+                        "text": mark(b["text"], 120)}
+    s["missing_columns"] = mark(s["missing_columns"], 60) if s["missing_columns"] else []   # one wrapper per group keeps this small
+    s["ignored_columns"] = mark({"row_labels": s.pop("ignored_row_label_columns"), "constant": s.pop("ignored_constant_columns"),
+                                 "copy_of_answer": s.pop("ignored_copy_of_answer_columns"),
+                                 "numbers_stored_as_text": s.pop("numbers_stored_as_text_columns")}, 60)
+    return s
+
+
 def run_readiness(ctx, a):
     r = analysis.readiness(ctx.session, ctx.storage, ctx.project)
-    return {"grade": r.grade, "findings": r.findings}
+    out = {"grade": r.grade, "findings": r.findings}  # findings are shown to the user as they are (blocks.py)
+    version = datasets_repo.get_version(ctx.session, ctx.project.chosen_dataset_version_id)
+    out["summary"] = _marked_summary(pd.read_csv(ctx.storage.path(version.storage_key)), version.target_column)
+    return out
 
 
 def run_baseline_tool(ctx, a):
-    r = analysis.baseline(ctx.session, ctx.storage, ctx.project)
-    return {"accuracy": round(r.accuracy, 3), "simple_guess_accuracy": round(r.simple_guess_accuracy, 3),
-            "right_out_of_100": round(r.accuracy * 100), "simple_guess_out_of_100": round(r.simple_guess_accuracy * 100),
-            "trust_level": ctx.project.trust_level}
+    r, o = analysis.baseline_detailed(ctx.session, ctx.storage, ctx.project)
+    out = {"accuracy": round(r.accuracy, 3), "simple_guess_accuracy": round(r.simple_guess_accuracy, 3),
+           "right_out_of_100": round(r.accuracy * 100), "simple_guess_out_of_100": round(r.simple_guess_accuracy * 100),
+           "trust_level": ctx.project.trust_level, "train_rows": o.train_rows, "test_rows": o.test_rows}
+    if o.rare_group_caught is not None:  # only when the smallest group is under 20% of the rows
+        out["rare_group_caught_out_of_100"] = round(o.rare_group_caught * 100)
+    return out
 
 
 def _fix_view(prop: "fixes.FixProposal") -> dict:
@@ -350,6 +371,14 @@ def run_pilot(ctx, a):
            "pilot_rows": (f.pilot or {}).get("rows_used"),
            "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", []),
            "model_type": families.plain_name(f.family) if f.family else None}
+    p = f.pilot or {}
+    if p.get("dropped"):
+        out["models_dropped"] = [d["model"] for d in p["dropped"]][:3]
+    if p.get("learning_curve"):
+        out["learning_curve_out_of_100"] = [{"rows": c["training_rows"], "right_out_of_100": round(c["accuracy"] * 100)}
+                                            for c in p["learning_curve"]][:5]
+    if p.get("full_run_training_rows"):
+        out["full_run_rows"] = p["full_run_training_rows"]
     out["next"] = "create the quote" if f.eligible else "explain honestly why we cannot sell this run: " + (f.reason or "")
     return out
 

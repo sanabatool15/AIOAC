@@ -24,11 +24,30 @@ class BaselineOutcome:
     seconds: float
     samples: list[tuple[int, float]]  # (rows, seconds) for the cost estimator
     model_bytes: bytes | None = None
+    train_rows: int = 0
+    test_rows: int = 0
+    rare_group_caught: float | None = None   # share (0 to 1) of the smallest group the model found on the held-out rows; None unless lopsided
 
 
 def _pipeline(X: pd.DataFrame, n_estimators: int) -> Pipeline:
     """The forest (the free baseline's model). Kept under this name for callers that only know the forest."""
     return families.build("forest", X, n_estimators)
+
+
+RARE_GROUP_BELOW = 0.20
+
+
+def rare_group_recall(y_all, y_true, y_pred) -> float | None:
+    """Share of the smallest group's held-out rows that the model got right. Only when that group is under 20% of
+    `y_all` (all rows) and has rows in `y_true`; otherwise None. Pure: no model, no I/O."""
+    y_all, y_true, y_pred = pd.Series(list(y_all)), pd.Series(list(y_true)), pd.Series(list(y_pred))
+    shares = y_all.value_counts(normalize=True)
+    if len(shares) < 2 or float(shares.iloc[-1]) >= RARE_GROUP_BELOW:
+        return None
+    mask = y_true == shares.index[-1]
+    if not mask.any():
+        return None
+    return float((y_pred[mask] == y_true[mask]).mean())
 
 
 def _split(df: pd.DataFrame, target: str):
@@ -47,11 +66,13 @@ def fit_and_score(path: str, target: str, n_estimators: int = 100, family: str =
     t0 = time.perf_counter()
     model.fit(Xtr, ytr)
     secs = time.perf_counter() - t0
-    acc = float(accuracy_score(yte, model.predict(Xte)))
+    pred = model.predict(Xte)
+    acc = float(accuracy_score(yte, pred))
     guess = float(accuracy_score(yte, np.full(len(yte), ytr.mode().iloc[0])))
     buf = io.BytesIO()
     joblib.dump(model, buf)
-    return BaselineOutcome(acc, guess, secs, [], buf.getvalue())
+    return BaselineOutcome(acc, guess, secs, [], buf.getvalue(), train_rows=len(ytr), test_rows=len(yte),
+                           rare_group_caught=rare_group_recall(df[target], yte, pred))
 
 
 def sample_timings(df: pd.DataFrame, target: str, family: str = "forest", size: int | None = 100) -> list[tuple[int, float]]:

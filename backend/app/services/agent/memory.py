@@ -76,6 +76,16 @@ def stub_for(name: str, result) -> str:
         return f"{name}: {str(result)[:120]}"
     if "error" in result:
         return f"{name}: error, {str(result['error'])[:100]}"
+    if name == "run_readiness" and "grade" in result:
+        return f"run_readiness: ok, grade={result['grade']}, {len(result.get('findings') or [])} findings (details were shown earlier)"
+    if name == "inspect_candidate" and "grade" in result:
+        return f"inspect_candidate: ok, grade={result['grade']}, {len(result.get('findings') or [])} findings"
+    if name == "run_baseline" and "right_out_of_100" in result:
+        return (f"run_baseline: ok, right_out_of_100={result['right_out_of_100']}, simple_guess_out_of_100={result.get('simple_guess_out_of_100')}"
+                + (f", rare_group_caught_out_of_100={result['rare_group_caught_out_of_100']}" if "rare_group_caught_out_of_100" in result else ""))
+    if name == "run_pilot" and "predicted_out_of_100" in result:
+        return (f"run_pilot: ok, target_out_of_100={result.get('target_out_of_100')}, predicted_out_of_100={result['predicted_out_of_100']}, "
+                f"confidence={result.get('confidence')}, eligible={result.get('eligible')}")
     bits = []
     for k, v in result.items():
         if isinstance(v, list):

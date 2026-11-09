@@ -21,6 +21,12 @@ def readiness(session: Session, storage: Storage, project: Project) -> InsightRe
 
 
 def baseline(session: Session, storage: Storage, project: Project) -> BaselineRun:
+    return baseline_detailed(session, storage, project)[0]
+
+
+def baseline_detailed(session: Session, storage: Storage, project: Project):
+    """Same as baseline(), also returns the outcome (row counts, rare-group catch rate). The extras are NOT stored:
+    project.baseline_result is served as-is by the API and keeps its two keys."""
     version = datasets_repo.get_version(session, project.chosen_dataset_version_id)
     out = run_baseline(storage.path(version.storage_key), version.target_column)
     run = repo.add_baseline_run(session, project,
@@ -30,4 +36,4 @@ def baseline(session: Session, storage: Storage, project: Project) -> BaselineRu
                                 simple_guess_accuracy=out.simple_guess_accuracy, samples=[list(s) for s in out.samples])
     if project.status == "readiness_done":
         lifecycle.transition(session, project, "baseline_done")
-    return run
+    return run, out
