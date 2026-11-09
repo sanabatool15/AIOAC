@@ -471,6 +471,56 @@ def start_training(ctx, a):
             "next": "training runs in the background; tell the user it has started and that progress and the final cost appear on the training screen"}
 
 
+def _cell(v) -> str:
+    return " ".join(str(v).split())[:120]
+
+
+def show_table(ctx: ToolContext, args: dict) -> dict:
+    """Put a small table in the chat. The server cuts it to a safe size; the chat draws it as a plain table."""
+    cols = [_cell(c) for c in args["columns"][:8]]
+    rows = [[_cell(c) for c in (r if isinstance(r, list) else [r])][: len(cols)] for r in args["rows"][:20]]
+    return {"title": _cell(args["title"])[:80], "columns": cols, "rows": rows}
+
+
+def ask_choice(ctx: ToolContext, args: dict) -> dict:
+    """Ask the user one question with answer buttons. A click sends that answer as their next message."""
+    options = [_cell(o)[:60] for o in args["options"][:5] if _cell(o)]
+    return {"question": _cell(args["question"])[:200], "options": options}
+
+
+_DIAGRAMS = ("flowchart", "graph", "sequenceDiagram", "stateDiagram-v2", "pie", "mindmap", "timeline", "gantt", "classDiagram", "erDiagram")
+_DIAGRAM_BAD = re.compile(r"(%%\{|\bclick\b|javascript:|<\s*script|<\s*iframe|\bhref\b|\bcallback\b)", re.I)
+LINKS = {"billing": "/account/billing", "usage": "/account/usage", "new_chat": "/"}   # the only places a button may lead
+
+
+def show_chart(ctx: ToolContext, args: dict) -> dict:
+    """A small bar or line chart. Labels and numbers only; the chat draws it."""
+    labels = [_cell(x)[:40] for x in args["labels"][:24]]
+    try:
+        values = [float(v) for v in args["values"][: len(labels)]]
+    except (TypeError, ValueError):
+        return {"error": "values must be numbers"}
+    if len(values) != len(labels):
+        return {"error": "labels and values must be the same length"}
+    kind = args.get("kind") if args.get("kind") in ("bar", "line") else "bar"
+    return {"title": _cell(args["title"])[:80], "kind": kind, "labels": labels, "values": values, "unit": _cell(args.get("unit", ""))[:20]}
+
+
+def show_diagram(ctx: ToolContext, args: dict) -> dict:
+    """A flow or diagram written in Mermaid. Kept short and free of links, scripts and init directives."""
+    src = str(args["mermaid"]).strip()
+    if len(src) > 1500 or _DIAGRAM_BAD.search(src) or not src.startswith(_DIAGRAMS):
+        return {"error": "the diagram must be plain Mermaid under 1500 characters, starting with flowchart, graph, sequenceDiagram, stateDiagram-v2, pie, mindmap, timeline, gantt, classDiagram or erDiagram, with no links or scripts"}
+    return {"title": _cell(args["title"])[:80], "source": src}
+
+
+def show_links(ctx: ToolContext, args: dict) -> dict:
+    """Buttons that open a page of the app. Only the pages in LINKS; payment is never a button here (the server decides it)."""
+    items = [{"label": _cell(i.get("label", ""))[:40], "href": LINKS[i["to"]]} for i in args["items"][:4]
+             if isinstance(i, dict) and i.get("to") in LINKS and _cell(i.get("label", ""))]
+    return {"items": items} if items else {"error": "to must be one of: " + ", ".join(LINKS)}
+
+
 TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("search_datasets", "Find datasets that fit the user's goal.", _obj(query={"type": "string"}), gate.Action.SEARCH, search_datasets),
     Tool("discover_datasets", "Find datasets that fit the goal when the user has no data. Give a short goal summary and 2 or 3 short English search phrases.",
@@ -506,5 +556,20 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
          {"type": "object", "properties": {"target": {"type": "number"}}, "required": ["target"]}, gate.Action.PILOT, run_pilot),
     Tool("create_quote", "One fixed price for the full run (estimated compute + success fee) and the most the user can be charged. Only after an eligible forecast.", _obj(), gate.Action.CREATE_QUOTE, create_quote),
     Tool("request_payment", "Create the PayPal hold for the approved quote (nothing is charged yet).", _obj(), gate.Action.REQUEST_PAYMENT, request_payment),
+    Tool("show_table", "Show the user a small table in the chat (at most 8 columns and 20 rows). Use it to compare options, list columns or summarise numbers you already have. Never invent figures.",
+         {"type": "object", "required": ["title", "columns", "rows"], "properties": {"title": {"type": "string"},
+          "columns": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 8},
+          "rows": {"type": "array", "items": {"type": "array"}, "minItems": 1, "maxItems": 20}}}, gate.Action.SEARCH, show_table),
+    Tool("ask_choice", "Ask the user ONE question with 2 to 5 short answer buttons, when the answer is one of a few clear options (for example which column to predict). Do not use it for money or approvals.",
+         {"type": "object", "required": ["question", "options"], "properties": {"question": {"type": "string"},
+          "options": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 5}}}, gate.Action.SEARCH, ask_choice),
+    Tool("show_chart", "Draw a small bar or line chart in the chat (at most 24 points). Use real numbers you have from tools, or example numbers only when the user asks for an example, and say they are examples.",
+         {"type": "object", "required": ["title", "kind", "labels", "values"], "properties": {"title": {"type": "string"}, "kind": {"type": "string"},
+          "labels": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 24},
+          "values": {"type": "array", "items": {"type": "number"}, "minItems": 1, "maxItems": 24}, "unit": {"type": "string"}}}, gate.Action.SEARCH, show_chart),
+    Tool("show_diagram", "Draw a flow or diagram in the chat. Give Mermaid source (flowchart, sequenceDiagram, pie, mindmap, timeline and so on), short, with plain labels.",
+         {"type": "object", "required": ["title", "mermaid"], "properties": {"title": {"type": "string"}, "mermaid": {"type": "string"}}}, gate.Action.SEARCH, show_diagram),
+    Tool("show_links", "Show 1 to 4 buttons that open a page of the app. 'to' is billing (billing history), usage, or new_chat. Never use it for paying: payment goes through the price step.",
+         {"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "items": {"type": "object"}, "minItems": 1, "maxItems": 4}}}, gate.Action.SEARCH, show_links),
     Tool("start_training", "Start paid training. Only works after the server confirmed the hold.", _obj(), gate.Action.START_TRAINING, start_training),
 ]}

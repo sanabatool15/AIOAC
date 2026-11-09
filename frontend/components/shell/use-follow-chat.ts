@@ -28,7 +28,8 @@ export function useFollowChat(end: React.RefObject<HTMLElement | null>, changeKe
   useEffect(() => {
     if (!ready) return;
     if (!seeded.current) {
-      seeded.current = true; // opening the page: show it from the top (the step cards), do not jump to the chat
+      seeded.current = true; // opening the page: show the newest message, next to the composer
+      end.current?.scrollIntoView?.({ block: "end" });
       return;
     }
     if (shouldFollow(near.current, lastIsUserMessage)) {

@@ -19,6 +19,7 @@ dependencies = [
     "ipywidgets>=8.1.9",
     "jupyter>=1.1.1",
     "ipykernel>=7.4.0",
+    "psycopg>=3.3.6",
 ]
 
 [project.optional-dependencies]

@@ -5,7 +5,7 @@ import { PayStep, QuoteStep } from "./quote-step";
 import { ResultStep, StoppedStep, UnknownStep, VoidedStep } from "./result-step";
 import { PaidStep, TrainingStep } from "./training-step";
 import { FreeTestAction, ReadinessAction, TargetAction } from "./step-actions";
-import { DatasetCard, EligibilityCard, History, ReadinessCard } from "./step-cards";
+import { EligibilityCard } from "./step-cards";
 
 // What the project page shows under the chat for the current status.
 export function StepArea({ screen, project, onChanged }: { screen: DemoScreen; project: BProject; onChanged: () => void | Promise<void> }) {
@@ -13,23 +13,15 @@ export function StepArea({ screen, project, onChanged }: { screen: DemoScreen; p
   switch (screen) {
     case "readiness":
       return (
-        <>
-          <DatasetCard project={project} />
-          <ReadinessAction {...props} />
-        </>
+        <ReadinessAction {...props} />
       );
     case "baseline":
       return (
-        <>
-          <DatasetCard project={project} />
-          <ReadinessCard project={project} />
-          <FreeTestAction {...props} />
-        </>
+        <FreeTestAction {...props} />
       );
     case "target":
       return (
         <>
-          <History project={project} />
           <TargetAction
             {...props}
             intro={
@@ -43,7 +35,6 @@ export function StepArea({ screen, project, onChanged }: { screen: DemoScreen; p
     case "ineligible":
       return (
         <>
-          <History project={project} />
           <EligibilityCard {...props} />
           <TargetAction
             {...props}
@@ -57,7 +48,6 @@ export function StepArea({ screen, project, onChanged }: { screen: DemoScreen; p
     default:
       return (
         <>
-          <History project={project} />
           {screen === "quote" && <QuoteStep {...props} />}
           {screen === "pay" && <PayStep {...props} />}
           {screen === "paid" && <PaidStep {...props} />}

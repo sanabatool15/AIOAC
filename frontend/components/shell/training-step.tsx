@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Tag } from "@/components/ui/tag";
+import { projectMoney } from "@/lib/money-summary";
+import { ConfirmDialog } from "./confirm-dialog";
+import { MoneyTriplet } from "./step-cards";
 import { dollars, toTraining } from "@/lib/adapters";
 import { ApiError, type BProject, type BTraining } from "@/lib/api";
 import * as real from "@/lib/api-real";
@@ -36,12 +39,12 @@ export function PaidStep({ project, onChanged }: StepProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
-    <Card variant="green" aria-label="Payment confirmed" className="gap-3 p-5 shadow-card-tight">
-      <h2 className="text-base font-semibold text-ink">Payment confirmed</h2>
-      <p className="text-sm leading-5 text-ink-2">PayPal confirmed the hold. Nothing is charged yet. Starting your training run…</p>
+    <Card variant="success" aria-label="Payment confirmed" className="gap-3 p-5">
+      <h2 className="text-section text-ink">Payment confirmed</h2>
+      <p className="text-body text-ink-2">PayPal confirmed the hold. Nothing is charged yet. Starting your training run…</p>
       {error && (
         <div>
-          <Button size="md" disabled={busy} onClick={start}>
+          <Button disabled={busy} onClick={start}>
             Try starting again
           </Button>
         </div>
@@ -56,7 +59,7 @@ export function TrainingStep({ project, onChanged }: StepProps) {
   const [t, setT] = useState<BTraining | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const { busy, error: stopError, run } = useAction();
+  const [stopError, setStopError] = useState<string | null>(null);
   const reported = useRef(false);
 
   useEffect(() => {
@@ -93,19 +96,19 @@ export function TrainingStep({ project, onChanged }: StepProps) {
   const hold = project.payment?.hold_cents;
   return (
     <>
-      <Card variant="blue" aria-label="Training your model" data-testid="training-card" className="gap-3 p-5 shadow-card-tight">
+      <Card variant="live" aria-label="Training your model" data-testid="training-card" className="gap-3 p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold leading-[normal] text-ink">Training your model</h2>
-          {!starting && <Tag variant="brand">{v.stopRequested ? "STOPPING" : "RUNNING"}</Tag>}
+          <h2 className="text-section text-ink">Training your model</h2>
+          {!starting && <Tag variant="brand">{v.stopRequested ? "Stopping" : "Running"}</Tag>}
         </div>
         {starting ? (
-          <p className="text-sm text-ink-2">Getting ready to start…</p>
+          <p className="text-body text-ink-2">Getting ready to start…</p>
         ) : (
           <>
-            <p className="text-sm font-medium text-ink" aria-live="polite">
+            <p className="text-body font-medium text-ink" aria-live="polite">
               {v.stopRequested ? "Stopping…" : v.stage}
             </p>
-            <ProgressBar value={v.progress} label="Training progress" track="blue" />
+            <ProgressBar value={v.progress} label="Training progress" />
             <dl className="flex flex-col gap-1.5">
               <Row label="Time so far" value={v.elapsed} />
               <Row label="Spent so far (estimate)" value={v.spend} />
@@ -115,49 +118,39 @@ export function TrainingStep({ project, onChanged }: StepProps) {
           </>
         )}
         <ErrorLine message={error} />
-        {!confirming ? (
-          <div>
-            <Button variant="outline" size="md" disabled={starting || v?.stopRequested || v?.status !== "running"} onClick={() => setConfirming(true)}>
-              Stop
-            </Button>
-          </div>
-        ) : (
-          <div role="alertdialog" aria-label="Stop the run" className="flex flex-col gap-2 rounded-lg border border-border bg-white p-3">
-            <p className="text-sm leading-5 text-ink-2">{STOP_CONFIRM_TEXT}</p>
-            <div className="flex gap-2">
-              <Button
-                variant="destructive"
-                size="md"
-                disabled={busy}
-                onClick={() =>
-                  run(async () => {
-                    try {
-                      await real.stopTraining(project.id);
-                    } catch (e) {
-                      setConfirming(false);
-                      await onChanged();
-                      throw new Error(stopErrorText(e));
-                    }
-                    setConfirming(false);
-                  })
-                }
-              >
-                {busy ? "Stopping…" : "Yes, stop now"}
-              </Button>
-              <Button variant="outline" size="md" disabled={busy} onClick={() => setConfirming(false)}>
-                Keep going
-              </Button>
-            </div>
-            <ErrorLine message={stopError} />
-          </div>
+        <div>
+          <Button variant="outline" disabled={starting || v?.stopRequested || v?.status !== "running"} onClick={() => setConfirming(true)}>
+            Stop
+          </Button>
+        </div>
+        <ErrorLine message={stopError} />
+        {confirming && (
+          <ConfirmDialog
+            title="Stop the run"
+            body={STOP_CONFIRM_TEXT}
+            confirmLabel="Yes, stop now"
+            busyLabel="Stopping…"
+            onCancel={() => setConfirming(false)}
+            onConfirm={async () => {
+              setStopError(null);
+              try {
+                await real.stopTraining(project.id);
+              } catch (e) {
+                setStopError(stopErrorText(e));
+                await onChanged();
+              }
+              setConfirming(false);
+            }}
+          />
         )}
-        <ErrorLine message={!confirming ? stopError : null} />
       </Card>
       {hold !== undefined && (
-        <Card variant="peach" aria-label="Your PayPal hold" className="gap-1.5 p-4 shadow-card-tight">
-          <p className="text-xs font-semibold leading-[normal] text-muted">YOUR PAYPAL HOLD</p>
-          <p className="text-sm font-semibold text-ink">{dollars(hold)} is held. Nothing is charged until the run ends.</p>
-          <p className="text-sm text-muted">Then we charge only the compute used and release the rest.</p>
+        <Card variant="money" aria-label="Your PayPal hold" className="gap-2 p-4">
+          <h2 className="text-section text-ink">Your PayPal hold</h2>
+          <MoneyTriplet summary={projectMoney(project)} />
+          <p className="text-small text-muted">
+            {dollars(hold)} is held, not charged. When the run ends we charge only the compute used and release the rest.
+          </p>
         </Card>
       )}
     </>

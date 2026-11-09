@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { CreditCard, FolderOpen, Gauge, MessageSquare, Plus } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { FlaskConical, Plus } from "lucide-react";
+import { Button, LinkButton } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { ErrorState, Skeleton } from "@/components/ui/state";
-import { listProjects } from "@/lib/api-real";
+import { listProjects, startDemoChat } from "@/lib/api-real";
 import { useAsync, useRealUser } from "@/lib/hooks";
-import { isCurrent, NAV_ITEMS } from "@/lib/nav";
+import { activeProjectId, isCurrent, NAV_ITEMS } from "@/lib/nav";
 import { statusLabel } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "./user-menu";
@@ -15,13 +16,63 @@ import { UserMenu } from "./user-menu";
 // The project page fires this when a status changes, so the list shows it without a reload.
 export const PROJECTS_CHANGED = "aioac:projects-changed";
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs font-medium leading-[17px] tracking-[0.2px] text-muted">{children}</p>;
+export function Logo() {
+  return (
+    <Link href="/" className="flex items-center gap-2.5 rounded-md pl-1" aria-label="AIOAC home">
+      <span className="flex size-7 items-center justify-center rounded-lg bg-grad-brand text-small font-semibold text-on-brand">
+        A
+      </span>
+      <span className="text-section text-ink">AIOAC</span>
+    </Link>
+  );
 }
 
-// Left sidebar: new project, your projects from GET /projects (newest first, with a plain status), user menu.
+// Dev builds only: one click to a chat that is already at the price step, so payment can be tried without the long chat.
+function DemoChatButton({ onNavigate }: { onNavigate?: () => void }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  if (process.env.NODE_ENV === "production") return null;
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      block
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const { id } = await startDemoChat();
+          window.dispatchEvent(new Event(PROJECTS_CHANGED));
+          onNavigate?.();
+          router.push(`/c/${id}/pay`);
+        } catch (e) {
+          toast(e instanceof Error && /not found/i.test(e.message) ? "Demo chats are off. Set DEMO_PROJECT_ENABLED=true in backend/.env." : "Could not make a demo chat.");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <FlaskConical aria-hidden />
+      {busy ? "Preparing…" : "Demo chat (test)"}
+    </Button>
+  );
+}
+
+const rowClass = "flex items-center gap-2 rounded-md border px-2 py-1.5 text-small";
+
+// Left sidebar: your projects from GET /projects (newest first, with a plain status), account pages, user menu.
 // The list reloads when the route changes, so a new project or a new status shows up after you move around.
-export function Sidebar() {
+// `drawer` is the same content inside the narrow-screen drawer; `onNavigate` closes it when a link is used.
+// A small dot says where the chat is: green when finished, brand violet while it is moving, grey otherwise.
+function dotFor(status: string): string {
+  if (status === "done") return "bg-success";
+  if (["failed", "voided", "stopped"].includes(status)) return "bg-danger";
+  if (["described", "data_chosen", "readiness_done", "baseline_done"].includes(status)) return "bg-muted";
+  return "bg-brand";
+}
+
+export function Sidebar({ drawer, onNavigate }: { drawer?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
   const user = useRealUser();
   const { data, error, loading, retry } = useAsync(listProjects, `${pathname}|${user?.id ?? ""}`);
@@ -29,34 +80,39 @@ export function Sidebar() {
     window.addEventListener(PROJECTS_CHANGED, retry);
     return () => window.removeEventListener(PROJECTS_CHANGED, retry);
   }, [retry]);
-  const active = pathname.startsWith("/c/") ? pathname.slice(3).split("/")[0] : null;
+  const active = activeProjectId(pathname);
 
   return (
-    <aside className="flex h-full w-[264px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-border bg-surface p-4">
-      <Link href="/" className="flex items-center gap-2.5 pl-1" aria-label="AIOAC home">
-        <span className="flex size-7 items-center justify-center rounded-lg bg-brand-gradient-diag text-sm font-semibold text-white">
-          A
-        </span>
-        <span className="text-base font-semibold leading-[23px] text-ink">AIOAC</span>
-      </Link>
+    <aside
+      className={cn(
+        "flex h-full flex-col gap-5 overflow-hidden bg-surface p-4",
+        drawer ? "w-full" : "w-64 shrink-0 border-r border-border",
+      )}
+    >
+      <div className={cn(drawer && "pr-10")}>
+        <Logo />
+      </div>
 
-      <Link href="/" className={cn(buttonVariants({ variant: "primary" }), "w-full")}>
+      <LinkButton href="/" block onClick={onNavigate}>
         <Plus aria-hidden />
-        New project
-      </Link>
+        New chat
+      </LinkButton>
+      <DemoChatButton onNavigate={onNavigate} />
 
       <nav aria-label="Main" className="flex flex-col gap-0.5">
-        {NAV_ITEMS.map((n) => {
+        {NAV_ITEMS.filter((n) => n.href !== "/projects").map((n) => {
           const on = isCurrent(n.href, pathname);
-          const Icon = n.href === "/projects" ? FolderOpen : n.href === "/account/usage" ? Gauge : CreditCard;
+          const Icon = n.icon;
           return (
             <Link
               key={n.href}
               href={n.href}
+              onClick={onNavigate}
               aria-current={on ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2 rounded-lg border px-2 py-1.5 text-[13px] leading-5",
-                on ? "border-brand-line bg-brand-tint font-semibold text-brand-ink" : "border-transparent font-medium text-ink hover:bg-white/60",
+                rowClass,
+                "min-w-0",
+                on ? "border-brand-line bg-brand-tint font-semibold text-brand-ink" : "border-transparent font-medium text-ink hover:bg-bg",
               )}
             >
               <Icon aria-hidden size={14} className="shrink-0" />
@@ -66,40 +122,46 @@ export function Sidebar() {
         })}
       </nav>
 
-      <nav aria-label="Recent projects" className="flex min-h-0 flex-col gap-0.5">
-        <SectionLabel>RECENT PROJECTS</SectionLabel>
+      <nav aria-labelledby="recent-projects-label" className="-mr-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-2">
+        <p id="recent-projects-label" className="px-2 pb-1 text-micro font-medium text-muted">
+          Recent chats
+        </p>
         {loading && !data && (
-          <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading projects">
+          <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading chats">
             <Skeleton className="h-9" />
             <Skeleton className="h-9" />
           </div>
         )}
         {error && !data && <ErrorState message={error.message} onRetry={retry} className="px-2 py-6" />}
-        {data && data.length === 0 && <p className="px-2 py-1.5 text-sm text-muted">Nothing yet. Start with a goal.</p>}
+        {data && data.length === 0 && (
+          <p className="px-2 py-1.5 text-body text-muted">Nothing yet. Start your first chat above.</p>
+        )}
         {data?.slice(0, 30).map((p) => {
           const on = p.id === active;
           return (
             <Link
               key={p.id}
               href={`/c/${p.id}`}
+              onClick={onNavigate}
               aria-current={on ? "page" : undefined}
               className={cn(
-                "flex flex-col gap-px overflow-clip rounded-lg border px-2 py-1.5 leading-5",
-                on ? "border-brand-line bg-brand-tint" : "border-transparent hover:bg-white/60",
+                "flex flex-col gap-px overflow-clip rounded-md border px-2 py-1.5",
+                on ? "border-brand-line bg-brand-tint" : "border-transparent hover:bg-bg",
               )}
             >
-              <span className={cn("flex items-center gap-2 text-[13px]", on ? "font-semibold text-brand-ink" : "font-medium text-ink")}>
-                <MessageSquare aria-hidden size={14} className="shrink-0" />
+              <span className={cn("flex items-center gap-2 text-small", on ? "font-semibold text-brand-ink" : "font-medium text-ink")}>
+                <span aria-hidden className={cn("size-2 shrink-0 rounded-full", dotFor(p.status))} />
                 <span className="min-w-px flex-1 truncate">{p.goal}</span>
               </span>
-              <span className="truncate pl-[22px] text-xs text-muted">{statusLabel(p.status)}</span>
+              <span className="truncate pl-4 text-micro text-muted">{statusLabel(p.status)}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="flex-1" />
-      <UserMenu />
+      <div className="shrink-0 border-t border-border pt-3">
+        <UserMenu />
+      </div>
     </aside>
   );
 }

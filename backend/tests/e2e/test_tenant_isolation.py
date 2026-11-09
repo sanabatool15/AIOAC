@@ -198,7 +198,8 @@ PROJECT_ROUTES = {
     ("POST", "/projects/{pid}/model/{model_id}/use"): None, ("POST", "/projects/{pid}/share"): None,
     ("GET", "/projects/{pid}/share"): None, ("DELETE", "/projects/{pid}/share"): None,
 }
-OTHER_PROTECTED = {("POST", "/projects"), ("GET", "/projects"), ("POST", "/payments/orders"), ("POST", "/payments/{payment_id}/authorize"),
+OTHER_PROTECTED = {("POST", "/projects"), ("POST", "/projects/demo"),  # demo: signed in, makes a project for the caller only, 404 unless DEMO_PROJECT_ENABLED
+                   ("GET", "/projects"), ("POST", "/payments/orders"), ("POST", "/payments/{payment_id}/authorize"),
                    ("GET", "/payments/{payment_id}"), ("GET", "/auth/me"),
                    ("GET", "/account/usage"), ("GET", "/account/payments")}
 

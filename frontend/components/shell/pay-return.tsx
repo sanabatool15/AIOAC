@@ -1,9 +1,10 @@
 "use client";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { StatusChip } from "@/components/ui/status-chip";
+import { SuccessCheck } from "@/components/ui/success-check";
 import { useAsync } from "@/lib/hooks";
 import * as real from "@/lib/api-real";
 import { confirmReturn, type ReturnOutcome } from "@/lib/pay-flow";
@@ -13,10 +14,12 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 function Shell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section aria-label={label} className="flex h-full min-w-0 flex-1 items-start justify-center overflow-y-auto bg-bg p-8">
-      <div className="flex w-full max-w-[520px] flex-col gap-4">
+      <div className="flex w-full max-w-form flex-col gap-4">
         <div className="flex items-center gap-3">
-          <div aria-hidden className="size-6 shrink-0 rounded-xl bg-brand-gradient shadow-glow" />
-          <p className="text-sm font-semibold text-ink">AIOAC</p>
+          <span aria-hidden className="flex size-7 items-center justify-center rounded-lg bg-brand text-body font-semibold text-on-brand">
+            A
+          </span>
+          <p className="text-section text-ink">AIOAC</p>
         </div>
         {children}
       </div>
@@ -30,6 +33,7 @@ export function PayReturn() {
   const router = useRouter();
   const [status, setStatus] = useState("Confirming your PayPal approval…");
   const [outcome, setOutcome] = useState<ReturnOutcome | null>(null);
+  const [confirmed, setConfirmed] = useState<string | null>(null);
   const started = useRef(false);
 
   const go = useCallback(async () => {
@@ -46,8 +50,11 @@ export function PayReturn() {
       },
       setStatus,
     );
-    if (o.kind === "go") router.replace(`/c/${o.projectId}`);
-    else setOutcome(o);
+    if (o.kind === "go") {
+      setConfirmed(o.projectId);
+      await sleep(2200); // long enough to see the tick, then on to the run
+      router.replace(`/c/${o.projectId}`);
+    } else setOutcome(o);
   }, [router]);
 
   useEffect(() => {
@@ -58,40 +65,68 @@ export function PayReturn() {
 
   return (
     <Shell label="Payment">
-      {!outcome && (
-        <Card variant="peach" aria-label="Almost there" className="gap-3 p-5 shadow-card-tight">
-          <h2 className="text-base font-semibold text-ink">Almost there</h2>
-          <p role="status" className="text-sm text-ink-2">
+      {confirmed && (
+        <Card variant="success" aria-label="Hold confirmed" className="items-center gap-3 p-8 text-center">
+          <SuccessCheck />
+          <h2 className="text-section text-ink">Your hold is confirmed</h2>
+          <p role="status" className="max-w-sm text-body text-ink-2">
+            PayPal is holding the money. Nothing is charged yet. Your run is starting now.
+          </p>
+          <ol className="flex flex-col gap-1 text-small text-muted">
+            <li>1. Agent trains your model</li>
+            <li>2. An independent test checks your target</li>
+            <li>3. Target met: you pay. Missed: the hold is released.</li>
+          </ol>
+          <LinkButton href={`/c/${confirmed}`} variant="outline" size="sm">
+            Go to my chat now
+          </LinkButton>
+        </Card>
+      )}
+      {!outcome && !confirmed && (
+        <Card variant="highlight" aria-label="Almost there" className="gap-3 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-section text-ink">Almost there</h2>
+            <StatusChip tone="info">Waiting for PayPal</StatusChip>
+          </div>
+          <p role="status" className="text-body text-ink-2">
             {status}
           </p>
-          <p className="text-xs text-muted">PayPal sandbox: test money only. Nothing is charged by this step.</p>
+          <p className="text-small text-muted">PayPal sandbox: test money only. Confirming a hold charges nothing.</p>
         </Card>
       )}
       {outcome?.kind === "stuck" && (
-        <Card variant="amber" aria-label="We could not confirm the hold yet" className="gap-3 p-5 shadow-card-tight">
-          <h2 className="text-base font-semibold text-ink">We could not confirm the hold yet</h2>
-          <p role="alert" className="text-sm leading-5 text-ink-2">
+        <Card variant="warning" aria-label="We could not confirm the hold yet" className="gap-3 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-section text-ink">We could not confirm the hold yet</h2>
+            <StatusChip tone="warning">Not confirmed</StatusChip>
+          </div>
+          <p role="alert" className="text-body text-ink-2">
             {outcome.text}
           </p>
           <div className="flex gap-3">
-            <Button size="md" onClick={() => void go()}>
+            <Button onClick={() => void go()}>
               Check again
             </Button>
             {outcome.projectId && (
-              <Link href={`/c/${outcome.projectId}`} className="self-center text-sm font-semibold text-brand-ink underline">
+              <LinkButton href={`/c/${outcome.projectId}`} variant="outline">
                 Back to my project
-              </Link>
+              </LinkButton>
             )}
           </div>
         </Card>
       )}
       {outcome?.kind === "declined" && (
-        <Card variant="red" aria-label="PayPal did not approve the hold" className="gap-3 p-5 shadow-card-tight">
-          <h2 className="text-base font-semibold text-ink">PayPal did not approve the hold</h2>
-          <p className="text-sm leading-5 text-ink-2">Nothing was charged. You can go back and try again.</p>
-          <Link href={`/c/${outcome.projectId}`} className="text-sm font-semibold text-brand-ink underline">
-            Back to my project
-          </Link>
+        <Card variant="danger" aria-label="PayPal did not approve the hold" className="gap-3 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-section text-ink">PayPal did not approve the hold</h2>
+            <StatusChip tone="danger">Declined</StatusChip>
+          </div>
+          <p className="text-body text-ink-2">Nothing was held and nothing was charged. You can go back and try again.</p>
+          <div>
+            <LinkButton href={`/c/${outcome.projectId}`} variant="outline">
+              Back to my project
+            </LinkButton>
+          </div>
         </Card>
       )}
     </Shell>
@@ -102,14 +137,16 @@ export function PayCancel() {
   const { data: pid } = useAsync(async () => real.recallPayment()?.projectId ?? real.recallProject());
   return (
     <Shell label="Payment cancelled">
-      <Card variant="amber" aria-label="Nothing was held" className="gap-3 p-5 shadow-card-tight">
-        <h2 className="text-base font-semibold text-ink">Nothing was held</h2>
-        <p className="text-sm leading-5 text-ink-2">
+      <Card variant="warning" aria-label="Nothing was held" className="gap-3 p-5">
+        <h2 className="text-section text-ink">Nothing was held</h2>
+        <p className="text-body text-ink-2">
           You left PayPal without approving, so nothing was held and nothing was charged.
         </p>
-        <Link href={pid ? `/c/${pid}` : "/"} className="text-sm font-semibold text-brand-ink underline">
-          {pid ? "Back to my price" : "Back to start"}
-        </Link>
+        <div>
+          <LinkButton href={pid ? `/c/${pid}` : "/"} variant="outline">
+            {pid ? "Back to my price" : "Back to start"}
+          </LinkButton>
+        </div>
       </Card>
     </Shell>
   );

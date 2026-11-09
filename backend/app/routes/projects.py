@@ -17,7 +17,9 @@ from ..repositories import payments as payments_repo
 from ..repositories import projects as projects_repo
 from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
-from ..services.data import analysis, dataset_link, datasets, families
+from ..config import settings
+from ..services.data import analysis, dataset_link, datasets, families, pilot
+from ..services.data.samples import CATALOG
 from .forecast import forecast_view, previous_on_other_data
 from .payments import receipt
 from ..services import gate, lifecycle, payments, training
@@ -46,6 +48,32 @@ class UploadIn(BaseModel):
 @router.post("")
 def create(body: ProjectIn, s: Session = Depends(get_session), user: User = Depends(current_user)):
     p = projects_repo.create(s, body.goal, user_id=user.id, org_id=user.org_id)
+    return {"id": p.id, "status": p.status}
+
+
+@router.post("/demo")
+def create_demo(s: Session = Depends(get_session), user: User = Depends(current_user)):
+    """Test shortcut: a chat that is already at the price step (sample data, free test and price done), so the payment flow can
+    be tried in one click. Off (404) unless DEMO_PROJECT_ENABLED=true. It does not touch PayPal: the hold still has to be
+    approved in the PayPal sandbox like any other."""
+    if not settings.demo_project_enabled:
+        raise HTTPException(404, "not found")
+    entry = CATALOG[0]
+    storage = get_storage()
+    p = projects_repo.create(s, "Demo: predict which customers will leave", user_id=user.id, org_id=user.org_id)
+    try:
+        cand = datasets.add_candidate(s, storage, p, entry["name"], "bundled", entry["build"](), license=entry["license"])
+        datasets.select_candidate(s, storage, p, cand.id, entry["target"])
+        analysis.readiness(s, storage, p)
+        analysis.baseline(s, storage, p)
+        f = pilot.run_pilot(s, storage, p, 0.6)
+        if not f.eligible:
+            raise HTTPException(409, "the demo forecast was not eligible, so no price could be made")
+        quotes.create_quote(s, p)
+    except HTTPException:
+        raise
+    except Exception as e:  # a demo helper: say what stopped it, never a stack trace
+        raise HTTPException(502, f"the demo chat could not be prepared: {type(e).__name__}")
     return {"id": p.id, "status": p.status}
 
 

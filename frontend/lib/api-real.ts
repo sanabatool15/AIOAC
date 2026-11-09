@@ -79,6 +79,12 @@ export async function startChat(text: string): Promise<{ id: string }> {
   rememberProject(r.id);
   return { id: r.id };
 }
+// Testing shortcut: a chat already at the price step. The server answers 404 unless demo chats are switched on.
+export async function startDemoChat(): Promise<{ id: string }> {
+  const r = await api<{ id: string; status: string }>("/projects/demo", { method: "POST" });
+  rememberProject(r.id);
+  return { id: r.id };
+}
 export const getProject = (id: string) => api<BProject>(`/projects/${id}`);
 export const listProjects = () =>
   api<{ id: string; goal: string; status: string; created_at: string }[]>("/projects");

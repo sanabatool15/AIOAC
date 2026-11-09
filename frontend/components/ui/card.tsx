@@ -1,33 +1,51 @@
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-// violet = plan/summary, blue = running/ETA, peach = money, mint = receipts,
-// green = verified, red = failure, amber = warning. Most cards stay plain (white).
-const cardVariants = cva("flex w-full flex-col rounded-xl border shadow-card", {
+// Colour carries meaning, never position: success = verified or done, warning =
+// needs attention, danger = failed, highlight = the one thing to look at.
+const cardVariants = cva("flex w-full flex-col rounded-xl border", {
   variants: {
     variant: {
       plain: "border-border bg-card",
-      violet: "surface-violet",
-      blue: "surface-blue",
-      peach: "surface-peach",
-      mint: "surface-mint",
-      green: "surface-green",
-      red: "surface-red",
-      amber: "surface-amber",
+      success: "border-success-line bg-success-soft",
+      warning: "border-money-line bg-grad-money shadow-card",
+      danger: "border-danger-line bg-danger-soft",
+      highlight: "border-card-line bg-grad-card shadow-card",
+      live: "border-live-line bg-grad-live shadow-card",
+      money: "border-money-line bg-grad-money shadow-card",
     },
   },
   defaultVariants: { variant: "plain" },
 });
 
-export interface CardProps
-  extends
-    React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof cardVariants> {}
+type CardVariant = "plain" | "success" | "warning" | "danger" | "highlight" | "live" | "money";
+/** @deprecated Old pastel names. They map to the new variants, see CARD_ALIAS. Migrate the call site. */
+type DeprecatedCardVariant = "violet" | "blue" | "peach" | "mint" | "green" | "red" | "amber";
+
+// violet = plan, so highlight. blue, peach and mint carried position only, so plain.
+export const CARD_ALIAS: Record<DeprecatedCardVariant, CardVariant> = {
+  violet: "highlight",
+  blue: "plain",
+  peach: "plain",
+  mint: "plain",
+  green: "success",
+  red: "danger",
+  amber: "warning",
+};
+
+export function resolveCardVariant(variant: CardVariant | DeprecatedCardVariant | null | undefined): CardVariant {
+  if (!variant) return "plain";
+  return variant in CARD_ALIAS ? CARD_ALIAS[variant as DeprecatedCardVariant] : (variant as CardVariant);
+}
+
+export interface CardProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "color"> {
+  variant?: CardVariant | DeprecatedCardVariant;
+}
 
 export function Card({ className, variant, ...props }: CardProps) {
   return (
     <div
-      className={cn(cardVariants({ variant }), "gap-3.5 p-5", className)}
+      className={cn(cardVariants({ variant: resolveCardVariant(variant) }), "gap-3.5 p-5", className)}
       {...props}
     />
   );
