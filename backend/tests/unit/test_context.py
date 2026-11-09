@@ -13,7 +13,7 @@ def test_paid_tools_are_only_offered_when_relevant():
     assert "start_training" not in context.tool_names("described")
     assert "request_payment" not in context.tool_names("data_chosen")
     assert "start_training" in context.tool_names("paid")
-    assert context.tool_names("done") == ["load_skill"]
+    assert context.tool_names("done") == ["load_skill", "explain_result"]  # read-only
 
 
 def test_system_prompt_has_state_and_skill_index_but_not_skill_bodies(session, project):
@@ -85,7 +85,7 @@ def test_awaiting_payment_offers_a_new_quote_for_an_expired_one():
 
 def test_terminal_states_have_no_paid_tools_and_a_plain_next_step():
     for status in ("done", "failed", "stopped", "voided"):
-        assert context.tool_names(status) == ["load_skill"]
+        assert set(context.tool_names(status)) <= {"load_skill", "explain_result"}  # read-only: no paid or state-changing tool
         assert context.NEXT_STEP[status]
     assert "no charge" in context.NEXT_STEP["voided"] or "released" in context.NEXT_STEP["voided"]
 

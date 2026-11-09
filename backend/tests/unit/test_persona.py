@@ -70,8 +70,9 @@ def test_next_step_explains_before_the_next_test_but_keeps_the_target_rule():
         assert "plain" in context.NEXT_STEP[st]
     assert "recommendation" in context.NEXT_STEP["readiness_done"]
     assert "target" in context.NEXT_STEP["baseline_done"].lower()
-    for st in ("done", "failed", "stopped", "voided"):
-        assert "no tools" in context.NEXT_STEP[st]
+    assert "no tools" in context.NEXT_STEP["voided"]
+    for st in ("done", "failed", "stopped"):  # Phase 4: read-only explain_result, still nothing that runs
+        assert "explain_result" in context.NEXT_STEP[st] and "run nothing" in context.NEXT_STEP[st]
 
 
 # ---------------------------------------------------------------- greeting backstop

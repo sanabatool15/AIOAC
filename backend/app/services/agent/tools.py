@@ -17,7 +17,7 @@ from ...ports import PaymentProvider, Storage, TrainingBackend
 from ..data.samples import CATALOG
 from ..data import analysis, datasets, discovery, families, fixes, pilot, profile as data_profile
 from ..cost import cost, quotes
-from .. import gate, payments, training
+from .. import explain, gate, payments, training
 from . import clarity, data_choice, memory, skills, target as target_rule
 from ...repositories.traces import TraceRepository
 from ..data.insights import analyze, summarize
@@ -314,6 +314,11 @@ def profile_data(ctx, a):
             "next": "explain the one or two things that matter most in plain words; suspects are clues to check with the user, not proof"}
 
 
+def explain_result(ctx, a):
+    """Free and read-only: facts about the latest finished run, from stored rows. Nothing is run, nothing is paid."""
+    return explain.result_facts(ctx.session, ctx.project)
+
+
 def run_baseline_tool(ctx, a):
     r, o = analysis.baseline_detailed(ctx.session, ctx.storage, ctx.project)
     out = {"accuracy": round(r.accuracy, 3), "simple_guess_accuracy": round(r.simple_guess_accuracy, 3),
@@ -462,6 +467,9 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
          "Use when the user asks about a column or you saw a suspect. Optionally name up to 8 columns.",
          {"type": "object", "properties": {"columns": {"type": "array", "items": {"type": "string"}, "maxItems": 8}}, "required": []},
          gate.Action.ANALYZE, profile_data),
+    Tool("explain_result", "Free, read-only: plain facts about the finished run (final score against the target and the simple guess, model type, rows, data fixes, "
+         "what was charged and released, what could help). Use when the user asks what the result means, why it missed, or what was charged.", _obj(),
+         gate.Action.ANALYZE, explain_result),
     Tool("run_baseline", "Free test on held-out data; also measures timings for the quote.", _obj(), gate.Action.BASELINE, run_baseline_tool),
     Tool("propose_data_fix", "Free, changes nothing: what removing repeated rows or mostly empty columns would change. Use when the forecast is too low and the findings mention repeats or gaps. "
          "Never say it will raise the estimate: say we will test whether it changes the estimate.", _obj(), gate.Action.ANALYZE, propose_data_fix),

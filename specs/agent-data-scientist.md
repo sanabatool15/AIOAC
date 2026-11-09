@@ -1,6 +1,6 @@
 # Agent as a Data Scientist (plan, not built)
 
-Status: written 2026-11-09 from a read-only review (4 sub-agent passes plus direct greps). Nothing here is built. Where this file says "verify", the claim was read from code or specs by a reviewer but not run.
+Status: written 2026-11-09 from a read-only review (4 sub-agent passes plus direct greps). **Built so far (2026-11-09): Phases 1, 2, 3 and 4** (4 without `restart_project`; see below), plus the data fix (`propose_data_fix`/`apply_data_fix`), family and quote pinning. Not built: Phase 0 measurement, Phase 5 onward. The rest of this file was the plan. Where this file says "verify", the claim was read from code or specs by a reviewer but not run.
 
 ## 1. Problem
 
@@ -56,7 +56,9 @@ Each phase is its own small task: tests first, run `pytest` and the demo check (
 - Offer from `data_chosen` through `quoted`; add to `TOOLS_BY_STATUS`, `NEXT_STEP`, `services/activity.py` (fixed sentence + `TRACE_STEP`), unit tests, one e2e case.
 - Chat must stay usable at these statuses (see Phase 5).
 
-### Phase 4: Chat on every step, small-talk and Q&A anywhere (M)
+### Phase 4: Chat on every step, small-talk and Q&A anywhere (M) - BUILT 2026-11-09 except `restart_project`
+Built: the F1 limitation was already gone on `/c/[chatId]`; the project page gets a collapsed chat panel; `pendingCard` allows the data-fix card; read-only `explain_result` at `done`/`stopped`/`failed` (not `voided`); `profile` and `result` chat blocks (`specs/api.md` A2); the claim guard also blocks "I will retrain/train/redo". **Deferred for human review: `restart_project`** (needs lifecycle and gate changes). Not built: the "before/after" and "what seems to drive the answer" blocks.
+
 - Frontend: show the chat after data is chosen and at later steps (verify the F1 limitation first). Agent answers questions at any status using free tools only.
 - Backend: offer `profile_data` and read-only explain tools at all statuses; add `explain_result` and `restart_project` (both listed as "Build now" and unbuilt in `specs/agent/03-tools-reference.md`), so the agent works at `done`, `failed`, `stopped`, `voided`.
 - New chat blocks (built by code from tool results, never from model text): "what I found" card, "what seems to drive the answer" (labelled clues, not causes), before/after card, fix approval card.

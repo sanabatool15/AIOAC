@@ -22,7 +22,7 @@ _CLAIMS = [
     (re.compile(r"\b(refund(ed)?|released|voided)\b[^.!?\n]{0,30}\b(sent|issued|processed|on its way|complete[d]?)\b|\bi(?:'ve| have) (refunded|released|voided)\b", re.I),
      SETTLED, "nothing has been released yet"),
     # a promise to run something, where this step has no tools (the user must press the button on screen)
-    (re.compile(r"\b(i(?:'ll| will| can)|let me|shall i|do you (still )?want (me )?to)\s+(now\s+)?(run|start|try|launch|test|re-?run)\b", re.I),
+    (re.compile(r"\b(i(?:'ll| will| can)|let me|shall i|do you (still )?want (me )?to)\s+(now\s+)?(run|start|try|launch|test|re-?run|re-?train|train|re-?do|re-?build)\b", re.I),
      set(ORDER_WITH_TOOLS), "nothing can be run from this step by chat; the result screen has a 'Try a higher target' button"),
 ]
 

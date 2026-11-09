@@ -236,10 +236,12 @@ def test_turn_deadline_ends_the_turn_with_timeout(session, storage, provider, pr
     assert r.status == "limit" and r.reason == "timeout"
 
 
-def test_at_done_the_agent_has_no_tools_and_cannot_promise_to_run_anything():
+def test_at_done_the_agent_has_only_a_read_only_tool_and_cannot_promise_to_run_anything():
     from app.services.agent import context, guards
-    assert context.tool_names("done") == ["load_skill"]
+    assert context.tool_names("done") == ["load_skill", "explain_result"]  # read-only; nothing that can run or start
     assert "Try a higher target" in context.NEXT_STEP["done"] and "never say or offer" in context.NEXT_STEP["done"]
+    assert guards.false_claims("I will retrain it with better settings.", "done")
+    assert guards.false_claims("Let me re-run the test.", "stopped")
     promise = "Do you still want to run the free small test for 99?"
     assert guards.false_claims(promise, "done")
     assert guards.false_claims("I will run it now.", "done")

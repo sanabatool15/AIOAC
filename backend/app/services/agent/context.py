@@ -84,9 +84,9 @@ NEXT_STEP = {
     "awaiting_payment": "Request the hold, then wait for the user to approve it in PayPal. Nothing is charged yet. If the quote has expired, create a new quote instead.",
     "paid": "Start training.",
     "training": "Training is running. Report progress in plain words.",
-    "done": "The run is complete. Help the user use the result. You have no tools here: never say or offer that you will run, start or test anything. If they want a higher target (or to improve a missed one), tell them to press 'Try a higher target' (or 'Improve') on the result screen.",
-    "failed": "The run failed on our side. Say so plainly: the whole PayPal hold is released, so nothing is charged. You have no tools here; do not offer to retry or start anything.",
-    "stopped": "The run was stopped. The user pays only the compute used so far and no success fee, and the rest of the hold is released. Explain this plainly; you have no tools here.",
+    "done": "The run is complete. Use explain_result to explain it plainly (final score against the target and the simple guess, what was charged and released, one thing that could help). You can run nothing here: never say or offer that you will run, start, retrain or test anything. If they want a higher target (or to improve a missed one), tell them to press 'Try a higher target' (or 'Improve') on the result screen.",
+    "failed": "The run failed on our side. Say so plainly: the whole PayPal hold is released, so nothing is charged. You may use explain_result for the facts. You can run nothing here; do not offer to retry or start anything.",
+    "stopped": "The run was stopped. The user pays only the compute used so far and no success fee, and the rest of the hold is released. Explain this plainly; you may use explain_result for the facts. You can run nothing here; do not offer to retry or start anything.",
     "voided": "The hold was released with no charge. Explain this plainly; you have no tools here. Starting again needs a new project or a new quote from the user.",
 }
 
@@ -98,6 +98,9 @@ TOOLS_BY_STATUS = {
     "quoted": ["load_skill", "profile_data", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
     "awaiting_payment": ["load_skill", "request_payment", "create_quote"],  # create_quote: a way out when the quote expired (the gate and the quote service still decide)
     "paid": ["load_skill", "start_training"],
+    "done": ["load_skill", "explain_result"],      # read-only: stored facts about the finished run
+    "stopped": ["load_skill", "explain_result"],
+    "failed": ["load_skill", "explain_result"],
 }
 DEFAULT_TOOLS = ["load_skill"]
 
