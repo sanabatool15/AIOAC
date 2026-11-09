@@ -1,6 +1,6 @@
 ---
 name: choosing-the-target-column
-description: Picks the answer column (the target) and asks the user when it is unclear. Use before inspect_candidate or select_dataset when the exact name of the answer column is not yet known.
+description: Picks the answer column and asks when unclear. Use before select_dataset when the answer column's name is not known.
 ---
 # Choosing the answer column (the target)
 

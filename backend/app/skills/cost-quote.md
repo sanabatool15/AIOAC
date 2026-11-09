@@ -1,6 +1,6 @@
 ---
 name: cost-quote
-description: Explains the free small test, forecast, quote, hold and success fee honestly, always as estimates. Use when talking about price, the forecast, the quote, or why a run is not eligible.
+description: Explains the forecast, quote and success fee as estimates. Use when talking about price, the forecast, or why a run is not eligible.
 ---
 # Explaining the forecast and the price
 

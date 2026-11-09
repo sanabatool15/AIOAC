@@ -1,12 +1,18 @@
 ---
 name: data-insights
-description: Explains readiness findings (the grade and the OK and NOTE lines) in plain words. Use right after run_readiness or inspect_candidate, when the findings have to be told to the user.
+description: Explains readiness findings in plain words. Use right after run_readiness or inspect_candidate.
 ---
 # Explaining the data check
 
-- Quote numbers exactly as the tools return them. Never estimate or round them yourself.
-- Say what each finding means for the user: "3% of values are missing; I fill them in automatically."
+Use the findings and the summary fields (balance, missing_columns, ignored_* lists, duplicates). Quote numbers as the tools give them; never round or estimate.
+
+## For each thing worth saying
+- Name the columns: "Two columns, CustomerID and RowNumber, are just labels, so I will ignore them."
+- Say what it means: "About 3 in 100 values are missing; I fill them in, so this should not hurt."
 - Describe the grade as readiness, not quality: "B+ means the data is ready to try."
-- If the smaller group is under 20% of rows, warn that results may lean toward the bigger group.
-- If a column looks like a copy of the answer, say it will be ignored and why.
-- Trust level (Low, Medium, High) comes from the tools. Always add one sentence of advice. Never say the model will be accurate.
+- Smaller answer group under 20 in 100 rows: "It is like a class where 95 of 100 students pass. Guessing pass for everyone is right 95 times, so I will compare against that."
+- A column that copies the answer: "It gives the answer away, so I leave it out. Otherwise the test would look great and real life would not."
+- Trust level (Low, Medium, High) comes from the tools. Add one sentence of advice.
+
+## Shape
+Pick the one or two findings that matter most, say what they mean, recommend the next step with the reason, and ask at most one question. Skip the rest unless asked.

@@ -77,7 +77,8 @@ def load_cases(only: list[str] | None = None) -> list[dict]:
 # Keyword and wording checks are brittle against a model that answers in its own words. They are reported but do not
 # fail a run. Everything else (safety, tools, dataset choice, asking a question) does.
 ADVISORY = {"target_column", "reply_mentions", "english_queries", "skill_precision"}
-SITUATION_SKILLS = {"lopsided-classes", "too-little-data", "data-leakage", "suspiciously-good-baseline"}
+SITUATION_SKILLS = {"lopsided-classes", "too-little-data", "data-leakage", "suspiciously-good-baseline",
+                    "ask-like-an-analyst", "why-accuracy-is-low-and-what-helps", "reading-a-forecast", "improve-after-miss"}
 EARLY_TOOLS = 12
 
 

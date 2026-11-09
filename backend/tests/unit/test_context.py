@@ -20,7 +20,7 @@ def test_system_prompt_has_state_and_skill_index_but_not_skill_bodies(session, p
     text = context.build_system(session, project)
     assert "Status: described" in text and "dataset-search" in text
     assert "Fetch at most 2 or 3 candidates" not in text  # bodies load on demand
-    assert len(text) < 4200  # about 900 tokens. The skill descriptions (what + "Use when", about 200 characters each) are all the model sees when it chooses a skill
+    assert len(text) < 4800  # raised from 4200 in Phase 2 (persona, reply shape, 4 new skill descriptions). About 1,100 tokens. The skill descriptions (what + "Use when", about 200 characters each) are all the model sees when it chooses a skill
 
 
 def test_skills_load_and_unknown_is_none():

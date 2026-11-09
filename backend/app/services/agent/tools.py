@@ -88,13 +88,13 @@ def _bad_id(did: str) -> dict:
 def _needs_clarity(ctx) -> dict | None:
     """Search only after the user chose it (data_choice.py), and only for a goal that names an outcome (clarity.py)."""
     texts = memory.user_texts(ctx.session, ctx.project)
+    if not clarity.is_clear(texts):  # a greeting or a goal with no outcome: ask what to predict before anything else
+        ctx.emit("need_clarity", "INFO")
+        return {"need_clarity": True, "advice": clarity.QUESTION_HINT}
     if not data_choice.wants_search(texts):
         ctx.emit("waiting_for_choice", "INFO")
         return {"waiting_for_choice": True, "advice": data_choice.WAITING_HINT}
-    if clarity.is_clear(memory.user_texts(ctx.session, ctx.project)):
-        return None
-    ctx.emit("need_clarity", "INFO")
-    return {"need_clarity": True, "advice": clarity.QUESTION_HINT}
+    return None
 
 
 _TAG = re.compile(r"</?\s*untrusted_dataset_text\s*>", re.I)

@@ -23,7 +23,7 @@ def test_tool_crash_gives_the_model_a_generic_message_and_the_log_the_detail(ses
     log = RunLog([ConsoleSink(__import__("io").StringIO())])
     run_agent(ctx(session, storage, provider, project), llm, "hi", log=log)
     sent = json.dumps(llm.calls[-1])
-    assert GENERIC_TOOL_ERROR in sent and "/home/user" not in sent and "RuntimeError" not in sent and "sk-" not in sent
+    assert GENERIC_TOOL_ERROR in sent and "/home/user" not in sent and "RuntimeError" not in sent and "sk-abcdefghijklmnopqrstu" not in sent  # the skill name ask-like-an-analyst contains "sk-"
     from app.db.tables import AgentStep
     from sqlalchemy import select
     stored = json.dumps([s.content for s in session.scalars(select(AgentStep))])

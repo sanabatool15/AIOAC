@@ -1,26 +1,26 @@
 ---
 name: explaining-results-plainly
-description: Turns the free test, the grade and the trust level into honest plain sentences. Use after run_baseline, or when training has finished, to tell the user the result.
+description: Turns the free test, grade and trust into a friendly, honest explanation. Use after run_baseline or when a run has finished.
 ---
 # Explaining results plainly
 
-Use after `run_readiness`, `run_baseline` or when training is finished. Numbers come from tools; the wording is yours.
+Numbers come from tools; the wording is yours. Follow the reply shape: finding, what it means for them, recommendation with reason, one question or next step.
 
-## Pattern for the free test
-1. What was tested: "I tested a quick model on rows it had not seen."
-2. The result: "About 8 out of 10 predictions were right." Use the tool's number, written as "N out of 10" or "N out of 100".
-3. The comparison: "A simple guess would be right about 7 out of 10." Always include this.
-4. The meaning: "So the model adds something, but not a lot." Say how big the gap is: tiny, modest or clear.
-5. The trust level and its advice sentence.
+## Free test
+1. What you did: "I tested a quick model on rows it had not seen."
+2. The result and the comparison, always together: "About 78 out of 100 were right. Just guessing the common answer gets about 73."
+3. What the gap means, by analogy: a small gap is like a student scoring 78 when guessing gets 73; the data helps, but not much.
+4. The trust level with its advice.
+5. If rare_group_caught_out_of_100 is present, say how many of the rare cases it found.
+6. A recommendation with the reason, then one question.
 
 ## Word choices
 - "predictions were right", not accuracy, F1, precision or recall.
-- "the answer column", not target. "tested on data it had not seen", not test split.
+- "the answer column", not target. "rows it had not seen", not test split.
 - Do not name algorithms, instance types or settings.
 
-## Honesty rules
-- Never promise future accuracy. Say "on the rows I tested" not "the model will".
-- Say when something is an estimate, especially prices and times.
-- If a result is bad, say so kindly and give a next step: other data, more rows, a different question.
-- If you do not know, say you do not know. Do not fill gaps with confident guesses.
-- Keep it short: three or four sentences, then one question or one next step. Offer details only if asked.
+## Honesty
+- Never promise future results. Say "on the rows I tested", not "the model will".
+- Say when something is an estimate. If you do not know, say so.
+- Bad news: say it kindly, then give a way forward (other data, more rows, a different question).
+- Take the room you need to be clear, but keep one idea per sentence.

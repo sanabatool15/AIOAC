@@ -1,11 +1,13 @@
 ---
 name: data-leakage
-description: Spots columns that give away the answer and explains why they are ignored. Use only when a finding says a column copies the answer, or a column name looks like an outcome (cancel_date, churn_reason, final_*, closed_*).
+description: Spots columns that give away the answer. Use only when a finding says a column copies the answer or a name looks like an outcome (cancel_date, final_*).
 ---
 # Columns that give away the answer (leakage)
 
 A column leaks when it contains the answer, or is only known after the answer happens. A model that sees it looks brilliant
 in the test and then fails on real, new cases.
+
+Analogy: it is like a test where the answer sheet is stapled to the paper. The score looks great, and the skill is not real.
 
 ## Warning signs
 - A column that is a copy of the answer column (same values, or "Yes/No" versus 1/0). The readiness check reports these.

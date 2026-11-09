@@ -1,6 +1,6 @@
 ---
 name: too-little-data
-description: Explains what to say when a dataset has few rows or few examples of one answer. Use only when a finding warns about few rows (under about 1,000), or the rarer answer has under about 100 rows.
+description: What to say when there are few rows or few examples of one answer. Use only when under about 1,000 rows or the rarer answer has under about 100.
 ---
 # Too little data
 

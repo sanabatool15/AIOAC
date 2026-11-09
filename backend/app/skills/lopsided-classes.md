@@ -1,6 +1,6 @@
 ---
 name: lopsided-classes
-description: Explains results when one answer is far more common than the other. Use only when a finding says the smaller group is under 20% of rows, or the free test is close to the simple-guess number.
+description: Explains results when one answer is far more common. Use only when the smaller group is under 20% of rows or the test is near the simple guess.
 ---
 # Lopsided answers (class imbalance)
 
@@ -14,6 +14,7 @@ is useless. That is why the free test is always shown next to what a simple gues
   little to learn from and the result will be shaky.
 
 ## How to explain it
+- Analogy: if 95 of 100 students pass, a teacher who guesses "pass" for everyone is right 95 times and has learned nothing.
 - Say: "Far more customers stayed than left, so a simple guess is already right about 73 times out of 100.
   The model got 78. That is a small step up."
 - Never say "the model is 78% accurate" without the simple-guess number next to it.
