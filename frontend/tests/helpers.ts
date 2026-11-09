@@ -28,10 +28,14 @@ export async function signUp(page: Page, email = newEmail()): Promise<string> {
  */
 export async function runDemoPath(page: Page): Promise<string> {
   await page.getByRole("link", { name: "Start" }).click();
-  await page.getByLabel("Message AIOAC").fill("I want to predict which customers will leave. I have no data.");
+  await page.getByLabel("Message AIOAC").fill("I want to predict which customers will leave.");
   await page.getByLabel("Send message").click();
   await expect(page).toHaveURL(/\/c\/[0-9a-f]+$/);
   const id = page.url().split("/c/")[1];
+
+  // Nothing is searched until the person chooses "No data": the picker is shown first.
+  await expect(page.getByRole("button", { name: /No data: let the agent find one/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: /No data: let the agent find one/ }).click();
 
   // The approval card names the dataset before anything is chosen.
   const card = page.getByRole("button", { name: "Approve", exact: true });

@@ -188,7 +188,7 @@ def test_discover_is_free_level_0_and_offered_when_described(session, project):
 
 
 def test_prompt_tells_the_agent_when_to_discover():
-    assert "discover_datasets first" in context.BASE and "skip discovery" in context.BASE
+    assert "ONLY after the user says they have no data" in context.BASE and "skip discovery" in context.BASE
     assert "discover-datasets" in __import__("app.services.agent.skills", fromlist=["x"]).index()
 
 

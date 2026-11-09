@@ -29,7 +29,7 @@ class StoppableBackend:
     def __init__(self, cost=30, during=None):
         self.cost, self.during, self.progress_seen = cost, during, []
 
-    def run(self, path, target, cap, on_progress=None, should_stop=None, job_key=None):
+    def run(self, path, target, cap, on_progress=None, should_stop=None, job_key=None, family="forest"):
         on_progress("training the model", 0.5)
         self.progress_seen.append("training the model")
         if self.during:

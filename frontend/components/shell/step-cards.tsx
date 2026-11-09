@@ -6,6 +6,7 @@ import { toBaseline, toFindings, toForecast, type ForecastView } from "@/lib/ada
 import type { BProject } from "@/lib/api";
 import * as real from "@/lib/api-real";
 import { cn } from "@/lib/utils";
+import { FixPanel } from "./fix-panel";
 import { ErrorLine, Row, useAction } from "./step-parts";
 
 // Result cards of the free steps, in plain words. They read the project (server state), never the chat text.
@@ -102,6 +103,23 @@ export function History({ project }: { project: BProject }) {
   );
 }
 
+// After a data fix and a new pilot: the estimate before and after, side by side. Both are estimates.
+function BeforeAfter({ f }: { f: ForecastView }) {
+  if (!f.before) return null;
+  return (
+    <div aria-label="Before and after the data fix" data-testid="fix-before-after" className="flex flex-col gap-1 rounded-lg border border-border bg-white p-3 text-sm">
+      <p className="font-semibold text-ink">After your data fix</p>
+      <p className="text-ink-2">
+        Before: about {f.before.expected} out of 100, a {f.before.confidence}% chance of reaching {f.before.target} out of 100 (estimate).
+      </p>
+      <p className="text-ink-2">
+        Now: about {f.expected} out of 100, a {f.confidence}% chance of reaching {f.target} out of 100 (estimate).
+      </p>
+      <p className="text-xs text-muted">We tested whether the fix changes the estimate. It is a small free test, not a promise.</p>
+    </div>
+  );
+}
+
 export function ForecastCard({ f }: { f: ForecastView }) {
   return (
     <Card variant="blue" aria-label="Forecast (estimate)" data-testid="forecast-card" className="gap-2.5 p-4 shadow-card-tight">
@@ -111,7 +129,10 @@ export function ForecastCard({ f }: { f: ForecastView }) {
         <Row label="Expected result (estimate)" value={`about ${f.expected} out of 100`} />
         <Row label="Likely range (estimate)" value={`${f.low} to ${f.high} out of 100`} />
         <Row label="Chance of reaching your target (estimate)" value={`about ${f.confidence}%`} />
+        {f.modelType && <Row label="Model type tested" value={f.modelType.name} />}
       </dl>
+      {f.modelType && <p className="text-xs text-muted">{f.modelType.note}</p>}
+      <BeforeAfter f={f} />
       <p className="text-xs text-muted">An estimate from a small free pilot, not a promise.</p>
     </Card>
   );
@@ -142,7 +163,9 @@ export function EligibilityCard({ project, onChanged }: { project: BProject; onC
           </ul>
         </>
       )}
+      <BeforeAfter f={f} />
       <p className="text-sm text-muted">The pilot is free, so you can try again as often as you like.</p>
+      <FixPanel project={project} onChanged={onChanged} />
       {f.suggestedTarget !== null && (
         <div className="flex flex-wrap items-center gap-3">
           <Button

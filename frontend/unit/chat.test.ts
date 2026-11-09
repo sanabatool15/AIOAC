@@ -1,7 +1,7 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/api";
-import { bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
+import { askedForSearch, NO_DATA_MESSAGE, bootChat, cardFacts, cardTitle, chatError, looksLikeId, itemsFromReply, pendingCard, postChat, type ChatItem } from "../lib/chat";
 
 // Shapes follow specs/api.md A2 and backend/tests/e2e/test_chat_blocks.py.
 const PID = "p1";
@@ -124,10 +124,37 @@ test("card facts: source, rows, columns, answer column with meaning, license", (
   assert.equal(f[4].value, "not stated");
 });
 
+test("data-fix card: a plain title and the numbers the server computed", () => {
+  const fixCard = {
+    what: "Change your data: remove 60 repeated row(s) (1,560 rows to 1,500). The original stays saved.",
+    level: 1,
+    tool: "apply_data_fix",
+    args: { version_id: "v1" },
+    detail: { rows_before: 1560, rows_after: 1500, rows_removed: 60, columns_before: 8, columns_after: 7, columns_dropped: ["notes_col"], version_id: "v1" },
+  };
+  assert.equal(cardTitle(fixCard), "Change your data");
+  const f = cardFacts(fixCard);
+  assert.deepEqual(f.map((x) => x.label), ["Rows", "Columns", "Columns removed"]);
+  assert.equal(f[0].value, "1,560 to 1,500");
+  assert.equal(f[0].note, "60 repeated rows removed");
+  assert.equal(f[1].value, "8 to 7");
+  assert.equal(f[2].value, "notes_col");
+  assert.deepEqual(cardFacts({ ...fixCard, detail: null }), []); // a card without numbers shows no facts instead of crashing
+});
+
 test("card facts: target_meaning is optional and null is fine", () => {
   const { target_meaning: _omit, ...bare } = detail;
   void _omit;
   assert.equal(cardFacts({ ...card, detail: bare })[3].note, undefined);
   assert.equal(cardFacts({ ...card, detail: { ...detail, target_meaning: null } })[3].note, undefined);
   assert.deepEqual(cardFacts(card), []);
+});
+
+test("only the 'no data' choice counts as asking for a search", () => {
+  const u = (text: string) => ({ role: "user", text });
+  assert.equal(askedForSearch(null), false);
+  assert.equal(askedForSearch([u("I want to predict churn")]), false);
+  assert.equal(askedForSearch([u("I want to predict churn"), u(NO_DATA_MESSAGE)]), true);
+  assert.equal(askedForSearch([u(NO_DATA_MESSAGE), { role: "assistant", text: "ok" }]), true);
+  assert.equal(askedForSearch([u(NO_DATA_MESSAGE), u("something else")]), false);
 });

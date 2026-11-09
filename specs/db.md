@@ -24,6 +24,10 @@ Fields: project, source, source link, license, size, expiry time, status (candid
 The chosen dataset and each cleaned version of it.
 Fields: project, parent version, storage location, row and column counts, target column, notes on what was changed.
 
+### Column labels (table `column_labels`)
+Plain-English names for a dataset version's columns, shown on the Model tab (for example `Attribute1` -> "Checking account status"). A cache of one small LLM call per dataset version.
+Fields: `dataset_version_id` (foreign key, unique), `labels` (JSON, raw column name -> short plain label, at most 60 characters), `model` (which model wrote them). Only successful, validated labels are saved; a failed call saves nothing and is retried later. Column names, values and the dataset title sent to the model are untrusted data. New table: run `python -m app.db.init --upgrade --yes` (or `python -m app.db.init`); on Supabase enable row level security on it (no policies).
+
 ### Insight report
 Measurements and plain-language findings for a dataset version.
 Fields: dataset version, measurements, findings (OK or NOTE), readiness grade.
@@ -33,13 +37,13 @@ The free test.
 Fields: project, dataset version, result, comparison with a simple guess, sample sizes and timings used by the cost estimator.
 
 ### Quote
-Fields: project, estimate, low, high, cap (estimate, low, high and cap include the success fee), compute cap, success fee, forecast, breakdown, price config version, expiry, approved time.
+Fields: project, estimate, low, high, cap (estimate, low, high and cap include the success fee), compute cap, success fee, forecast, breakdown, price config version, expiry, approved time, `dataset_version_id` and `family` (nullable; the quote PINS the data version and the model type, and the gate refuses to train if either changed).
 
 ### Payment (a PayPal hold, table `payments`)
 Fields: project, quote, provider, provider order id, authorization id, hold amount, compute amount, fee amount, state (`none`, `held`, `compute_captured`, `fee_captured`, `fee_skipped`, `released`, `voided`, `expired`, `declined`), capture ids, captured and released amounts, verified flag (set only in `held`). Unused holds expire after 24 hours. See `payments.md`.
 
 ### Forecast
-Fields: project, target, confidence, band low, band high, predicted metric, eligible flag, reason, pilot details.
+Fields: project, target, confidence, band low, band high, predicted metric, eligible flag, reason, pilot details, `family` (the model type the pilot kept; nullable), `dataset_version_id` (the data the pilot looked at; nullable). `pilot` also holds `cost_samples` (fit times of the kept family).
 
 ### Ledger entry (append-only)
 Fields: project, kind (`compute_capture`, `fee_capture`), positive amount charged to the buyer, unique key, time. A void moves no money and is recorded on the hold, not in the ledger.
@@ -48,10 +52,11 @@ Fields: project, kind (`compute_capture`, `fee_capture`), positive amount charge
 Fields: event id (unique), type, raw content, received time.
 
 ### Training run
-Fields: project, backend, instance type, start and end times, accumulated cost, stopped-at-cap flag, result, status.
+Fields: project, backend, instance type, start and end times, accumulated cost, stopped-at-cap flag, result, status, `dataset_version_id` (nullable: the data the run trained on).
 
 ### Model
-Fields: project, training run, storage location, quality measures, visibility (private or public).
+Fields: project, training run, storage location, quality measures, visibility (private or public). Version fields (all nullable except `is_current`, added by `--upgrade`): `version_no` (1..n per project), `dataset_version_id`, `forecast_id`, `quote_id`, `is_current` (bool, default false), `verified_value` (score on the locked rows), `passed` (met the target).
+Rule: at most one model per project is current (`set_current` clears the others in one transaction). Training makes the new model current if it passed verification and the current one did not or is no better, or if no model passed and its verified value is the best; a newer worse model never replaces a better current one. Old rows have none of these set: they are read as version 1..n by creation time, the newest being current unless some row has `is_current` set. Nothing is back-filled.
 
 ### Agent run and agent step
 The trace of everything the agent did.
@@ -94,3 +99,7 @@ There are no migrations. `python -m app.db.init --check` reports what an existin
 
 - How long traces and model files are kept.
 - Whether cleaned versions are stored in full or as change lists.
+
+## 6. Added 2026-11-07 (nullable columns; `python -m app.db.init --upgrade --yes` adds them)
+
+`forecasts.family`, `forecasts.dataset_version_id`, `quotes.family`, `quotes.dataset_version_id`, `models.family`. A guided data fix adds a `dataset_versions` row with `parent_id` set and `notes` describing the change; the locked test rows always come from the root version (no new table or column for that: the split files `splits/<version id>/work.csv` and `locked.csv` of a child are derived from its parent's).

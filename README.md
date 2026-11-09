@@ -64,6 +64,7 @@ Open http://localhost:3000, sign up, and describe a goal (for example "which cus
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` | PayPal SANDBOX app keys. `PAYPAL_RETURN_URL` and `PAYPAL_CANCEL_URL` must point at the frontend (`http://localhost:3000/pay/return` and `/pay/cancel`) |
 | `CORS_ORIGINS` | browser origin of the frontend (`http://localhost:3000`) |
 | `TRAINING_BACKEND` | `local` (free, default) or `sagemaker` (paid, capped) |
+| `STORAGE_BACKEND`, `STORAGE_S3_BUCKET`, `STORAGE_S3_PREFIX` | `local` (default) or `s3` to keep app files in S3 (empty bucket = `SAGEMAKER_BUCKET`; same AWS credential chain; region from `SAGEMAKER_REGION`) |
 | `SAGEMAKER_REGION`, `SAGEMAKER_BUCKET`, `SAGEMAKER_ROLE_ARN`, `SAGEMAKER_INSTANCE_TYPE`, `SAGEMAKER_SKLEARN_VERSION` | when `TRAINING_BACKEND=sagemaker`. AWS credentials come from the normal AWS chain (`aws configure` or `AWS_*` variables), not from this file |
 | `JOB_RUNNER` | `inline` (default) or `inngest` |
 

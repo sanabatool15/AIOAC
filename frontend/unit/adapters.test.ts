@@ -9,6 +9,7 @@ import {
   targetFromOutOf100,
   toBaseline,
   toFindings,
+  toFix,
   toForecast,
   toQuote,
   toReceipt,
@@ -92,6 +93,40 @@ test("quote: cents to dollars, the cap is a fact, terms pass through", () => {
   const thin = quoteFromProject(projectQuoted as unknown as BProject)!;
   assert.equal(thin.cap, "$0.56");
   assert.equal(thin.computeMax, "$0.53");
+});
+
+test("model type: shown in plain words with the not-a-promise note; missing for old quotes", () => {
+  const withType = {
+    ...(fx.quote as unknown as BQuote),
+    model_type: { family: "boosting", name: "a boosted-trees model", note: "This is only the model type we tested, not a promise of a better result." },
+  };
+  const q = toQuote(withType)!;
+  assert.equal(q.modelType?.name, "a boosted-trees model");
+  assert.match(q.modelType!.note, /not a promise/);
+  assert.equal(toQuote(fx.quote as unknown as BQuote)!.modelType, null);
+  const f = toForecast({ ...(fx.forecastOk as unknown as BForecast), model_type: withType.model_type })!;
+  assert.equal(f.modelType?.name, "a boosted-trees model");
+  assert.equal(toForecast(fx.forecastOk as unknown as BForecast)!.modelType, null);
+});
+
+test("data fix: before and after counts in plain words; the forecast before the fix is kept", () => {
+  const fix = toFix({
+    available: true, version_id: "v1", message: "We can remove 60 repeated row(s) and 1 mostly empty column(s).",
+    rows_before: 1560, rows_after: 1500, columns_before: 8, columns_after: 7, rows_removed: 60, columns_dropped: ["notes_col"],
+    steps: [{ kind: "drop_duplicate_rows", what: "Remove 60 repeated row(s)", why: "Exact repeats can make a result look better than it is." }],
+    fixes_used: 0, fixes_left: 3, note: "We will test whether this changes the estimate; it may not.",
+  })!;
+  assert.equal(fix.rows, "1,560 to 1,500");
+  assert.equal(fix.columns, "8 to 7");
+  assert.deepEqual(fix.columnsDropped, ["notes_col"]);
+  assert.equal(fix.fixesLeft, 3);
+  assert.equal(toFix(null), null);
+  const f = toForecast({
+    ...(fx.forecastOk as unknown as BForecast),
+    before_fix: { predicted_metric: 0.71, band_low: 0.65, band_high: 0.77, confidence: 0.3, target: 0.8, eligible: false },
+  })!;
+  assert.deepEqual(f.before, { expected: 71, confidence: 30, target: 80 });
+  assert.equal(toForecast(fx.forecastOk as unknown as BForecast)!.before, null);
 });
 
 test("training: not_started is normal; running and done map cleanly", () => {

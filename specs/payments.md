@@ -31,6 +31,7 @@ Implementation detail comes from PayPal's own documentation and OpenAPI schemas.
    - If the job fails on our side (training error, verification error, lost worker), void everything.
 8. **Result screen** shows forecast and verified result side by side.
 9. **Target missed:** "you paid compute only, no success fee". The best model is kept and a free-pilot "Improve" round is offered (the project reopens at the pilot step; a new quote needs a new hold).
+10. **Target reached, "Try a higher target" (2026-11-08):** a finished run that reached its target can start a new round with a strictly higher target (compared out of 100; otherwise a plain 400 naming both numbers). The project reopens at the pilot step exactly like Improve; the dataset version, the earlier model, the settled payment record and the history stay. A new pilot, quote, hold, training and verification follow, and a new model version is saved. Free until the user approves a new price and a new hold. `lifecycle.reopen_for_improvement(session, project, new_target)`; HUMAN REVIEW.
 
 A user stop mid-run captures the compute used so far and skips the fee (no verification). A cancel before the run voids the whole hold.
 
@@ -90,6 +91,8 @@ Payment code, webhook verification, the ledger and spend caps are reviewed by a 
 
 ## 9. Where the code is
 
+(`services/lifecycle.py` also holds the new-round rule: Improve after a miss, Try a higher target after a hit.)
+
 - `services/payments.py`: confirm the hold, settle, void, cancel, expire, webhook cross-check. `services/training.py` runs the job, verifies, then settles.
 - `services/data/pilot.py` and `forecast.py`: the free pilot and the forecast maths. `services/data/verification.py`: the locked test set and the one independent check.
 - `repositories/payments.py`, `ledger.py`, `webhooks.py`, `forecasts.py`: all SQL.
@@ -97,3 +100,9 @@ Payment code, webhook verification, the ledger and spend caps are reviewed by a 
 ## 10. Status
 
 Built and tested on the mock and on mocked HTTP. **Run against the real sandbox on 2026-11-02 (all passed):** buyer approval, authorize, a partial capture for compute, a second capture for the fee on the same hold, void of the remainder after captures, and repeat safety. **Not yet run:** the webhook. The live check is `tests/integration/test_paypal_sandbox.py` (two steps: create the hold and approve it as the sandbox buyer, then run the lifecycle test with the approved order id). PayPal may limit how many captures one authorization takes and how long a hold lasts; check both there. PayPal's schema lists `PAYMENT.AUTHORIZATION.*` webhook events, but nothing depends on them yet. Crowdfunding was removed.
+
+## 11. Quote pinning and free approach trials (2026-11-07) - HUMAN REVIEW
+
+- The quote pins the dataset version and the model type (`quotes.dataset_version_id`, `quotes.family`). The compute estimate is timed on that model type. `START_TRAINING` is refused (409) when the project's current data version differs from the quote's, or the latest forecast's family differs from the quote's. Old quotes without pins are not checked.
+- A second paid run (for example the Improve round after a missed target, or after a data fix) is a new quote, a new hold and a full compute charge again. `create_quote` blocks only while a hold is live (`held`) or half settled; a `released` hold of an earlier finished run does not block it.
+- Free approach trials: at most 3 applied data fixes per project (`max_fixes_per_project`). Each one changes the data (gate level 1, the user's click or approval card), creates a child dataset version, expires the unapproved quote and sends the project back to the free steps. The locked test rows come from the root version and never change, so the verified score of every version is measured on the same rows. No capture, void, ledger or webhook code is involved.

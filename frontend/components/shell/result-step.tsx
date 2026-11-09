@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Tag } from "@/components/ui/tag";
 import type { BProject, BReceipt, BTraining } from "@/lib/api";
 import * as real from "@/lib/api-real";
-import { improveStart, needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "@/lib/result-view";
+import { higherStart, improveStart, needsSettleRetry, OUR_FAILURE_TEXT, recapNote, toRecap, toResultView } from "@/lib/result-view";
 import { cn } from "@/lib/utils";
 import { TargetAction } from "./step-actions";
 import { ErrorLine, Row, useAction } from "./step-parts";
@@ -143,6 +143,7 @@ export function ResultStep({ project, onChanged }: StepProps) {
       <ReceiptCard receipt={receipt} />
       <RetrySettle project={project} receipt={receipt} refresh={refresh} onChanged={onChanged} />
       <ModelLink projectId={project.id} />
+      {v.kind === "verified" && <HigherTarget project={project} reached={v.target} onChanged={onChanged} />}
       {v.kind === "missed" && (
         <TargetAction
           project={project}
@@ -152,6 +153,35 @@ export function ResultStep({ project, onChanged }: StepProps) {
         />
       )}
     </>
+  );
+}
+
+// After a verified run: a new round at a higher target. Free to start; a new run needs a new price and a new PayPal hold.
+function HigherTarget({ project, reached, onChanged }: { project: BProject; reached: number | null; onChanged: () => void | Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <Card variant="violet" aria-label="Try a higher target" data-testid="higher-target" className="gap-2 p-4 shadow-card-tight">
+        <h2 className="text-sm font-semibold text-ink">Want a higher result?</h2>
+        <p className="text-sm leading-5 text-ink-2">Pick a higher target and we run a free small test first. Nothing is charged until you approve a new price and a new PayPal hold.</p>
+        <div>
+          <Button variant="outline" size="md" onClick={() => setOpen(true)}>
+            Try a higher target
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <TargetAction
+      project={project}
+      onChanged={onChanged}
+      initial={higherStart(reached)}
+      title="Try a higher target"
+      mustBeAbove={reached}
+      buttonLabel="Run the free small test"
+      intro={`You reached ${reached ?? "your target"} out of 100. Pick a higher number. The free small test gives an estimate of the chance a new run gets there. It is an estimate, not a promise. Your earlier model and receipt stay as they are.`}
+    />
   );
 }
 

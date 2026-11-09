@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 SCRIPT_DIR = Path(__file__).parent / "train_script"
 SERVICES_DIR = Path(__file__).parents[2] / "services" / "data"
-SHARED_MODULES = ("features.py", "baseline.py")   # copied verbatim into the tarball as package `aioac_core`
+SHARED_MODULES = ("features.py", "families.py", "baseline.py")   # copied verbatim into the tarball as package `aioac_core`
 SOURCE_TAR_NAME = "sourcedir.tar.gz"
 
 # Registry accounts for the AWS scikit-learn image. Only regions we have seen in AWS docs are listed;
@@ -66,7 +66,7 @@ def image_uri(region: str, image_version: str, override: str = "") -> str:
 
 
 def build_source_tarball() -> bytes:
-    """train.py at the top level plus aioac_core/ (verbatim features.py and baseline.py, one source of truth)."""
+    """train.py at the top level plus aioac_core/ (verbatim features.py, families.py and baseline.py, one source of truth)."""
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         tar.add(SCRIPT_DIR / "train.py", arcname="train.py")
@@ -123,7 +123,7 @@ class SageMakerBackend:
     def _put(self, key: str, body: bytes):
         self.s3.put_object(Bucket=self.bucket, Key=key, Body=body, ServerSideEncryption="AES256")
 
-    def _create_job(self, job: str, target: str, max_runtime: int) -> None:
+    def _create_job(self, job: str, target: str, max_runtime: int, family: str = "forest") -> None:
         base = f"s3://{self.bucket}/jobs/{job}"
         self.sm.create_training_job(
             TrainingJobName=job,
@@ -147,6 +147,7 @@ class SageMakerBackend:
                 "sagemaker_submit_directory": _hp(f"{base}/code/{SOURCE_TAR_NAME}"),
                 "sagemaker_region": _hp(self.region),
                 "target": _hp(target),
+                "family": _hp(family),
             },
             ProfilerConfig={"DisableProfiler": True},
             Tags=[{"Key": "project", "Value": "aioac"}],
@@ -188,7 +189,8 @@ class SageMakerBackend:
                 return f"aioac-{safe}"
         return f"aioac-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
-    def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None, job_key=None) -> TrainingResult:
+    def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None, job_key=None,
+            family="forest") -> TrainingResult:
         progress = on_progress or (lambda *a, **k: None)
         stop_check = should_stop or (lambda: False)
         if not self.bucket or not self.role_arn:
@@ -203,7 +205,7 @@ class SageMakerBackend:
         self._put(f"jobs/{job}/input/train/dataset.csv", Path(dataset_path).read_bytes())
         self._put(f"jobs/{job}/code/{SOURCE_TAR_NAME}", build_source_tarball())
         try:
-            self._create_job(job, target, max_runtime)
+            self._create_job(job, target, max_runtime, family or "forest")
         except Exception as e:
             if _error_code(e) != "ResourceInUse":
                 raise

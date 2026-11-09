@@ -96,3 +96,13 @@ export function improveStart(suggestedFraction: number | null | undefined, curre
   const suggested = percent(suggestedFraction);
   return suggested ?? currentTarget;
 }
+
+// "Try a higher target" after a verified run: the form starts a few points above the target already reached, never above 99.
+export const HIGHER_STEP = 3;
+export function higherStart(reached: number | null): number | null {
+  return reached === null ? null : Math.min(99, reached + HIGHER_STEP);
+}
+// A new round after a hit needs a strictly higher target (the server enforces it; this only explains it early).
+export function isHigherTarget(value: number | null, reached: number | null): boolean {
+  return value !== null && (reached === null || value > reached);
+}

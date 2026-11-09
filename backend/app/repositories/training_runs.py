@@ -66,6 +66,11 @@ def set_progress(session: Session, run: TrainingRun, stage: str, fraction: float
     session.commit()
 
 
+def set_dataset_version(session: Session, run: TrainingRun, dataset_version_id: str) -> None:
+    run.dataset_version_id = dataset_version_id
+    session.commit()
+
+
 def heartbeat_and_stop_requested(session: Session, run: TrainingRun) -> bool:
     session.refresh(run, ["stop_requested"])
     run.updated_at = _now()  # heartbeat
@@ -79,9 +84,46 @@ def mark_stop_requested(session: Session, run: TrainingRun) -> None:
     session.commit()
 
 
-def add_model(session: Session, project_id: str, run_id: str, storage_key: str, quality: dict) -> None:
-    session.add(Model(project_id=project_id, training_run_id=run_id, storage_key=storage_key, quality=quality))
+def add_model(session: Session, project_id: str, run_id: str, storage_key: str, quality: dict, **version) -> Model:
+    """`version` may carry version_no, dataset_version_id, forecast_id, quote_id, is_current, verified_value, passed."""
+    row = Model(project_id=project_id, training_run_id=run_id, storage_key=storage_key, quality=quality, **version)
+    session.add(row)
     session.commit()
+    return row
+
+
+def models_for_project(session: Session, project_id: str) -> list[Model]:
+    """Oldest first. Version numbers of old rows (no version_no) are worked out from this order by the service."""
+    return list(session.scalars(select(Model).where(Model.project_id == project_id).order_by(Model.created_at, Model.id)))
+
+
+def models_for_run(session: Session, run_id: str) -> list[Model]:
+    return list(session.scalars(select(Model).where(Model.training_run_id == run_id)))
+
+
+def get_model(session: Session, project_id: str, model_id: str) -> Model | None:
+    """Only a model of this project; any other id (including one of another project) is None."""
+    return session.scalar(select(Model).where(Model.project_id == project_id, Model.id == model_id))
+
+
+def current_model(session: Session, project_id: str) -> Model | None:
+    """The model flagged current. Old rows have no flag: then the newest model is current."""
+    flagged = session.scalar(select(Model).where(Model.project_id == project_id, Model.is_current.is_(True))
+                             .order_by(Model.created_at.desc(), Model.id.desc()))
+    return flagged or latest_model(session, project_id)
+
+
+def set_current(session: Session, project_id: str, model_id: str) -> None:
+    """Make one model of the project current and clear the flag on every other one, in one transaction."""
+    session.execute(update(Model).where(Model.project_id == project_id, Model.id != model_id).values(is_current=False))
+    session.execute(update(Model).where(Model.project_id == project_id, Model.id == model_id).values(is_current=True))
+    session.commit()
+
+
+def next_version_no(session: Session, project_id: str) -> int:
+    """One more than the highest number so far; old rows without a number count by how many models exist."""
+    rows = models_for_project(session, project_id)
+    return max([len(rows)] + [m.version_no or 0 for m in rows]) + 1
 
 
 def all_for_project(session: Session, project_id: str) -> list[TrainingRun]:

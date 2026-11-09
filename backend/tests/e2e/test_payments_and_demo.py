@@ -21,9 +21,11 @@ class ScriptedBackend:
     name, instance_type = "scripted", "x"
 
     def __init__(self, cost=0, fail=False):
-        self.cost, self.fail = cost, fail
+        self.cost, self.fail, self.families, self.paths = cost, fail, [], []
 
-    def run(self, path, target, cap, on_progress=None, should_stop=None, job_key=None):
+    def run(self, path, target, cap, on_progress=None, should_stop=None, job_key=None, family="forest"):
+        self.families.append(family)
+        self.paths.append(str(path))
         if self.fail:
             raise RuntimeError("boom")
         return TrainingResult(0.8, 0.7, 1.0, self.cost, False, b"model")

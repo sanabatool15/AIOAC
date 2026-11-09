@@ -81,3 +81,20 @@ test("Improve starts at the suggested target, else the current target, never the
   assert.equal(improveStart(undefined, 80), 80);
   assert.equal(improveStart(undefined, null), null);
 });
+
+import { higherStart, isHigherTarget } from "../lib/result-view";
+
+test("Try a higher target starts a few points above the reached target and never above 99", () => {
+  assert.equal(higherStart(94), 97);
+  assert.equal(higherStart(98), 99);
+  assert.equal(higherStart(99), 99);
+  assert.equal(higherStart(null), null);
+});
+
+test("a new round after a hit needs a strictly higher target", () => {
+  assert.equal(isHigherTarget(99, 94), true);
+  assert.equal(isHigherTarget(94, 94), false);
+  assert.equal(isHigherTarget(80, 94), false);
+  assert.equal(isHigherTarget(null, 94), false);
+  assert.equal(isHigherTarget(90, null), true);
+});

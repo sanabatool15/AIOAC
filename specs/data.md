@@ -35,7 +35,7 @@ Candidates are temporary. The chosen dataset is permanent.
 3. **Cleanup.** After selection, the other candidates are deleted immediately.
 4. **Cleaned versions.** Each cleaning step creates a new version. The original is never edited.
 
-Storage is object storage (S3 in the cloud, a local folder in development) behind one interface, so the code does not care which.
+Storage is object storage (S3 in the cloud, a local folder in development) behind one interface, so the code does not care which. S3 is built (`STORAGE_BACKEND=s3`, `specs/training.md` 2c): candidates live under `app/candidates/` where a bucket rule deletes them after 1 day (S3 counts whole days); chosen datasets and models are never expired.
 
 Rule: the database records what exists; storage holds the bytes; a periodic check reports anything stored that the database does not know about.
 

@@ -58,10 +58,12 @@ export function QuoteStep({ project, onChanged }: StepProps) {
           <dl className="flex flex-col gap-1.5">
             <Row label="Estimated total (estimate)" value={q.estimate} strong />
             <Row label="Likely range (estimate)" value={q.range} />
+            {q.modelType && <Row label="Model type" value={q.modelType.name} />}
             <Row label="Compute, up to" value={q.computeMax} />
             <Row label="Success fee, up to (only if verified)" value={q.feeMax} />
             <Row label="The most you can ever be charged (the cap)" value={q.cap} strong />
           </dl>
+          {q.modelType && <p className="text-xs text-muted">{q.modelType.note}</p>}
           <p className="text-sm leading-5 text-ink-2">
             PayPal will hold {q.cap} (the cap) and charge nothing yet. When the run is over, we charge the compute
             actually used and release the rest of the hold. {q.terms}

@@ -30,13 +30,18 @@ const memoryStore = (): KV & { data: Map<string, string> } => {
   const data = new Map<string, string>();
   return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v) };
 };
-function make(opts: { stored?: unknown[]; replies?: (object | Error)[]; store?: KV | null; gate?: Promise<void> } = {}) {
+type Act = { when: string; kind: string; text: string };
+function make(
+  opts: { stored?: unknown[]; replies?: (object | Error)[]; store?: KV | null; gate?: Promise<void>; postGate?: Promise<void>; activity?: () => Promise<Act[]> } = {},
+) {
   const posts: Body[] = [];
   const gets: string[] = [];
   const replies = [...(opts.replies ?? [])];
   let changed = 0;
+  let activityCalls = 0;
   const post = async (_id: string, body: Body) => {
     posts.push(body);
+    await opts.postGate;
     const r = replies.shift();
     if (r instanceof Error) throw r;
     return (r ?? replyText) as never;
@@ -62,10 +67,14 @@ function make(opts: { stored?: unknown[]; replies?: (object | Error)[]; store?: 
       });
     },
     getMessages: get,
+    getActivity: () => {
+      activityCalls++;
+      return (opts.activity ?? (async () => []))();
+    },
     postChat: post,
   };
   const c = new ChatController("p1", "predict churn", () => void changed++, deps, opts.store === undefined ? memoryStore() : opts.store);
-  return { c, posts, gets, changed: () => changed };
+  return { c, posts, gets, changed: () => changed, activityCalls: () => activityCalls };
 }
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
@@ -74,7 +83,7 @@ test("a new project sends the goal once; opening twice does not send again", asy
   const t = make({ replies: [replyCard] });
   await Promise.all([t.c.open("described"), t.c.open("described")]);
   assert.deepEqual(t.posts, [{ message: "predict churn" }]);
-  assert.equal(t.c.getState().items?.[1].card?.detail?.name, "Credit card default");
+  assert.equal((t.c.getState().items?.[1].card?.detail as { name?: string } | undefined)?.name, "Credit card default");
   assert.equal(t.c.getState().busy, false);
 });
 
@@ -247,4 +256,150 @@ test("without working storage everything still runs", async () => {
   await t.c.open("described");
   t.c.decline(storedCard.id);
   assert.equal(t.c.isDeclined(storedCard.id), true); // lasts until reload
+});
+
+// ---- live steps (GET /activity polled every 2 s while a turn runs) ----
+const tick = async (t: { mock: { timers: { tick: (ms: number) => void } } }, ms = 2000) => {
+  t.mock.timers.tick(ms);
+  await new Promise((r) => setImmediate(r)); // setImmediate is not mocked: lets the poll's promise chain settle
+};
+const settle = () => new Promise((r) => setImmediate(r));
+// Wait until the goal has gone out (the controller shows the turn as running), so the poll timer exists.
+const turnStarted = async (c: ChatController) => {
+  for (let i = 0; i < 50 && c.getState().busySince === null; i++) await settle();
+};
+const line = (text: string, kind = "search", when = Date.now() + 1000): Act => ({ when: new Date(when).toISOString(), kind, text });
+
+test("polling shows only lines that are new compared with the server's own feed when the turn started (browser clock ignored)", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const old = line("Searched open datasets for old stuff", "search", Date.now() - 60_000);
+  const feed: Act[] = [old];
+  const m = make({ activity: async () => [...feed], gate });
+  const open = m.c.open("described"); // sends the goal: the turn is running
+  await turnStarted(m.c);
+  await settle(); // the baseline fetch
+  feed.push(line("You said: x", "you"), ...[1, 2, 3, 4, 5, 6].map((n) => line(`Step ${n}`)), line("The assistant replied", "reply"));
+  await tick(t);
+  assert.deepEqual(m.c.getState().liveSteps, ["Step 2", "Step 3", "Step 4", "Step 5", "Step 6"]);
+  assert.equal(m.activityCalls(), 2);
+  release();
+  await open;
+  assert.deepEqual(m.c.getState().liveSteps, []);
+  assert.equal(m.c.getState().busy, false);
+  const after = m.activityCalls();
+  await tick(t, 10_000);
+  assert.equal(m.activityCalls(), after, "no polling after the turn ended");
+});
+
+test("a skewed browser clock changes nothing: only the server's own feed decides what is new", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const farPast = (text: string) => line(text, "search", Date.parse("2001-01-01T00:00:00Z"));
+  const feed: Act[] = [line("Previous turn step", "search", Date.parse("2099-01-01T00:00:00Z"))];
+  const m = make({ activity: async () => [...feed], gate });
+  const open = m.c.open("described");
+  await turnStarted(m.c);
+  await settle();
+  assert.deepEqual(m.c.getState().liveSteps, [], "a line from the previous turn is not shown, even if its stamp looks like the future");
+  feed.push(farPast("New step of this turn"));
+  await tick(t);
+  assert.deepEqual(m.c.getState().liveSteps, ["New step of this turn"], "a new line is shown, even if its stamp looks like the past");
+  release();
+  await open;
+});
+
+test("dispose stops the polling", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const m = make({ activity: async () => [], gate });
+  const open = m.c.open("described");
+  await turnStarted(m.c);
+  await settle();
+  m.c.dispose();
+  const n = m.activityCalls();
+  await tick(t, 10_000);
+  assert.equal(m.activityCalls(), n);
+  release();
+  await open;
+});
+
+test("a tick is skipped while the previous activity fetch is still in flight", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let release!: () => void;
+  const slow = new Promise<void>((r) => (release = r));
+  let calls = 0;
+  let endTurn!: () => void;
+  const m = make({
+    gate: new Promise<void>((r) => (endTurn = r)), // the turn runs until the end of the test (bootChat shares one call per project)
+    activity: async () => {
+      calls++;
+      await slow;
+      return [];
+    },
+  });
+  const open = m.c.open("described");
+  await turnStarted(m.c);
+  await tick(t);
+  await tick(t);
+  await tick(t);
+  assert.equal(calls, 1);
+  release();
+  await tick(t);
+  await tick(t);
+  assert.equal(calls, 2);
+  endTurn();
+  await open;
+});
+
+test("poll errors are ignored: no error state, polling continues; polling makes no extra POST", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let n = 0;
+  const feed: Act[] = [];
+  const m = make({
+    gate,
+    activity: async () => {
+      if (++n === 1) throw new Error("database is locked"); // the baseline fetch fails: the next tick takes it
+      return [...feed];
+    },
+  });
+  const open = m.c.open("described");
+  await turnStarted(m.c);
+  await settle();
+  await tick(t); // baseline taken here
+  assert.equal(m.c.getState().error, null);
+  assert.deepEqual(m.c.getState().liveSteps, []);
+  feed.push(line("Looking at a dataset…", "working"));
+  await tick(t);
+  assert.deepEqual(m.c.getState().liveSteps, ["Looking at a dataset…"]);
+  release();
+  await open;
+  assert.deepEqual(m.posts, [{ message: "predict churn" }], "exactly one POST /chat for the goal");
+});
+
+test("a send starts polling and clears the live lines when the reply arrives; an idle chat does not poll", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let release!: () => void;
+  const postGate = new Promise<void>((r) => (release = r));
+  let calls = 0;
+  const m = make({ stored: [storedUser], replies: [replyText], postGate, activity: async () => (++calls > 1 ? [line("Checking data readiness…", "working")] : []) });
+  await m.c.open("data_chosen");
+  await tick(t, 10_000);
+  assert.equal(m.activityCalls(), 0, "an idle chat does not poll");
+  const sending = m.c.send("hello");
+  await settle();
+  await tick(t);
+  assert.deepEqual(m.c.getState().liveSteps, ["Checking data readiness…"]);
+  release();
+  await sending;
+  assert.deepEqual(m.c.getState().liveSteps, []);
+  assert.deepEqual(m.posts, [{ message: "hello" }], "polling adds no POST");
+  const after = m.activityCalls();
+  await tick(t, 10_000);
+  assert.equal(m.activityCalls(), after);
 });

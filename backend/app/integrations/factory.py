@@ -48,15 +48,21 @@ def llm_configured() -> bool:
     return _real_value(settings.openrouter_api_key)
 
 
-def get_llm(model: str | None = None) -> LLMClient:
+def get_llm(model: str | None = None, timeout: float | None = None) -> LLMClient:
+    kw = {} if timeout is None else {"timeout": timeout}
     if settings.llm_provider == "azure":
         from .llm.azure import AzureFoundryClient
-        return AzureFoundryClient(model=model)
-    return OpenRouterClient(model=model)
+        return AzureFoundryClient(model=model, **kw)
+    return OpenRouterClient(model=model, **kw)
 
 
 @lru_cache
 def get_storage() -> Storage:
+    if settings.storage_backend == "s3":
+        from .storage.s3 import S3Storage  # imported here so the local default needs no AWS setup
+
+        bucket = settings.storage_s3_bucket or settings.sagemaker_bucket
+        return S3Storage(bucket, settings.storage_s3_prefix, settings.sagemaker_region)
     return LocalStorage(settings.storage_dir)
 
 

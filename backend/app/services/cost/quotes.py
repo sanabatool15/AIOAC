@@ -10,6 +10,7 @@ from ...repositories import forecasts as forecasts_repo
 from ...repositories import payments as payments_repo
 from ...repositories import quotes as quotes_repo
 from .. import lifecycle
+from ..data import families
 from .cost import estimate_quote
 
 
@@ -24,7 +25,9 @@ def create_quote(session: Session, project: Project) -> Quote:
         raise QuoteError(f"a new quote cannot be made now (the project is '{project.status}')")
     previous = quotes_repo.latest_for_project(session, project.id)
     old = payments_repo.for_quote(session, previous.id) if previous else None
-    if old is not None and old.state not in {"none", "voided", "expired", "declined"}:
+    # A hold that is live (held) or half settled (captures done, remainder not yet released) still blocks a new quote.
+    # A fully settled one (released) belongs to an earlier finished run and must not block the Improve round.
+    if old is not None and old.state in {"held", "compute_captured", "fee_captured", "fee_skipped"}:
         raise QuoteError("a payment hold already exists for the current quote; cancel it before asking for a new quote")
     forecast = forecasts_repo.latest_for_project(session, project.id)
     if forecast is None:
@@ -34,8 +37,13 @@ def create_quote(session: Session, project: Project) -> Quote:
     run = analysis_repo.latest_baseline_run(session, project.id)
     if run is None:
         raise QuoteError("run the free baseline first: the quote needs its timings")
-    version = datasets_repo.get_version(session, run.dataset_version_id)
-    est = estimate_quote([tuple(s) for s in run.samples], version.rows, settings.max_job_cap_cents)
+    version = datasets_repo.get_version(session, project.chosen_dataset_version_id)
+    if forecast.dataset_version_id and forecast.dataset_version_id != version.id:
+        raise QuoteError("the data changed after the last free test; run the free test again before asking for a price")
+    # The price is timed on the model type the pilot kept, so the paid run costs what was quoted. Old forecasts
+    # without timings fall back to the free baseline's timings (the forest).
+    samples = (forecast.pilot or {}).get("cost_samples") or run.samples
+    est = estimate_quote([tuple(s) for s in samples], version.rows, settings.max_job_cap_cents)
 
     def fee_of(compute_cents: int) -> int:  # the success fee is a share of the compute
         return math.ceil(settings.success_fee_percent * compute_cents)
@@ -45,6 +53,7 @@ def create_quote(session: Session, project: Project) -> Quote:
         session, project_id=project.id, instance_type=est.instance_type, estimate_cents=est.estimate_cents + fee_estimate,
         low_cents=est.low_cents + fee_of(est.low_cents), high_cents=est.high_cents + fee_of(est.high_cents),
         cap_cents=est.cap_cents + max_fee, compute_cap_cents=est.cap_cents, fee_cents=max_fee, forecast_id=forecast.id,
+        dataset_version_id=version.id, family=forecast.family or families.DEFAULT_FAMILY,
         breakdown={**est.breakdown, "compute_estimate_cents": est.estimate_cents,
                    "compute_low_cents": est.low_cents, "compute_high_cents": est.high_cents,
                    "success_fee_estimate_cents": fee_estimate, "success_fee_max_cents": max_fee,

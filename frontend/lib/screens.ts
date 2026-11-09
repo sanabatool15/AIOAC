@@ -1,7 +1,7 @@
 // Pure view rules for the restored screens (project detail, model, usage, billing history, sharing, welcome).
 // Inputs are raw backend bodies (specs/api.md section D); money goes through adapters.dollars. No React, no fetch.
 import { dollars, outOf100 } from "./adapters";
-import type { BPublicResult, BAccountPayment, BActivityItem, BHistory, BModelColumn, BPredict, BUsage } from "./api";
+import type { BPublicResult, BAccountPayment, BActivityItem, BHistory, BModelColumn, BModelVersion, BPredict, BReceipt, BUsage } from "./api";
 
 // "2026-11-06T17:13:05.3" -> "Nov 6, 17:13". The server sends UTC; a value with no zone is read as UTC.
 // `timeZone` is for tests; screens leave it out and show the viewer's own time.
@@ -63,9 +63,29 @@ export function runStatusLabel(status: string): string {
 
 export interface HistoryView {
   versions: { id: string; title: string; detail: string; when: string }[];
-  runs: { id: string; status: string; when: string; cost: string; result: string; passed: boolean | null }[];
+  runs: { id: string; round: number | null; versionNo: number | null; status: string; when: string; cost: string; result: string; passed: boolean | null }[];
   quotes: { id: string; estimate: string; range: string; cap: string; approved: boolean; when: string }[];
-  payment: { state: string; held: string; compute: string; fee: string; released: string; total: string } | null;
+  payment: PaymentView | null;
+  payments: (PaymentView & { key: string; when: string })[]; // every hold, oldest first (a new round has its own hold)
+}
+
+export interface PaymentView {
+  state: string;
+  held: string;
+  compute: string;
+  fee: string;
+  released: string;
+  total: string;
+}
+function toPayment(pay: BReceipt): PaymentView {
+  return {
+    state: paymentStateLabel(pay.state, pay.total_charged_cents),
+    held: dollars(pay.hold_cents),
+    compute: dollars(pay.compute_captured_cents),
+    fee: dollars(pay.fee_captured_cents),
+    released: dollars(pay.released_cents),
+    total: dollars(pay.total_charged_cents),
+  };
 }
 
 function quoteRange(low: number, high: number): string {
@@ -91,6 +111,8 @@ export function toHistory(h: BHistory | null | undefined): HistoryView {
       }
       return {
         id: r.id,
+        round: r.round ?? null,
+        versionNo: r.version_no ?? null,
         status: runStatusLabel(r.status),
         when: formatWhen(r.finished_at ?? r.started_at),
         cost: dollars(r.cost_cents),
@@ -106,16 +128,8 @@ export function toHistory(h: BHistory | null | undefined): HistoryView {
       approved: q.approved,
       when: formatWhen(q.created_at),
     })),
-    payment: pay
-      ? {
-          state: paymentStateLabel(pay.state, pay.total_charged_cents),
-          held: dollars(pay.hold_cents),
-          compute: dollars(pay.compute_captured_cents),
-          fee: dollars(pay.fee_captured_cents),
-          released: dollars(pay.released_cents),
-          total: dollars(pay.total_charged_cents),
-        }
-      : null,
+    payment: pay ? toPayment(pay) : null,
+    payments: (h?.payments ?? []).map((p) => ({ ...toPayment(p), key: p.payment_id, when: formatWhen(p.created_at) })),
   };
 }
 
@@ -165,6 +179,13 @@ export const MAX_BATCH_ROWS = 5000;
 
 // What the user typed in the "try one record" form -> the body of POST /predict.
 // Empty fields are left out (the model fills them in). A number column needs a number.
+// How a model input column is titled on the form: the plain label as the main text and the raw column name as small
+// text next to it. Without a label the raw name is the main text. Field ids and CSV headers always use the raw name.
+export function columnTitle(c: Pick<BModelColumn, "name" | "label">): { main: string; raw: string | null } {
+  const label = c.label?.trim();
+  return label && label !== c.name ? { main: label, raw: c.name } : { main: c.name, raw: null };
+}
+
 export function buildRecord(
   columns: Pick<BModelColumn, "name" | "kind">[],
   values: Record<string, string>,
@@ -226,6 +247,50 @@ export function sklearnNote(version: string | null | undefined): string {
 export function cellText(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "";
   return typeof v === "number" && !Number.isInteger(v) ? String(Math.round(v * 10000) / 10000) : String(v);
+}
+
+// ---------------------------------------------------------------- model versions
+
+export interface VersionView {
+  id: string;
+  versionNo: number;
+  title: string; // "Version 2"
+  when: string;
+  result: string; // the check on rows the model never saw, in plain words
+  reached: boolean | null;
+  inUse: boolean;
+  usable: boolean;
+  dataKey: string | null;
+}
+export function toVersions(list: BModelVersion[] | null | undefined): VersionView[] {
+  return (list ?? []).map((v) => ({
+    id: v.model_id,
+    versionNo: v.version_no,
+    title: `Version ${v.version_no}`,
+    when: formatWhen(v.created_at),
+    result:
+      v.verified_value === null
+        ? "No final check was saved for this version."
+        : `About ${outOf100(v.verified_value)} right on rows it never saw (an estimate).`,
+    reached: v.passed,
+    inUse: v.is_current,
+    usable: v.usable,
+    dataKey: v.dataset_version_id,
+  }));
+}
+// One line comparing the newest version with the next older one trained on the SAME data (only then is the check
+// comparable). Null when there is no such pair or a score is missing. Points are out of 100 and always an estimate.
+export function compareLine(list: BModelVersion[] | null | undefined): string | null {
+  const rows = [...(list ?? [])].sort((a, b) => b.version_no - a.version_no);
+  const [newest] = rows;
+  if (!newest || !newest.dataset_version_id || newest.verified_value === null) return null;
+  const older = rows.slice(1).find((v) => v.dataset_version_id === newest.dataset_version_id && v.verified_value !== null);
+  if (!older || older.verified_value === null) return null;
+  const points = Math.round((newest.verified_value - older.verified_value) * 100);
+  const names = `version ${newest.version_no}`;
+  if (points === 0) return `${names[0].toUpperCase()}${names.slice(1)} scored about the same as version ${older.version_no} (an estimate from rows neither model saw).`;
+  const n = Math.abs(points);
+  return `${names[0].toUpperCase()}${names.slice(1)} is ${n} point${n === 1 ? "" : "s"} ${points > 0 ? "better" : "worse"} than version ${older.version_no} (an estimate from rows neither model saw).`;
 }
 
 // ---------------------------------------------------------------- project tabs
@@ -312,6 +377,7 @@ export interface PublicView {
   answerColumn: string | null;
   freeTest: string | null;
   verified: { value: string; target: string; passed: boolean } | null;
+  versionLabel: string | null; // "Version 2": the version in use, the only one shown
   finished: string;
   note: string;
 }
@@ -327,6 +393,7 @@ export function toPublic(r: BPublicResult): PublicView {
     verified: r.verification
       ? { value: outOf100(r.verification.value), target: outOf100(r.verification.target), passed: r.verification.passed === true }
       : null,
+    versionLabel: r.version_no ? `Version ${r.version_no}` : null,
     finished: formatWhen(r.finished_at),
     note: r.is_estimate_note || "These numbers are estimates, not a promise about future results.",
   };

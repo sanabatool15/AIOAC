@@ -85,6 +85,14 @@ class DatasetVersion(Stamped, Base):
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class ColumnLabel(Stamped, Base):
+    """Plain-English labels for a dataset version's columns (Model tab). One row per version: a cache of one LLM call."""
+    __tablename__ = "column_labels"
+    dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"), unique=True, index=True)
+    labels: Mapped[dict] = mapped_column(JSON)  # {raw column name: short plain label}
+    model: Mapped[str | None] = mapped_column(String, nullable=True)  # which model wrote them
+
+
 class InsightReport(Stamped, Base):
     __tablename__ = "insight_reports"
     dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"), index=True)
@@ -115,6 +123,9 @@ class Quote(Stamped, Base):
     compute_cap_cents: Mapped[int] = mapped_column(Integer, default=0)
     fee_cents: Mapped[int] = mapped_column(Integer, default=0)
     forecast_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The quote PINS what was priced: the data version and the model type. The gate refuses to train if either changed.
+    dataset_version_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    family: Mapped[str | None] = mapped_column(String, nullable=True)
     prices_version: Mapped[str] = mapped_column(String)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -156,6 +167,8 @@ class Forecast(Stamped, Base):
     eligible: Mapped[bool] = mapped_column(Boolean, default=False)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)  # plain-words reason when not eligible
     pilot: Mapped[dict | None] = mapped_column(JSON, nullable=True)    # rows used, models tried and dropped, learning curve
+    family: Mapped[str | None] = mapped_column(String, nullable=True)  # the model type the pilot kept (services/data/families.py)
+    dataset_version_id: Mapped[str | None] = mapped_column(String, nullable=True)  # the data the pilot looked at
 
 
 class LedgerEntry(Base):
@@ -195,6 +208,7 @@ class TrainingRun(Stamped, Base):
     stopped_at_cap: Mapped[bool] = mapped_column(Boolean, default=False)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dataset_version_id: Mapped[str | None] = mapped_column(String, nullable=True)  # the data this run trained on
 
 
 class Model(Stamped, Base):
@@ -204,6 +218,15 @@ class Model(Stamped, Base):
     storage_key: Mapped[str] = mapped_column(String)
     quality: Mapped[dict] = mapped_column(JSON)
     visibility: Mapped[str] = mapped_column(String, default="private")
+    # Versions (specs/model-versions-and-improve.md section 5). All nullable: old rows are read with a fallback.
+    version_no: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1..n per project
+    dataset_version_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    forecast_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    quote_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=False)  # at most one per project (set_current is atomic)
+    verified_value: Mapped[float | None] = mapped_column(Float, nullable=True)  # score on the locked rows
+    passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # verification met the target
+    family: Mapped[str | None] = mapped_column(String, nullable=True)  # the model type this version was trained as
 
 
 class Share(Base):

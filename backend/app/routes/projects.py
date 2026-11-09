@@ -2,13 +2,13 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from ..db import Session, get_session
 from ..integrations.factory import get_job_runner
 from ..deps import current_user, get_ctx_factory, get_llm_client, owned_project
 from ..db.tables import Project, User
 from ..ports import ProviderError
-from ..integrations.factory import get_storage
+from ..integrations.factory import get_dataset_source, get_storage
 from ..repositories import analysis as analysis_repo
 from ..repositories import conversations as conversations_repo
 from ..repositories import datasets as datasets_repo
@@ -17,12 +17,13 @@ from ..repositories import payments as payments_repo
 from ..repositories import projects as projects_repo
 from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
-from ..services.data import analysis, datasets
-from .forecast import forecast_view
+from ..services.data import analysis, dataset_link, datasets, families
+from .forecast import forecast_view, previous_on_other_data
 from .payments import receipt
 from ..services import gate, lifecycle, payments, training
 from ..services.cost import quotes
 from ..services.agent.loop import TurnInProgress, run_agent
+from ..services.agent.tools import TOOLS
 from ..services.agent.runlog import DbSink, RunLog
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -59,17 +60,20 @@ def read(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(
     version = datasets_repo.get_version(s, p.chosen_dataset_version_id) if p.chosen_dataset_version_id else None
     report = analysis_repo.latest_insight_report(s, version.id) if version else None
     forecast = forecasts_repo.latest_for_project(s, pid)
+    if forecast and forecast.dataset_version_id and forecast.dataset_version_id != p.chosen_dataset_version_id:
+        forecast = None   # the data was changed (a guided fix) after this forecast: it says nothing about the new data, so run the free pilot again
     pay = payments_repo.for_quote(s, q.id) if q else None
     run = runs_repo.latest_for_project(s, pid)
     return {"id": p.id, "goal": p.goal, "status": p.status, "readiness_grade": p.readiness_grade,
             "trust_level": p.trust_level, "baseline": p.baseline_result,
             "quote": q and {"id": q.id, "estimate_cents": q.estimate_cents, "low_cents": q.low_cents,
                             "high_cents": q.high_cents, "cap_cents": q.cap_cents, "success_fee_max_cents": q.fee_cents,
-                            "approved": q.approved_at is not None},
+                            "approved": q.approved_at is not None, "model_type": families.type_info(q.family)},
             "dataset": version and {"rows": version.rows, "columns": version.columns, "target": version.target_column,
-                                    "source": version.source, "license": version.license},
+                                    "source": version.source, "license": version.license,
+                                    "fixed": version.parent_id is not None, "notes": version.notes if version.parent_id else None},
             "readiness": report and {"grade": report.grade, "findings": report.findings},
-            "forecast": forecast and forecast_view(forecast),
+            "forecast": forecast and forecast_view(forecast, previous_on_other_data(s, forecast)),
             "payment": pay and {"payment_id": pay.id, "state": pay.state, "approve_url": pay.approve_url, "hold_cents": pay.amount_cents},
             "run": run and {"run_id": run.id, "status": run.status}}
 
@@ -90,10 +94,15 @@ def messages(pid: str, *, p: Project = Depends(owned_project), s: Session = Depe
     return out
 
 
+def _approved_actions(names: list[str]) -> set[str]:
+    """The card carries a tool name; the gate speaks in action names (they differ for apply_data_fix: tool apply_data_fix, action clean)."""
+    return {TOOLS[n].action.value if n in TOOLS else n for n in names}
+
+
 @router.post("/{pid}/chat")
 def chat(pid: str, *, p: Project = Depends(owned_project), body: ChatIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory), llm=Depends(get_llm_client)):
     try:
-        r = run_agent(make(p, body.approve), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
+        r = run_agent(make(p, _approved_actions(body.approve)), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
     except TurnInProgress as e:
         raise HTTPException(409, str(e))
     return {"status": r.status, "text": r.text, "card": r.card, "blocks": r.blocks}
@@ -106,6 +115,19 @@ def upload(pid: str, *, p: Project = Depends(owned_project), body: UploadIn, s: 
     except datasets.DatasetError as e:
         raise HTTPException(400, str(e))
     return {"candidate_id": c.id, "rows": c.rows}
+
+
+class LinkIn(BaseModel):
+    url: str = Field(min_length=1, max_length=300)
+
+
+@router.post("/{pid}/data/link")
+def add_link(pid: str, *, p: Project = Depends(owned_project), body: LinkIn, s: Session = Depends(get_session)):
+    """A pasted page address of a Hugging Face, UCI or OpenML dataset. Any other address is refused (no arbitrary fetches)."""
+    try:
+        return dataset_link.add_from_link(s, get_storage(), p, get_dataset_source(), body.url)
+    except datasets.DatasetError as e:
+        raise HTTPException(400, str(e))
 
 
 class SelectIn(BaseModel):

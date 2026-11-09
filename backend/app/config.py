@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./aioac.db"
     database_pooled: bool | None = None  # None = auto (true for Supabase pooler on port 6543). See README.
     storage_dir: str = "./storage"
+    storage_backend: str = "local"        # local | s3. s3 uses the standard AWS credential chain (specs/training.md 2c)
+    storage_s3_bucket: str = ""           # empty = use SAGEMAKER_BUCKET
+    storage_s3_prefix: str = "app/"       # all app files live under this prefix; candidates/ below it may expire
     job_runner: str = "inline"  # inline | inngest
     inngest_event_key: str = ""
     inngest_signing_key: str = ""
@@ -27,6 +30,8 @@ class Settings(BaseSettings):
     azure_openai_base_url: str = ""  # https://RESOURCE.openai.azure.com/openai/v1/ (llm_provider=azure)
     azure_openai_api_key: str = ""
     azure_openai_model: str = ""  # the DEPLOYMENT name in Azure AI Foundry
+    label_model: str = ""              # model/deployment for plain-English column labels (Model tab). Empty = the default model above
+    label_timeout_s: float = 8.0       # one short call; any failure just means no labels
     hf_token: str = ""  # optional; public datasets work without it
     max_fetch_rows: int = 50_000
     max_fetch_bytes: int = 50_000_000
@@ -65,6 +70,7 @@ class Settings(BaseSettings):
     success_fee_percent: float = 0.05    # of the compute actually used; charged only if the locked-test-set check passes
     forecast_min_confidence: float = 0.60  # below this the run is not sold ("Not eligible")
     forecast_min_rows: int = 500         # after cleaning; fewer rows cannot support a forecast
+    max_fixes_per_project: int = 3       # free data-fix tries per project; more would let a lucky forecast look real
     hold_ttl_hours: int = 24             # a hold nobody trains on is marked expired after this
     candidate_ttl_hours: int = 24
     agent_max_steps: int = 12

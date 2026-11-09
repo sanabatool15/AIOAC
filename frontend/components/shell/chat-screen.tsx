@@ -1,17 +1,17 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Skeleton } from "@/components/ui/state";
 import { ApiError, type BProject } from "@/lib/api";
 import { getProject, rememberProject } from "@/lib/api-real";
 import { isSettling, screenFor, STEP_LABELS, stepIndex } from "@/lib/status";
 import { ChatComposer, ChatThread, useProjectChat } from "./project-chat";
-import { UploadPanel } from "./data-upload";
+import { DataPicker } from "./data-picker";
 import { InlineChatFrame } from "./inline-chat";
 import { Stepper } from "./step-parts";
 import { StepArea } from "./step-area";
 import { PROJECTS_CHANGED } from "./sidebar";
+import { useFollowChat } from "./use-follow-chat";
 
 // Route body for /c/[chatId]: the screen comes from the project status (lib/status.ts), loaded from the server on every
 // visit. The project chat is on every status; a chat reply that may change things makes the page read the project again.
@@ -63,16 +63,14 @@ export function ChatScreen({ chatId }: { chatId: string }) {
 
 function Project({ project, error, reload }: { project: BProject; error: Error | null; reload: () => Promise<void> }) {
   const pc = useProjectChat(project.id, project.goal, project.status, reload);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const screen = screenFor(project);
   const idx = stepIndex(screen);
   const onData = screen === "data";
   const bottom = useRef<HTMLDivElement>(null);
-  const itemCount = pc.state.items?.length ?? 0;
-  // Keep the newest message and the current step in view (chat first, then what to do next).
-  useEffect(() => {
-    bottom.current?.scrollIntoView?.({ block: "end" });
-  }, [itemCount, pc.state.busy, project.status]);
+  const items = pc.state.items;
+  const lastIsUser = items?.[items.length - 1]?.role === "user";
+  // The newest chat message (or the live steps) stays next to the composer. A reader who scrolled up is not moved.
+  useFollowChat(bottom, `${items?.length ?? 0}:${pc.state.busy}:${pc.state.liveSteps.length}`, !!lastIsUser, items !== null);
 
   return (
     <InlineChatFrame
@@ -80,7 +78,7 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
       projectName={project.goal.length > 48 ? `${project.goal.slice(0, 48)}…` : project.goal}
       stepLabel={`Step ${idx + 1} of ${STEP_LABELS.length}: ${STEP_LABELS[idx]}`}
       wide
-      composer={<ChatComposer pc={pc} onAttach={onData ? () => setUploadOpen(true) : undefined} />}
+      composer={<ChatComposer pc={pc} />}
     >
       <Stepper index={idx} />
       {error && (
@@ -91,22 +89,11 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
           </Button>
         </p>
       )}
-      <ChatThread pc={pc} projectStatus={project.status} />
+      {/* The step cards come first and the chat under them, so a new reply is read right above the composer.
+          On the data step the chat comes first: the picker answers it. */}
       {!onData && <StepArea screen={screen} project={project} onChanged={reload} />}
-      {onData && (
-        <div className="flex flex-col gap-3">
-          <Button
-            variant="outline"
-            className="w-fit"
-            aria-expanded={uploadOpen}
-            onClick={() => setUploadOpen((o) => !o)}
-          >
-            {uploadOpen ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
-            {uploadOpen ? "Hide the upload option" : "Or upload my own CSV"}
-          </Button>
-          {uploadOpen && <UploadPanel projectId={project.id} onChanged={reload} />}
-        </div>
-      )}
+      <ChatThread pc={pc} projectStatus={project.status} />
+      {onData && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
       <div ref={bottom} />
     </InlineChatFrame>
   );

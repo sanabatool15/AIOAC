@@ -106,14 +106,20 @@ export function ApprovalCard({
       <h3 className="text-base font-semibold text-ink">{title}</h3>
       {title !== card.what && <p className="text-sm leading-5 text-ink-2">{card.what}</p>}
       {facts.length > 0 && (
-        <dl aria-label="The dataset" className="flex flex-col gap-1.5 rounded-lg border border-border bg-white p-3">
+        <dl aria-label={card.tool === "apply_data_fix" ? "What changes" : "The dataset"} className="flex flex-col gap-1.5 rounded-lg border border-border bg-white p-3">
           {facts.map((f) => (
             <Fact key={f.label} label={f.label} value={f.value} note={f.note} />
           ))}
         </dl>
       )}
       <p className="text-sm text-muted">
-        {declined ? "Nothing was chosen and nothing was charged." : "This only picks the data to work with. Nothing is charged."}
+        {card.tool === "apply_data_fix"
+          ? declined
+            ? "Nothing was changed and nothing was charged."
+            : "Your original data stays saved and the rows we keep aside for the final check do not change. We will test whether this changes the estimate; it may not. Nothing is charged."
+          : declined
+            ? "Nothing was chosen and nothing was charged."
+            : "This only picks the data to work with. Nothing is charged."}
       </p>
       {pending && !declined && (
         <div className="flex gap-2">

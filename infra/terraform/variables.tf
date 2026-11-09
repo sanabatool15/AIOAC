@@ -27,10 +27,16 @@ variable "jobs_expiry_days" {
   default     = 7
 }
 
-variable "other_expiry_days" {
+variable "app_prefix" {
+  type        = string
+  description = "Key prefix the app uses for its own files (STORAGE_S3_PREFIX). Must end with a slash."
+  default     = "app/"
+}
+
+variable "candidates_expiry_days" {
   type        = number
-  description = "Days before any other object is deleted."
-  default     = 90
+  description = "Days before temporary dataset candidates under <app_prefix>candidates/ are deleted (S3 works in whole days)."
+  default     = 1
 }
 
 variable "sagemaker_image_registry_account" {

@@ -78,7 +78,7 @@ def install(frontend: str = "http://localhost:3000", threaded: bool = True) -> H
     from app.main import app
     from app.ports import Order
     from doubles.datasets import OfflineSource
-    from doubles.llm import ReactiveFake
+    from doubles.llm import LabelFake, ReactiveFake
     from doubles.payments import MockPaymentProvider
     from app.integrations.factory import build_registry
 
@@ -118,6 +118,9 @@ def install(frontend: str = "http://localhost:3000", threaded: bool = True) -> H
 
     app.dependency_overrides[deps.get_llm_client] = scripted_model
     handle.restore.append(lambda: app.dependency_overrides.pop(deps.get_llm_client, None))
+    label_fake = LabelFake()  # plain-English column labels on the Model tab, never a real model
+    app.dependency_overrides[deps.get_label_llm] = lambda: label_fake
+    handle.restore.append(lambda: app.dependency_overrides.pop(deps.get_label_llm, None))
     return handle
 
 

@@ -27,6 +27,12 @@ test("project detail tabs, Model tab (one record and CSV), Usage and Billing his
   // Model tab: one record.
   await page.getByRole("tab", { name: "Model" }).click();
   await expect(page.getByLabel("Try it on one record")).toBeVisible();
+  // Plain-English label as the main text, raw column name kept as small text; the field id stays on the raw name.
+  const form = page.getByLabel("Try it on one record");
+  await expect(form.getByText("Months as a customer", { exact: true })).toBeVisible();
+  await expect(form.locator("#f-months_active")).toBeVisible();
+  await expect(form.getByText("months_active", { exact: true })).toBeVisible();
+  await expect(form.locator("label[for=f-plan]")).toHaveText("plan"); // no label known: the raw name only
   await page.getByLabel("months_active").fill("12");
   await page.getByLabel("Try it on one record").getByRole("button", { name: "Predict" }).click();
   await expect(page.getByTestId("prediction")).toBeVisible();

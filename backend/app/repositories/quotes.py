@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -24,3 +24,9 @@ def mark_approved(session: Session, quote: Quote, when: datetime) -> None:
 
 def all_for_project(session: Session, project_id: str) -> list[Quote]:
     return list(session.scalars(select(Quote).where(Quote.project_id == project_id).order_by(Quote.created_at.desc(), Quote.id.desc())))
+
+
+def expire(session: Session, quote: Quote) -> None:
+    """The price was for data that has since changed: it can no longer be approved."""
+    quote.expires_at = datetime.now(timezone.utc)
+    session.commit()

@@ -13,13 +13,28 @@ export interface CardDetail {
   target_meaning?: string | null; // optional: what the answer column means in plain words (may be absent)
 }
 
+// Set by the server for apply_data_fix: what the change would do, as numbers.
+export interface FixCardDetail {
+  rows_before: number;
+  rows_after: number;
+  rows_removed: number;
+  columns_before: number;
+  columns_after: number;
+  columns_dropped: string[];
+  steps?: string[];
+  version_id?: string;
+  note?: string;
+}
+
 export interface ChatCard {
   what: string;
   level: number;
   tool: string;
   args: Record<string, unknown>;
-  detail?: CardDetail | null;
+  detail?: CardDetail | FixCardDetail | null;
 }
+
+const isFix = (card: ChatCard) => card.tool === "apply_data_fix";
 
 // A dataset name that is only an id ("350", "uci:350", "hf:...", a long hex id) tells the user nothing.
 export function looksLikeId(name: string): boolean {
@@ -29,13 +44,15 @@ export function looksLikeId(name: string): boolean {
 
 // Title of the approval card: the dataset name, or the card's own plain sentence when the name is missing or an id.
 export function cardTitle(card: ChatCard): string {
-  const n = card.detail?.name;
+  if (isFix(card)) return "Change your data";
+  const n = (card.detail as CardDetail | null | undefined)?.name;
   return n && !looksLikeId(n) ? n.trim() : card.what;
 }
 
 // The small facts grid under the title. Only facts the server sent; License is always there ("not stated" if unknown).
 export function cardFacts(card: ChatCard): { label: string; value: string; note?: string }[] {
-  const d = card.detail;
+  if (isFix(card)) return fixFacts(card.detail as FixCardDetail | null | undefined);
+  const d = card.detail as CardDetail | null | undefined;
   if (!d || d.name === null) return [];
   const out: { label: string; value: string; note?: string }[] = [];
   if (d.source) out.push({ label: "Source", value: d.source });
@@ -43,6 +60,18 @@ export function cardFacts(card: ChatCard): { label: string; value: string; note?
   if (d.columns !== null) out.push({ label: "Columns", value: String(d.columns) });
   if (d.target) out.push({ label: "Answer column", value: d.target, note: d.target_meaning?.trim() || undefined });
   out.push({ label: "License", value: d.license || "not stated" });
+  return out;
+}
+
+// The facts of the data-fix card: only numbers the server computed, never the model's words.
+function fixFacts(d: FixCardDetail | null | undefined): { label: string; value: string; note?: string }[] {
+  if (!d || typeof d.rows_before !== "number") return [];
+  const n = (x: number) => x.toLocaleString("en-US");
+  const out = [
+    { label: "Rows", value: `${n(d.rows_before)} to ${n(d.rows_after)}`, note: d.rows_removed > 0 ? `${n(d.rows_removed)} repeated rows removed` : undefined },
+    { label: "Columns", value: `${d.columns_before} to ${d.columns_after}` },
+  ];
+  if (d.columns_dropped?.length) out.push({ label: "Columns removed", value: d.columns_dropped.join(", ") });
   return out;
 }
 
@@ -91,6 +120,14 @@ export interface ChatItem {
 export const getMessages = (projectId: string) =>
   api<StoredMessage[]>(`/projects/${projectId}/messages`);
 
+// What the assistant is doing, in plain sentences built by the server (specs/api.md D). Free: no model call.
+export interface ActivityLine {
+  when: string;
+  kind: string;
+  text: string;
+}
+export const getActivity = (projectId: string) => api<ActivityLine[]>(`/projects/${projectId}/activity`);
+
 // The only function that talks to the model. `approve` carries the card's tool name and nothing else.
 export const postChat = (projectId: string, body: { message?: string; approve?: string[] }) =>
   api<ChatReply>(`/projects/${projectId}/chat`, { body });
@@ -129,7 +166,7 @@ export interface FriendlyError {
 export function chatError(e: unknown): FriendlyError {
   if (e instanceof ApiError) {
     if (e.status === 503) {
-      return { text: "The AI assistant is not set up on this server yet. You can still upload your own CSV file.", unavailable: true };
+      return { text: "The AI assistant is not set up on this server yet. You can still upload your own CSV file or paste a link.", unavailable: true };
     }
     if (e.status === 409) {
       return { text: "The assistant is still working on your last message. Give it a moment, then check again.", busy: true };
@@ -174,4 +211,14 @@ export function bootChat(projectId: string, goal: string, sendGoal = true, onGoa
   })().finally(() => booting.delete(projectId));
   booting.set(projectId, p);
   return p;
+}
+
+// The sentence the "I have no data" choice sends. The server's search gate (backend data_choice.py) recognises it, and the
+// screen shows "Looking for open datasets" only after it.
+export const NO_DATA_MESSAGE = "I have no data. Please find a dataset.";
+
+// True when the newest thing the user said is the "no data" choice, so the first step is a dataset search.
+export function askedForSearch(items: { role: string; text: string }[] | null | undefined): boolean {
+  const last = [...(items ?? [])].reverse().find((m) => m.role === "user");
+  return !!last && last.text.trim() === NO_DATA_MESSAGE;
 }

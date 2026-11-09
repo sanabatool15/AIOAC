@@ -12,13 +12,7 @@ import time
 
 import numpy as np
 import pandas as pd
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold, StratifiedKFold
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from ...config import settings
 from ...db import Session
@@ -27,7 +21,7 @@ from ...ports import Storage
 from ...repositories import analysis as analysis_repo
 from ...repositories import datasets as datasets_repo
 from ...repositories import forecasts as forecasts_repo
-from . import verification
+from . import baseline, families, verification
 from .forecast import Prediction, extrapolate, not_eligible_reason, suggest_target
 
 PILOT_SHARE = 0.08          # of the work rows
@@ -35,25 +29,11 @@ PILOT_MIN_ROWS, PILOT_MAX_ROWS = 100, 3000
 PILOT_MAX_SHARE = 0.15      # a pilot bigger than this share is not a pilot: too little data
 FOLDS = 3
 
-PLAIN_NAMES = {"logistic": "a simple linear model", "forest": "a forest of decision trees", "boosting": "a boosted-trees model"}
+PLAIN_NAMES = families.PLAIN_NAMES
 
 
 class ForecastError(Exception):
     pass
-
-
-def _model(name: str, X: pd.DataFrame) -> Pipeline:
-    num = X.select_dtypes(include="number").columns.tolist()
-    cat = [c for c in X.columns if c not in num]
-    pre = ColumnTransformer([
-        ("num", Pipeline([("imp", SimpleImputer(strategy="median")), ("sc", StandardScaler())]), num),
-        ("cat", Pipeline([("imp", SimpleImputer(strategy="most_frequent")),
-                          ("oh", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]), cat),
-    ])
-    clf = {"logistic": LogisticRegression(max_iter=300),
-           "forest": RandomForestClassifier(n_estimators=60, random_state=0, n_jobs=1),
-           "boosting": HistGradientBoostingClassifier(max_iter=60, random_state=0)}[name]
-    return Pipeline([("pre", pre), ("clf", clf)])
 
 
 def _score(name: str, X: pd.DataFrame, y: pd.Series) -> tuple[float, float]:
@@ -64,7 +44,7 @@ def _score(name: str, X: pd.DataFrame, y: pd.Series) -> tuple[float, float]:
         folds = list(KFold(FOLDS, shuffle=True, random_state=0).split(X))
     accs = []
     for tr, te in folds:
-        m = _model(name, X.iloc[tr])
+        m = families.build(name, X.iloc[tr], families.PILOT_SIZE[name])
         m.fit(X.iloc[tr], y.iloc[tr])
         accs.append(float((m.predict(X.iloc[te]) == y.iloc[te].to_numpy()).mean()))
     return float(np.mean(accs)), float(np.std(accs, ddof=1) / math.sqrt(len(accs))) if len(accs) > 1 else 0.0
@@ -90,7 +70,7 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
     version = datasets_repo.get_version(session, project.chosen_dataset_version_id) if project.chosen_dataset_version_id else None
     if version is None:
         raise ForecastError("choose a dataset first")
-    work_key, locked_key = verification.prepare_split(storage, version.id, version.storage_key, version.target_column)
+    work_key, locked_key = verification.split_for(session, storage, version)
     work = pd.read_csv(storage.path(work_key))
     locked_rows = len(pd.read_csv(storage.path(locked_key)))
     total_rows = len(work) + locked_rows
@@ -103,7 +83,7 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
                                   predicted_metric=pred.predicted if pred else 0.0,
                                   band_low=pred.band_low if pred else 0.0, band_high=pred.band_high if pred else 0.0,
                                   confidence=pred.confidence if pred else 0.0, eligible=reason is None,
-                                  reason=reason, pilot=pilot)
+                                  reason=reason, pilot=pilot, family=pilot.get("family"), dataset_version_id=version.id)
 
     pilot_rows = min(max(round(PILOT_SHARE * len(work)), PILOT_MIN_ROWS), PILOT_MAX_ROWS)
     if total_rows < settings.forecast_min_rows or pilot_rows > PILOT_MAX_SHARE * len(work):
@@ -124,6 +104,7 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
                 dropped.append({"model": PLAIN_NAMES[m], "dropped_after_rows": n, "score": round(scores[m][0], 4)})
             alive = ranked[:keep]
     winner = alive[0]
+    cost_samples = baseline.sample_timings(work, version.target_column, winner, families.FULL_SIZE[winner])  # time the CHOSEN type
     train_frac = (FOLDS - 1) / FOLDS  # cross-validation trains on 2/3 of each rung
     curve = []
     for n in rungs:
@@ -132,7 +113,8 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
     full_train = round(0.8 * len(work))  # the paid run trains on 80% of the work rows
     pred = extrapolate(curve, full_train, locked_rows, target)
     pilot = {"rows_used": pilot_rows, "share_of_data": round(pilot_rows / total_rows, 3), "rungs": history,
-             "kept": PLAIN_NAMES[winner], "dropped": dropped,
+             "kept": PLAIN_NAMES[winner], "family": winner, "dropped": dropped,
+             "cost_samples": [list(x) for x in cost_samples],
              "learning_curve": [{"training_rows": round(n), "accuracy": round(a, 4)} for n, a, _ in curve],
              "full_run_training_rows": full_train, "pilot_seconds": round(time.perf_counter() - t0, 2)}
     suggested = suggest_target(curve, full_train, locked_rows) if pred.confidence < settings.forecast_min_confidence else None

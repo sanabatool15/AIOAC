@@ -3,6 +3,13 @@ import { API_BASE_URL } from "./config";
 import { clearRealUser, redirectToLogin } from "./session";
 
 // Raw backend shapes. snake_case, money in whole cents, rates 0 to 1. Convert only in adapters.ts.
+// The kind of model a price or forecast is for, in plain words. `note` says it is only the type that was tested.
+export interface BModelType {
+  family: string;
+  name: string;
+  note: string;
+}
+
 export interface BProject {
   id: string;
   goal: string;
@@ -18,6 +25,7 @@ export interface BProject {
     cap_cents: number;
     success_fee_max_cents: number;
     approved: boolean;
+    model_type?: BModelType | null;
   } | null;
   dataset: {
     rows: number;
@@ -25,6 +33,8 @@ export interface BProject {
     target: string;
     source: string;
     license: string | null;
+    fixed?: boolean; // a guided data fix made this version
+    notes?: string | null;
   } | null;
   readiness: {
     grade: string;
@@ -55,6 +65,45 @@ export interface BForecast {
   suggested_target: number | null;
   issues: string[];
   pilot?: unknown;
+  model_type?: BModelType | null;
+  // The forecast made on the data BEFORE a guided fix; null when no fix was applied.
+  before_fix?: {
+    predicted_metric: number;
+    band_low: number;
+    band_high: number;
+    confidence: number;
+    target: number;
+    eligible: boolean;
+  } | null;
+}
+
+// A guided data fix: what it WOULD change (propose) and what it did (apply). specs/api.md section E.
+export interface BFixProposal {
+  available: boolean;
+  version_id: string;
+  message: string;
+  rows_before: number;
+  rows_after: number;
+  columns_before: number;
+  columns_after: number;
+  rows_removed: number;
+  columns_dropped: string[];
+  steps: { kind: string; what: string; why: string }[];
+  fixes_used: number;
+  fixes_left: number;
+  note: string;
+}
+export interface BFixResult {
+  version_id: string;
+  status: string;
+  rows_before: number;
+  rows_after: number;
+  columns_before: number;
+  columns_after: number;
+  rows_removed: number;
+  columns_dropped: string[];
+  fixes_left: number;
+  next: string;
 }
 
 export interface BQuote {
@@ -71,6 +120,7 @@ export interface BQuote {
   forecast_confidence: number;
   target: number;
   terms: string;
+  model_type?: BModelType | null;
 }
 
 export interface BOrder {
@@ -144,6 +194,9 @@ export interface BHistory {
       simple_guess_accuracy?: number;
       verification?: { value: number; target: number; passed: boolean };
     } | null;
+    round?: number; // 1 = the first attempt
+    version_no?: number | null; // the model version this run saved
+    dataset_version_id?: string | null;
   }[];
   quotes: {
     id: string;
@@ -155,6 +208,7 @@ export interface BHistory {
     created_at: string;
   }[];
   payment: BReceipt | null;
+  payments?: (BReceipt & { quote_id?: string | null; created_at?: string | null })[]; // every hold, oldest first
 }
 
 export interface BActivityItem {
@@ -165,6 +219,7 @@ export interface BActivityItem {
 
 export interface BModelColumn {
   name: string;
+  label: string | null; // plain-English label from the server, null when unknown (show the raw name only)
   kind: "number" | "text";
   example: number | string | null;
   choices: string[] | null;
@@ -173,6 +228,9 @@ export type BModel =
   | { available: false }
   | {
       available: true;
+      model_id?: string;
+      version_no?: number | null;
+      is_current?: boolean;
       trained_at: string;
       target: string;
       accuracy: number | null;
@@ -185,6 +243,21 @@ export type BModel =
       columns: BModelColumn[];
       classes: string[];
     };
+// One saved model of a project (GET /projects/{id}/model/versions, newest first).
+export interface BModelVersion {
+  model_id: string;
+  version_no: number;
+  created_at: string;
+  is_current: boolean;
+  accuracy: number | null;
+  simple_guess_accuracy: number | null;
+  verified_value: number | null; // 0 to 1, score on rows the model never saw (an estimate)
+  target: number | null;
+  passed: boolean | null;
+  dataset_version_id: string | null;
+  dataset_rows: number | null;
+  usable: boolean;
+}
 export interface BPredict {
   prediction: string | number;
   probabilities: Record<string, number> | null;
@@ -224,6 +297,7 @@ export interface BPublicResult {
   dataset: { name: string; rows: number; target: string } | null;
   baseline: { accuracy: number; simple_guess_accuracy: number } | null;
   verification: { value: number; target: number; passed: boolean } | null;
+  version_no?: number | null; // the version in use; no other version is ever shown
   finished_at: string | null;
   is_estimate_note: string;
 }

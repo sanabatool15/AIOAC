@@ -132,24 +132,28 @@ export const sx = {
     "columns": [
       {
         "name": "months_active",
+        "label": "Months as a customer",
         "kind": "number",
         "example": 31.0,
         "choices": null
       },
       {
         "name": "days_since_last_purchase",
+        "label": null,
         "kind": "number",
         "example": 62.5,
         "choices": null
       },
       {
         "name": "orders_this_year",
+        "label": null,
         "kind": "number",
         "example": 6.0,
         "choices": null
       },
       {
         "name": "plan",
+        "label": null,
         "kind": "text",
         "example": "basic",
         "choices": [

@@ -136,7 +136,9 @@ function History({ projectId }: { projectId: string }) {
   if (loading && !data) return <Skeleton className="h-40" />;
   if (error || !data) return <ErrorState message={error?.message ?? "History unavailable."} onRetry={retry} />;
   const h = toHistory(data);
-  const empty = !h.versions.length && !h.runs.length && !h.quotes.length && !h.payment;
+  const empty = !h.versions.length && !h.runs.length && !h.quotes.length && !h.payment && !h.payments.length;
+  // A project can have several holds (one per round). Older servers send only `payment`.
+  const pays = h.payments.length ? h.payments : h.payment ? [{ ...h.payment, key: "latest", when: "" }] : [];
   if (empty)
     return <EmptyState icon={<span>·</span>} title="Nothing here yet" body="Versions, runs, price estimates and payments appear as you go." />;
   return (
@@ -150,7 +152,7 @@ function History({ projectId }: { projectId: string }) {
         {h.runs.map((r) => (
           <Item
             key={r.id}
-            title={r.status}
+            title={`${r.round ? `Round ${r.round}: ` : ""}${r.status}${r.versionNo ? ` · saved as version ${r.versionNo}` : ""}`}
             meta={r.when}
             body={`${r.result} Compute cost: ${r.cost}.`}
             tag={r.passed === null ? undefined : r.passed ? "VERIFIED" : "NOT MET"}
@@ -167,19 +169,21 @@ function History({ projectId }: { projectId: string }) {
           />
         ))}
       </Section>
-      {h.payment && (
-        <Card variant="mint" aria-label="Payment" className="gap-2 p-5">
-          <h2 className="text-sm font-semibold text-ink">Payment (PayPal sandbox, test money)</h2>
-          <p className="text-sm text-ink-2">{h.payment.state}</p>
+      {pays.map((p, i) => (
+        <Card key={p.key} variant="mint" aria-label="Payment" className="gap-2 p-5">
+          <h2 className="text-sm font-semibold text-ink">
+            {pays.length > 1 ? `Payment ${i + 1} of ${pays.length}` : "Payment"} (PayPal sandbox, test money){p.when ? ` · ${p.when}` : ""}
+          </h2>
+          <p className="text-sm text-ink-2">{p.state}</p>
           <dl className="flex flex-col gap-1.5">
-            <Row label="Held" value={h.payment.held} />
-            <Row label="Compute charged" value={h.payment.compute} />
-            <Row label="Success fee charged" value={h.payment.fee} />
-            <Row label="Released" value={h.payment.released} />
-            <Row label="Total charged" value={h.payment.total} strong />
+            <Row label="Held" value={p.held} />
+            <Row label="Compute charged" value={p.compute} />
+            <Row label="Success fee charged" value={p.fee} />
+            <Row label="Released" value={p.released} />
+            <Row label="Total charged" value={p.total} strong />
           </dl>
         </Card>
-      )}
+      ))}
     </>
   );
 }

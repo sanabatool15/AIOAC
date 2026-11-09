@@ -28,6 +28,8 @@ from ..repositories.budget import BudgetRepository
 from ..repositories.transactions import rollback
 from ..repositories.traces import TraceRepository
 from . import gate, lifecycle, payments
+from .data import families
+from .data import models as model_versions
 from .data import verification
 from .cost.prices import INSTANCES, PLATFORM_FEE_CENTS, STORAGE_CENTS
 
@@ -117,6 +119,7 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     project = projects_repo.get(session, run.project_id)
     quote = gate.latest_quote(session, project.id)
     version = datasets_repo.get_version(session, project.chosen_dataset_version_id)
+    runs_repo.set_dataset_version(session, run, version.id)
 
     def on_progress(stage: str, fraction: float) -> None:
         runs_repo.set_progress(session, run, stage, fraction)
@@ -124,10 +127,11 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     def should_stop() -> bool:
         return runs_repo.heartbeat_and_stop_requested(session, run)
 
+    family = quote.family or families.DEFAULT_FAMILY   # the model type the quote priced (the gate checked it is still the one)
     try:
-        work_key, locked_key = verification.prepare_split(storage, version.id, version.storage_key, version.target_column)
+        work_key, locked_key = verification.split_for(session, storage, version)
         res = backend.run(storage.path(work_key), version.target_column, quote.compute_cap_cents,
-                          on_progress=on_progress, should_stop=should_stop, job_key=run.id)
+                          on_progress=on_progress, should_stop=should_stop, job_key=run.id, family=family)
     except Exception as exc:
         rollback(session)
         fail_run(session, provider, run, type(exc).__name__)
@@ -160,7 +164,13 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     if res.model_bytes:
         key = f"models/{project.id}/{run.id}.joblib"
         storage.put(key, res.model_bytes)
-        runs_repo.add_model(session, project.id, run.id, key, result)
+        try:  # version bookkeeping must never block the settle step below
+            model_versions.record_new_model(session, project.id, run.id, key, result, version.id,
+                                            quote.forecast_id, quote.id, family)
+        except Exception:
+            rollback(session)
+            if not runs_repo.models_for_run(session, run.id):
+                runs_repo.add_model(session, project.id, run.id, key, result)
     BudgetRepository(session).add_spend(cost)
     _settle(session, provider, project, run)
     lifecycle.transition(session, project, "done")

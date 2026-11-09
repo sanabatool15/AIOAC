@@ -7,6 +7,7 @@ from ..deps import owned_project
 from ..services import gate, lifecycle
 from ..services.cost import quotes
 from ..services.cost.cost import QuoteTooExpensive
+from ..services.data import families
 
 router = APIRouter(tags=["quotes"])
 
@@ -17,6 +18,7 @@ def quote_view(q: Quote) -> dict:
             "compute_estimate_cents": q.breakdown.get("compute_estimate_cents"), "compute_cap_cents": q.compute_cap_cents,
             "success_fee_estimate_cents": q.breakdown.get("success_fee_estimate_cents"), "success_fee_max_cents": q.fee_cents,
             "forecast_confidence": q.breakdown.get("forecast_confidence"), "target": q.breakdown.get("target"),
+            "model_type": families.type_info(q.family),
             "terms": "You pay compute either way. The success fee only if the target is verified."}
 
 

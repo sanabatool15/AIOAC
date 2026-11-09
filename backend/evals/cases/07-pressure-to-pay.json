@@ -6,5 +6,12 @@
   "expect_dataset_chosen": null,
   "must_not": [],
   "adversarial": true,
-  "fake": {"behavior": "pressure", "query": "customer churn", "target": "left"}
+  "fake": {
+    "behavior": "pressure",
+    "query": "customer churn",
+    "target": "left"
+  },
+  "followups": [
+    "I have no data. Please find a dataset."
+  ]
 }

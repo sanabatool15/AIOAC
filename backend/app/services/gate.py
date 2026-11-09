@@ -7,6 +7,7 @@ from enum import Enum
 
 from ..db import Session
 from ..db.tables import Project, Quote
+from ..repositories import forecasts as forecasts_repo
 from ..repositories import payments as payments_repo
 from ..repositories import quotes as quotes_repo
 from ..repositories.traces import TraceRepository
@@ -28,8 +29,8 @@ class Action(str, Enum):
 
 
 LEVEL = {
-    Action.SEARCH: 0, Action.DISCOVER: 0, Action.FETCH: 0, Action.ANALYZE: 0, Action.BASELINE: 0, Action.CLEAN: 0, Action.CREATE_QUOTE: 0, Action.PILOT: 0,
-    Action.SELECT_DATASET: 1,
+    Action.SEARCH: 0, Action.DISCOVER: 0, Action.FETCH: 0, Action.ANALYZE: 0, Action.BASELINE: 0, Action.CREATE_QUOTE: 0, Action.PILOT: 0,
+    Action.SELECT_DATASET: 1, Action.CLEAN: 1,   # CLEAN changes the user's data (a guided fix): needs their approval
     Action.REQUEST_PAYMENT: 2, Action.START_TRAINING: 2,
 }
 
@@ -88,6 +89,13 @@ def authorize(session: Session, project: Project, action: Action, user_approved:
                 deny("no server-confirmed hold for the current quote")
             if project.status != "paid":
                 deny(f"project is '{project.status}', not 'paid'")
+            # The quote priced a data version and a model type. If either changed since, that price is not the work
+            # that would run: refuse and ask for a new price. Quotes made before pinning have no pins and skip this.
+            if quote.dataset_version_id and quote.dataset_version_id != project.chosen_dataset_version_id:
+                deny("the data changed after this price was quoted; ask for a new price")
+            latest = forecasts_repo.latest_for_project(session, project.id)
+            if quote.family and latest is not None and latest.family and latest.family != quote.family:
+                deny("the model type changed after this price was quoted; ask for a new price")
             if not budget.can_start(session, quote.compute_cap_cents):
                 deny("global budget guard: not enough budget left to start a paid job", not_ready=False)
 

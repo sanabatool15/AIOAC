@@ -69,15 +69,29 @@ resource "aws_s3_bucket_lifecycle_configuration" "data" {
     }
   }
 
-  # Any other prefix (for example the chosen dataset) is kept longer, still not forever.
+  # Temporary dataset candidates written by the app (STORAGE_BACKEND=s3) expire after 1 day (data.md section 3;
+  # S3 expiry works in whole days). Chosen datasets and models under the rest of the app prefix are NOT expired.
   rule {
-    id     = "expire-everything-else"
+    id     = "expire-app-candidates"
     status = "Enabled"
     filter {
-      prefix = ""
+      prefix = "${var.app_prefix}candidates/"
     }
     expiration {
-      days = var.other_expiry_days
+      days = var.candidates_expiry_days
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  # Only incomplete uploads are cleaned under the rest of the app prefix (chosen datasets, models). A catch-all
+  # expiry rule with an empty prefix used to sit here; it would also have deleted those, so it was removed.
+  rule {
+    id     = "abort-incomplete-app-uploads"
+    status = "Enabled"
+    filter {
+      prefix = var.app_prefix
     }
     abort_incomplete_multipart_upload {
       days_after_initiation = 1
@@ -153,6 +167,22 @@ data "aws_iam_policy_document" "app" {
     sid       = "ListBucket"
     actions   = ["s3:ListBucket"]
     resources = [aws_s3_bucket.data.arn]
+  }
+  # App storage (STORAGE_BACKEND=s3): read, write and delete only under the app prefix.
+  statement {
+    sid       = "AppStorageObjects"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["${aws_s3_bucket.data.arn}/${var.app_prefix}*"]
+  }
+  statement {
+    sid       = "AppStorageList"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.data.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${var.app_prefix}*"]
+    }
   }
   statement {
     sid       = "TrainingJobs"

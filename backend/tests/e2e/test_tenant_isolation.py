@@ -130,7 +130,7 @@ def test_expired_tampered_and_foreign_tokens_are_401(alice):
 def test_no_cookie_is_401_on_every_protected_route():
     c = TestClient(app)
     for method, path in _protected_routes():
-        r = c.request(method, path.format(pid="x", cid="x", payment_id="x", candidate_id="x"))
+        r = c.request(method, path.format(pid="x", cid="x", payment_id="x", candidate_id="x", model_id="x"))
         assert r.status_code == 401, (method, path, r.status_code)
 
 
@@ -183,6 +183,7 @@ def _protected_routes():
 PROJECT_ROUTES = {
     ("GET", "/projects/{pid}"): None, ("GET", "/projects/{pid}/messages"): None,
     ("POST", "/projects/{pid}/chat"): {"message": "hi"}, ("POST", "/projects/{pid}/data"): {"name": "x", "csv_text": "a,b\n1,2\n"},
+    ("POST", "/projects/{pid}/data/link"): {"url": "https://huggingface.co/datasets/a/b"},
     ("POST", "/projects/{pid}/data/{candidate_id}/select"): {"target": "b"}, ("POST", "/projects/{pid}/readiness"): None,
     ("POST", "/projects/{pid}/baseline"): None, ("GET", "/projects/{pid}/payment"): None,
     ("POST", "/projects/{pid}/quote/approve"): None, ("POST", "/projects/{pid}/train"): None,
@@ -190,9 +191,11 @@ PROJECT_ROUTES = {
     ("POST", "/projects/{pid}/settle/retry"): None, ("POST", "/projects/{pid}/cancel"): None, ("GET", "/projects/{pid}/trace"): None,
     ("POST", "/chats/{pid}/pilot"): {"target": 0.8}, ("GET", "/jobs/{pid}/forecast"): None,
     ("POST", "/agreements/{pid}/quote"): None,
+    ("POST", "/chats/{pid}/fix/propose"): None, ("POST", "/chats/{pid}/fix/apply"): {},
     ("GET", "/projects/{pid}/history"): None, ("GET", "/projects/{pid}/activity"): None, ("GET", "/projects/{pid}/model"): None,
     ("POST", "/projects/{pid}/predict"): {"record": {"a": 1}}, ("POST", "/projects/{pid}/predict-batch"): {"csv_text": "a\n1\n"},
-    ("GET", "/projects/{pid}/model/download"): None, ("POST", "/projects/{pid}/share"): None,
+    ("GET", "/projects/{pid}/model/download"): None, ("GET", "/projects/{pid}/model/versions"): None,
+    ("POST", "/projects/{pid}/model/{model_id}/use"): None, ("POST", "/projects/{pid}/share"): None,
     ("GET", "/projects/{pid}/share"): None, ("DELETE", "/projects/{pid}/share"): None,
 }
 OTHER_PROTECTED = {("POST", "/projects"), ("GET", "/projects"), ("POST", "/payments/orders"), ("POST", "/payments/{payment_id}/authorize"),
@@ -231,11 +234,11 @@ def test_the_owner_can_reach_their_own_project(alice, a_project):
 def test_another_user_gets_404_on_every_project_route(bob, a_project, route):
     pid, _, cand = a_project
     method, template = route
-    r = bob.request(method, template.format(pid=pid, candidate_id=cand), json=PROJECT_ROUTES[route])
+    r = bob.request(method, template.format(pid=pid, candidate_id=cand, model_id=cand), json=PROJECT_ROUTES[route])
     assert r.status_code == 404, (route, r.status_code, r.text)
     assert "private words" not in r.text
     # same answer as for a project that does not exist, so existence is not leaked
-    missing = bob.request(method, template.format(pid="0" * 32, candidate_id=cand), json=PROJECT_ROUTES[route])
+    missing = bob.request(method, template.format(pid="0" * 32, candidate_id=cand, model_id=cand), json=PROJECT_ROUTES[route])
     assert (missing.status_code, missing.json()) == (r.status_code, r.json())
 
 

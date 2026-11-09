@@ -2,6 +2,7 @@
 
 The shapes are listed in specs/api.md. All money is in cents, all rates are 0 to 1, estimates carry `is_estimate`.
 """
+from ..data import families
 
 
 def blocks_from_result(name: str, result, project) -> list[dict]:
@@ -17,7 +18,8 @@ def blocks_from_result(name: str, result, project) -> list[dict]:
         low, high = result["range_cents"]
         return [{"type": "quote", "quote_id": result["quote_id"], "estimate_cents": result["estimate_cents"], "low_cents": low,
                  "high_cents": high, "cap_cents": result["cap_cents"], "success_fee_cents": result["success_fee_cents"], "is_estimate": True,
-                 **({"breakdown": result["breakdown"]} if result.get("breakdown") else {})}]
+                 **({"breakdown": result["breakdown"]} if result.get("breakdown") else {}),
+                 **({"model_type": {"name": result["model_type"], "note": families.TYPE_NOTE}} if result.get("model_type") else {})}]
     if name == "request_payment":
         return [{"type": "pay", "payment_id": result["payment_id"], "approve_url": result["approve_url"], "hold_cents": result["hold_cents"]}]
     return []

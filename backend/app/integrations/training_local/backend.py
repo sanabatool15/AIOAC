@@ -8,7 +8,7 @@ class LocalBackend:
     name = "local"
     instance_type = None
 
-    def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None, job_key=None):
+    def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None, job_key=None, family="forest"):
         report = on_progress or (lambda stage, fraction: None)
         stop = should_stop or (lambda: False)
 
@@ -19,7 +19,7 @@ class LocalBackend:
         if stop():
             return stopped()
         report("training the model", 0.2)
-        out = fit_and_score(dataset_path, target, n_estimators=300)
+        out = fit_and_score(dataset_path, target, n_estimators=300, family=family or "forest")
         if stop():  # checked between stages only; fit_and_score itself is one call
             return stopped()
         report("saving the model", 0.95)

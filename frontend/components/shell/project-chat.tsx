@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { pendingCard } from "@/lib/chat";
+import { askedForSearch, pendingCard } from "@/lib/chat";
 import { ChatController } from "@/lib/chat-controller";
 import { thinkingMessage } from "@/lib/thinking";
 import { ApprovalCard, ChatBlockView } from "./chat-blocks";
@@ -15,6 +15,7 @@ export function useProjectChat(projectId: string, goal: string, status: string, 
     chat.setOnChanged(onChanged);
   }, [chat, onChanged]);
   const state = useSyncExternalStore(chat.subscribe, chat.getState, chat.getState);
+  useEffect(() => () => chat.dispose(), [chat]); // leaving the screen: stop polling
   useEffect(() => {
     void chat.open(status); // idempotent: strict mode and re-renders open the thread once
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -23,21 +24,49 @@ export function useProjectChat(projectId: string, goal: string, status: string, 
 }
 export type ProjectChat = ReturnType<typeof useProjectChat>;
 
-// Shown while a /chat call runs. A local timer only: it makes no network calls.
-function Thinking({ findingData, readingGoal, since }: { findingData: boolean; readingGoal: boolean; since: number | null }) {
+// Shown while a /chat call runs. With live steps (from the controller's activity poll) it lists them; otherwise it shows
+// the rotating text, which is a local timer only. This component itself makes no network calls.
+function Thinking({
+  findingData,
+  readingGoal,
+  since,
+  steps,
+}: {
+  findingData: boolean;
+  readingGoal: boolean;
+  since: number | null;
+  steps: string[];
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
   const seconds = since === null ? 0 : Math.max(0, Math.floor((now - since) / 1000));
+  const dots = (
+    <span aria-hidden className="flex gap-1">
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="size-1.5 rounded-full bg-brand motion-safe:animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+      ))}
+    </span>
+  );
+  if (steps.length > 0) {
+    return (
+      <div role="status" aria-live="polite" aria-label="What the assistant is doing" className="flex flex-col gap-1 pl-9 text-sm text-muted">
+        <ul className="flex flex-col gap-1">
+          {steps.map((t, i) => (
+            <li key={`${i}-${t}`} className="flex items-center gap-2" data-live-step>
+              {i === steps.length - 1 ? dots : <span aria-hidden className="w-[22px] text-center">✓</span>}
+              {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
   return (
     <p role="status" aria-live="polite" className="flex items-center gap-2 pl-9 text-sm text-muted">
-      <span aria-hidden className="flex gap-1">
-        {[0, 1, 2].map((i) => (
-          <span key={i} className="size-1.5 rounded-full bg-brand motion-safe:animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
-        ))}
-      </span>
+      {dots}
       {thinkingMessage(seconds, findingData, readingGoal)}
     </p>
   );
@@ -79,9 +108,10 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
       )}
       {state.busy && state.items !== null && (
         <Thinking
-          findingData={projectStatus === "described"}
+          findingData={projectStatus === "described" && askedForSearch(state.items)}
           readingGoal={state.items.length === 1 && state.items[0].role === "user"}
           since={state.busySince}
+          steps={state.liveSteps}
         />
       )}
       {error && (

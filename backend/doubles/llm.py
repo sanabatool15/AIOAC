@@ -2,6 +2,7 @@
 import json
 
 from app.ports import LLMResponse, ToolCall
+from app.services.agent import data_choice
 
 
 class FakeLLM:
@@ -77,6 +78,9 @@ class ReactiveFake:
                 and "waiting_for_user" not in last["content"]:
             self._absorb(last["content"])
             self.pending = None
+            if '"waiting_for_choice"' in last["content"]:  # the user has not chosen "I have no data" yet: wait, retry on their next message
+                self.i -= 1
+                return LLMResponse(text="Please pick one of the three choices on screen: upload your file, paste a link, or tell me you have no data.")
             if '"need_target"' in last["content"]:  # the user has not named a target: ask, and try the pilot again on the next turn
                 self.i -= 1
                 return LLMResponse(text="How many out of 100 predictions do you need to be right? The free test got about 80.")
@@ -85,6 +89,28 @@ class ReactiveFake:
         if self.i >= len(self.stages):
             return LLMResponse(text=self.final_text or "Here is where we are. The price is an estimate, and you decide whether to go ahead.")
         name = self.stages[self.i]
+        if name in ("search_datasets", "discover_datasets") and not any(
+                m["role"] == "user" and data_choice.wants_search([m.get("content") or ""]) for m in messages):
+            # a well-behaved model does not search before the user chose "I have no data"
+            return LLMResponse(text="Please pick one of the three choices on screen: upload your file, paste a link, or tell me you have no data.")
         self.i += 1
         self.pending = ToolCall(f"call-{self.i}", name, self._args(name))
         return LLMResponse(tool_calls=[self.pending])
+
+
+class LabelFake:
+    """Offline stand-in for the small model that writes plain-English column labels (browser tests only).
+    Labels the columns it knows by name and leaves the others out, like a real model that is unsure."""
+
+    model = "label-fake"
+    KNOWN = {"months_active": "Months as a customer", "days_since_last_purchase": "Days since the last purchase",
+             "orders_this_year": "Orders this year"}
+
+    def __init__(self):
+        self.calls: list[list[dict]] = []
+
+    def chat(self, messages, tools):
+        self.calls.append(messages)
+        data = json.loads(messages[-1]["content"].split("\n", 1)[1])
+        names = [c["name"] for c in data["columns"]]
+        return LLMResponse(text=json.dumps({n: self.KNOWN[n] for n in names if n in self.KNOWN}))

@@ -79,6 +79,13 @@ Small changes only, each with a test on the mock provider, each explained to the
 | G5 | Activity feed showed raw ids, approval text, and `[redacted key]` inside ids | `services/activity.py`, `runlog.py` | Titles only, synthetic text dropped; `sk-` pattern no longer matches inside a word or id | fixed on branch claude/fix-agent |
 | G6 | Slow first turn (many looks and fetches) | `context.py` | Prompt: look at or fetch at most the top 2, do not search again. Existing limits (50,000 rows, 50 MB, 30 s HTTP, 60 s tool) kept; effect not measured offline | fixed on branch claude/fix-agent (effect unmeasured) |
 
+### 3c. Done status (2026-11-08)
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| A6 | At `done` the model offered to run a higher target (no tools there, Improve refused after a hit), so the promise could not be kept | `lifecycle.py`, `routes/forecast.py`, `context.py`, `guards.py`, `result-step.tsx` | `POST /chats/{id}/pilot` starts a new round after a hit with a strictly higher target; result screen button "Try a higher target"; the agent still has no tools at `done` (NEXT_STEP says to point to the button) and the claim guard replaces a "I will run it" reply | fixed |
+| H10 | New chat replies were rendered above the tall step cards, far from the composer | `chat-screen.tsx`, `use-follow-chat.ts`, `lib/scroll.ts` | Step cards first, chat under them (data step keeps chat first); the newest message scrolls into view after a reply unless the reader scrolled up | fixed |
+
 ## 4. Demo and project risks
 
 | Id | Problem | Where | Fix | Status |
@@ -115,3 +122,24 @@ Real-LLM runs, real PayPal sandbox runs and any AWS run (step 4) cost money or u
 | H7 | "Not now" on an approval card was lost on reload | `lib/declined.ts`, `lib/chat-controller.ts` | Kept per project in localStorage (try/catch), calm card state plus follow-up line re-derived | fixed |
 | H8 | No thinking indicator during the automatic first reply | `lib/chat-controller.ts`, `project-chat.tsx` | Goal shown and timer started when the boot call is sent ("Reading your goal...") | fixed |
 | H9 | Agent said "pilot" and "cap" to the user | `services/agent/context.py`, `tools.py`, `target.py`, `cost-quote` skill | "free small test", "the most you can be charged" | fixed |
+
+## 7. Better results: model type and data fix (2026-11-07)
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| M0 | `create_quote` refused any new quote while the earlier hold was in a settled state (`released`), so the Improve round could not be priced | `services/cost/quotes.py` | Block only live (`held`) or half-settled holds; e2e test through the real routes | done (HUMAN REVIEW) |
+| M1 | The paid run always trained a forest, whatever the pilot kept; the cost was timed on the forest | `pilot.py`, `baseline.py`, `train.py`, `quotes.py` | `families.py` factory shared by all, quote pins family and data version, cost timed on the chosen family | done (HUMAN REVIEW: quotes, training start) |
+| M2 | A price could be paid for one dataset or model type and run as another | `services/gate.py` | `START_TRAINING` compares the quote's pins with the project | done (HUMAN REVIEW: gate) |
+| M3 | A cleaned child version would have drawn a new locked set | `services/data/verification.py` | Locked rows from the root version, children inherit | done (HUMAN REVIEW: verification) |
+| M4 | No way to improve the data; `Action.CLEAN` was level 0 | `fixes.py`, `gate.py`, routes, agent, UI | Two whitelisted fixes, level 1, limit of 3, before and after forecast | done (HUMAN REVIEW: gate) |
+| M5 | A fix that removes only repeated rows rarely changes the estimate (training already ignores repeats) | `fixes.py` | Said plainly in the proposal; shown honestly, not as a rescue | known limit |
+| M6 | The pilot's family choice and the cost timing use the work rows of the current version only; a forecast from before a fix is hidden on the project read | `routes/projects.py` | Intended | known limit |
+
+## 8. Integration review items (2026-11-08)
+
+| Id | Problem | Where | Fix | Status |
+|---|---|---|---|---|
+| N1 | `GET /projects/{id}/model` gave 500 for an all-numeric dataset (unfitted OneHotEncoder has no `categories_`) | `services/model_use.py` | Tolerant lookups, hints fall back to none | done |
+| N2 | Live chat lines were filtered with the browser clock against server timestamps | `frontend/lib/chat-controller.ts` | Baseline from the server feed's length; no browser clock; `dispose()` on unmount | done |
+| N3 | Label call could wait 15 s and a failed save left the session unusable | `config.py`, `repositories/column_labels.py` | Timeout 8 s; rollback on any save error; labels never break `describe` | done |
+| N4 | New table `column_labels` | `db/tables.py` | Owner runs `python -m app.db.init --upgrade --yes` and enables row level security on it | open (owner) |
