@@ -18,7 +18,8 @@ OUTLIER_SHARE = 0.03
 MAX_CATEGORY_TARGET = 20   # a target with this many distinct values or fewer is a few groups, even if they look like numbers
 SPARSE_SHARE = 0.80        # "almost always empty"
 ONE_SIDED_SHARE = 0.90     # filled values that fall in one answer group
-MISSING_MARKERS = frozenset({"?", "na", "n/a", "null", "none", "-"})
+# "none" is NOT here: in files like German credit it is a real answer ("none" = no phone), not a gap
+MISSING_MARKERS = frozenset({"?", "na", "n/a", "null", "-"})
 
 NAME_HINTS = re.compile(r"cancel|refund|outcome|result|resolution|churn|status_after|after_|post_|_after|final_|settled|terminat|closed_(on|date)", re.I)
 DATE_VALUE = re.compile(r"^\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.]\d{1,2}[/.]\d{2,4})")

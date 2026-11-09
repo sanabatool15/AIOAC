@@ -217,8 +217,14 @@ def test_placeholder_markers_count_as_missing_and_input_is_untouched():
                        "b": ["1"] * 50 + ["?"] * 50, "y": ["p", "q"] * 50})
     before = df.copy()
     cols = {c["name"]: c for c in profile.profile(df, "y", columns=["a", "b"])["columns"]}
-    assert cols["a"]["missing_percent"] == 8 and cols["b"]["missing_percent"] == 50
+    assert cols["a"]["missing_percent"] == 7 and cols["b"]["missing_percent"] == 50  # "None" is a real value, not a gap
     pd.testing.assert_frame_equal(df, before)
+
+
+def test_none_as_a_real_category_is_not_a_constant_column():
+    n = 200
+    df = pd.DataFrame({"own_telephone": ["none"] * 120 + ["yes"] * 80, "y": ["a", "b"] * 100})
+    assert "own_telephone" not in sus(profile.profile(df, "y"))
 
 
 def test_duration_name_is_only_a_weak_question():
