@@ -58,8 +58,22 @@ The hackathon deadline is 2026-11-12 12:00 pm PT (internal target 2026-11-11). N
 
 One slice at a time. Tests first. Run `cd backend && env -u DATABASE_URL python -m pytest -q` (about 4.5 min), `cd frontend && npm run test:unit`, and the matching Playwright spec. Commit each slice separately with a short explanation; payment, gate, verification, quote and lifecycle slices are explained for human review and never merged silently. No real-model, AWS or PayPal call without the owner's yes. Record results in `specs/status.md` and `specs/integration-testing.md`.
 
-## 8. Known open facts (from audits)
+## 8. Known open facts (from audits and from writing these specs)
 
-- 2 frontend unit tests fail on the UI-pass code (`no-raw-money`, card gradient) and 14 browser tests wait for a data picker that is not rendered; see the audit file.
+Defects in code that exists TODAY (found while reading; fix independent of the ML work, see each spec for file and line):
+- Money wording contradicts CLAUDE.md rule 5 (compute is always captured): `frontend/components/shell/pay-prompt.tsx:17` ("If it is missed, the hold is released") and `frontend/lib/pay-timeline.ts:56-59` ("Target missed. Charged $0"). Copy only, but money wording: HUMAN REVIEW. (02, 04)
+- The "Try a higher target" card is not rendered on the done screen (`result-view.ts:102-108` helpers have no callers) while `tests/higher-target.spec.ts` expects it. (04)
+- `blocks.py:57-59` and `context.py:174-176` read `accuracy` keys directly; they would break a turn for any other task type. (03)
+- `features.py:8-17,49-55` drops a mostly-unique date column as a row ID and drops duplicate rows: fatal for forecast. `verification.py` splits with a shuffle: invalid for time series. Data fetchers keep the FIRST 50,000 rows, losing the newest period. (01, 05)
+- `gate.py:97-99` pins data version and model family but not the task type (tiny change, HUMAN REVIEW). (01)
+- `clarity.py:10-20` filler list contains "forecast" and "growth": "forecast my sales" is probably rejected as vague (inferred). (05)
+- Calibration risk: replacing the 240 s startup placeholder with the measured ~65 s can make `CapTooSmall` appear AFTER the hold is placed; propose a cap floor in `create_quote` (HUMAN REVIEW). A 10-15 minute demo job is not reachable with the current families; fixed fees dominate (about 53 cents). (06)
+- Free routes `POST /projects/{id}/baseline` and `POST /chats/{id}/pilot` have no timeout (only the agent path has 60 s); one-hot encoders are dense and uncapped (memory risk). (06)
+
+Where the OWNER DECISIONS are collected (answer these before building the matching slices): `02-success-and-payments.md` D1-D10 (success fee per type, target form, wording), `01-backend-ml-core.md` OQ1-OQ10, `03-agent.md` (8 questions), `04-ui.md` (10 questions, e.g. who sets the unit label), `05-data-and-discovery.md` (7 questions), `06-latency-cost-and-limits.md` section 7.4. Use `NEXT-SESSION-PROMPT.md` Prompt C to collect them into `decisions.md`.
+
+Other open facts:
+- 2 frontend unit tests fail on the UI-pass code (`no-raw-money`, card gradient) and 14 browser tests wait for a data picker that is not rendered; see `specs/audit-2026-11-11.md`.
 - Real PayPal sandbox plus SageMaker has never been clicked through in a browser (breakpoints F2).
 - The tone eval has one real-model run only (gpt-5.4, mean 4.62); re-run after changes.
+- These spec files are long (each 4,000-8,500 words) because of tables with file:line references. Read the section you need; each ends with an acceptance checklist.
