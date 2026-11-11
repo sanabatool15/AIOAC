@@ -144,6 +144,7 @@ export function ResultStep({ project, onChanged }: StepProps) {
         )}
         <EstimateNote>One check on data the model never saw. A measured result for this data, not a promise for new data.</EstimateNote>
       </Card>
+      <ReceiptCard receipt={receipt} />
       <RetrySettle project={project} receipt={receipt} refresh={refresh} onChanged={onChanged} />
       {v.kind === "missed" && (
         <TargetAction
