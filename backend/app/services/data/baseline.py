@@ -27,6 +27,12 @@ class BaselineOutcome:
     train_rows: int = 0
     test_rows: int = 0
     rare_group_caught: float | None = None   # share (0 to 1) of the smallest group the model found on the held-out rows; None unless lopsided
+    # Set only for a number as the answer (tasks/regression.py). For classification they stay None and `accuracy` is the score.
+    task_type: str = "classification"
+    score: float | None = None               # error reduction against always guessing the average, 0 to 1
+    error: float | None = None               # average distance of the model's guesses from the true answers
+    guess_error: float | None = None         # the same for always guessing the average
+    extras: dict | None = None
 
 
 def _pipeline(X: pd.DataFrame, n_estimators: int) -> Pipeline:
@@ -75,7 +81,8 @@ def fit_and_score(path: str, target: str, n_estimators: int = 100, family: str =
                            rare_group_caught=rare_group_recall(df[target], yte, pred))
 
 
-def sample_timings(df: pd.DataFrame, target: str, family: str = "forest", size: int | None = 100) -> list[tuple[int, float]]:
+def sample_timings(df: pd.DataFrame, target: str, family: str = "forest", size: int | None = 100,
+                   task: str = "classification") -> list[tuple[int, float]]:
     """Seconds to fit `family` on 5%, 10% and 20% of the (already prepared) rows: the cost estimator's input."""
     samples: dict[int, float] = {}
     for frac in SAMPLE_FRACTIONS:
@@ -84,7 +91,7 @@ def sample_timings(df: pd.DataFrame, target: str, family: str = "forest", size: 
             continue
         sub = df.sample(n=n, random_state=0)
         X, y = sub.drop(columns=[target]), sub[target]
-        m = families.build(family, X, size)
+        m = families.build(family, X, size, task)
         t0 = time.perf_counter()
         m.fit(X, y)
         samples[n] = time.perf_counter() - t0

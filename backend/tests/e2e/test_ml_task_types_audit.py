@@ -5,6 +5,7 @@ a built cell that breaks FAILS. Only classification exists today, so its cells a
 Show the matrix with `python -m evals.audit_ml_tasks`. Offline: mock payments, local training, no model, no network.
 """
 import inspect
+import io
 import json
 import re
 
@@ -28,7 +29,7 @@ from app.integrations.training_local.backend import LocalBackend
 from tests.conftest import make_user
 from tests.e2e.test_payments_and_demo import ScriptedBackend
 from tests.helpers.builders import charged, ctx, ready_to_pay, held
-from tests.helpers.ml_slices import STAGES, TASK_TYPES, skip_unless_built
+from tests.helpers.ml_slices import STAGES, TASK_TYPES, house_csv, skip_unless_built
 
 BANNED = re.compile(r"\b(f1|precision|recall|mae|rmse|r2|r-squared|train/test split|hyperparameters?|instance type|"
                     r"leakage|feature importance)\b", re.I)
@@ -207,11 +208,54 @@ CHECKS = {"A1": a1, "A2": a2, "A3": a3, "A4": a4, "A5": a5, "A6": a6, "A7": a7, 
           "A11": a11, "A12": a12, "A13": a13, "A14": a14}
 
 
+# ---- the regression cells built so far (slice S2: stored type, readiness, free test) ----------------------------
+@pytest.fixture
+def numbers(session, storage, project):
+    """A project whose answer is a number: the synthetic house prices, chosen."""
+    project.task_type = "regression"
+    c = datasets.add_candidate(session, storage, project, "houses", "bundled", house_csv(1500))
+    datasets.select_candidate(session, storage, project, c.id, "price")
+    return project
+
+
+def r1(session, api, numbers, **_):
+    from app.services.data import tasks
+    df = pd.read_csv(io.BytesIO(house_csv(500)))
+    assert tasks.infer_task_type(df, "price", "what price will it sell for") == "regression"
+    assert tasks.task_of(numbers).id == "regression"
+    assert api.get(f"/projects/{numbers.id}").json()["task_type"] == "regression"
+
+
+def r2(session, storage, numbers, **_):
+    r = analysis.readiness(session, storage, numbers)
+    assert r.grade and r.findings
+    for f in r.findings:
+        assert f["kind"] in ("OK", "NOTE")
+        plain(f["text"])
+        assert "smaller group" not in f["text"]
+
+
+def r3(session, storage, numbers, **_):
+    from app.services.data import task_wording
+    analysis.readiness(session, storage, numbers)
+    run, out = analysis.baseline_detailed(session, storage, numbers)
+    again = analysis.baseline_detailed(session, storage, numbers)[1]
+    assert 0 < out.error < out.guess_error and out.score > 0 and out.simple_guess_accuracy == 0   # the guess scores 0 by construction
+    assert out.score == again.score and out.test_rows > 0   # same held-out rows, same answer
+    res = numbers.baseline_result
+    assert set(res) >= {"accuracy", "simple_guess_accuracy", "score", "simple_guess_score", "task_type", "extras"}
+    plain(task_wording.plain_score("regression", res["score"], res["extras"]) + task_wording.plain_guess("regression", res["extras"]))
+
+
+REGRESSION_CHECKS = {"A1": r1, "A2": r2, "A3": r3}
+
+
 @pytest.mark.parametrize("stage", STAGES)
 @pytest.mark.parametrize("task", TASK_TYPES)
 def test_cell(task, stage, session, request):   # `session` is named so the sign-in override in conftest applies
     skip_unless_built(task, stage)
-    assert task == "classification", f"slice for {task} {stage} is marked built but has no check yet"
-    check = CHECKS[stage]
+    table = {"classification": CHECKS, "regression": REGRESSION_CHECKS}.get(task, {})
+    assert stage in table, f"slice for {task} {stage} is marked built but has no check yet"
+    check = table[stage]
     wanted = [n for n, p in inspect.signature(check).parameters.items() if p.kind is not p.VAR_KEYWORD]
     check(**{n: request.getfixturevalue(n) for n in wanted})   # only the fixtures a cell asks for (A9 needs the REAL check)

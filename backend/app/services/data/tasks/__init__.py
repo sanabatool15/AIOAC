@@ -1,6 +1,6 @@
 """Task types: the registry, how a project's type is read, and a pure guess of the type from the data and the goal.
 
-Only `classification` is built. A project row with no task type (everything made before task types existed) reads as
+Only `classification` and `regression` (free test only so far) are built. A project row with no task type (everything made before task types existed) reads as
 classification. The other ids are known names so the guess can say what a goal needs; they have no TaskKind yet
 (`get` raises UnknownTask), and nothing calls `infer_task_type` to change behaviour in this slice."""
 import re
@@ -9,10 +9,11 @@ import pandas as pd
 
 from .base import Score, TaskKind
 from .classification import ClassificationTask
+from .regression import RegressionTask
 
 DEFAULT_TASK = "classification"
 TASK_IDS = ("classification", "regression", "forecast", "grouping", "unusual")
-TASKS: dict[str, TaskKind] = {"classification": ClassificationTask()}
+TASKS: dict[str, TaskKind] = {"classification": ClassificationTask(), "regression": RegressionTask()}
 
 MAX_CATEGORY_TARGET = 20   # the same rule as profile.MAX_CATEGORY_TARGET: at most 20 distinct values is a few groups
 

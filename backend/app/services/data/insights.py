@@ -37,7 +37,49 @@ def _look(n: int) -> str:
     return "looks" if n == 1 else "look"
 
 
-def analyze(df: pd.DataFrame, target: str) -> dict:
+def _number_answer(df: pd.DataFrame, target: str):
+    """Readiness checks for an answer that is a number (specs/ml-tasks/01 section 2.2). Returns
+    (measurements, [(kind, text, penalty)]). Plain words, no statistics terms."""
+    from .tasks.regression import to_number
+    y_all = to_number(df[target])
+    y = y_all.dropna()
+    out, m = [], {"target_spread": 0.0, "target_skew": 0.0, "target_zero_share": 0.0}
+    missing = int(y_all.isna().sum())
+    if missing:
+        out.append(("NOTE", f"{missing:,} rows have no answer and are left out", 0 if missing / max(len(y_all), 1) < 0.10 else 15))
+    if len(y) < 2:
+        out.append(("NOTE", "Every row has the same answer, so there is nothing to learn.", 100))
+        return m, out
+    mean, sd = float(y.mean()), float(y.std())
+    spread = sd / abs(mean) if mean else (1.0 if sd else 0.0)
+    m["target_spread"] = round(spread, 4)
+    m["target_skew"] = round(float(y.skew()), 3) if sd else 0.0
+    m["target_zero_share"] = round(float((y == 0).mean()), 4)
+    if sd == 0:
+        out.append(("NOTE", "Every row has the same answer, so there is nothing to learn.", 100))
+        return m, out
+    if spread < 0.01:
+        out.append(("NOTE", "Almost every row has the same answer, so there is very little to learn.", 100))
+        return m, out
+    skew = abs(m["target_skew"])
+    if skew > 5:
+        out.append(("NOTE", "A few very large answers pull the average up; typical errors will be driven by them.", 10))
+    elif skew > 2:
+        out.append(("NOTE", "A few very large answers pull the average up; typical errors will be driven by them.", 5))
+    q1, q3 = float(y.quantile(0.25)), float(y.quantile(0.75))
+    far = float((y > q3 + 3 * (q3 - q1)).mean()) if q3 > q1 else 0.0
+    if far > 0.10:
+        out.append(("NOTE", "Some answers are far bigger than the rest.", 10))
+    elif far > 0.03:
+        out.append(("NOTE", "Some answers are far bigger than the rest.", 5))
+    if m["target_zero_share"] > 0.30:
+        out.append(("NOTE", "More than a third of the answers are exactly 0, which is hard to predict well.", 5))
+    if not any(t.startswith(("A few", "Some", "More than")) for _, t, _ in out):
+        out.append(("OK", "The answers vary enough to learn from", 0))
+    return m, out
+
+
+def analyze(df: pd.DataFrame, target: str, task: str = "classification") -> dict:
     rows, cols = df.shape
     ids = id_like_columns(df, target)
     texty_numbers = numeric_like_columns(df, target)
@@ -45,8 +87,10 @@ def analyze(df: pd.DataFrame, target: str) -> dict:
     feats = df.drop(columns=[target])
     missing_pct = float(df.isna().sum().sum() / max(df.size, 1) * 100)
     dupes = int(df.duplicated().sum())
-    counts = df[target].value_counts(normalize=True)
-    minority = float(counts.min()) if len(counts) else 0.0
+    number = task == "regression"
+    if not number:
+        counts = df[target].value_counts(normalize=True)
+        minority = float(counts.min()) if len(counts) else 0.0
     constant = [c for c in feats.columns if feats[c].nunique(dropna=True) <= 1]
     leaky = leaky_columns(df, target)
 
@@ -75,7 +119,11 @@ def analyze(df: pd.DataFrame, target: str) -> dict:
         add("NOTE", f"{missing_pct:.0f}% of values are missing", 20)
     elif missing_pct > 0:
         add("NOTE", f"{missing_pct:.0f}% of values are missing (filled in automatically)", 3)
-    if minority < 0.10:
+    if number:
+        target_m, target_findings = _number_answer(df, target)
+        for kind, text, penalty in target_findings:
+            add(kind, text, penalty)
+    elif minority < 0.10:
         add("NOTE", f"Only {minority:.0%} of rows are in the smaller group, so results may lean toward the bigger one", 12)
     elif minority < 0.20:
         add("NOTE", f"Only {minority:.0%} of rows are in the smaller group, so results may lean toward the bigger one", 5)
@@ -86,7 +134,7 @@ def analyze(df: pd.DataFrame, target: str) -> dict:
 
     return {
         "measurements": {"rows": rows, "columns": cols, "missing_pct": round(missing_pct, 2),
-                         "duplicates": dupes, "minority_share": round(minority, 4),
+                         "duplicates": dupes, **(target_m if number else {"minority_share": round(minority, 4)}),
                          "constant_columns": constant, "leaky_columns": leaky,
                          "id_columns": ids, "numbers_stored_as_text": texty_numbers},
         "findings": findings,

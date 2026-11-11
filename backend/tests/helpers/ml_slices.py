@@ -4,6 +4,10 @@ The audit matrix (tests/e2e/test_ml_task_types_audit.py) has one cell per task t
 not in SLICES_BUILT is SKIPPED with the slice id. When a slice lands, its id is added here IN THE SAME COMMIT, which
 turns its SKIP cells into real tests. A built cell that fails fails the suite.
 """
+import io
+
+import numpy as np
+import pandas as pd
 import pytest
 
 TASK_TYPES = ("classification", "regression", "forecast", "grouping", "unusual")
@@ -15,7 +19,7 @@ STAGE_TITLES = {
     "A11": "blocks and activity", "A12": "UI", "A13": "tenant isolation", "A14": "limits",
 }
 
-SLICES_BUILT: set[str] = {"S0", "S1"}
+SLICES_BUILT: set[str] = {"S0", "S1", "S2"}
 
 # The slice that makes each stage real for a type (specs/ml-tasks/07-audit-and-test-plan.md section 3). A tuple means
 # every slice in it is needed. "S0" means: it exists today (classification). "UI" is not a slice: browser tests are
@@ -58,3 +62,20 @@ def skip_unless_built(task: str, stage: str) -> None:
         pytest.skip("slice UI: browser tests run with `npm run test:e2e`, not in this offline matrix")
     if n:
         pytest.skip(f"slice {n} not built")
+
+
+def house_csv(n: int = 1500, seed: int = 0) -> bytes:
+    """Synthetic house prices: a strong-signal regression dataset (linear terms, one interaction, noise). Seeded."""
+    rng = np.random.default_rng(seed)
+    sqft = rng.integers(500, 4000, n)
+    beds = rng.integers(1, 6, n)
+    age = rng.integers(0, 80, n)
+    hood = rng.choice(["north", "south", "east", "west"], n)
+    garage = rng.integers(0, 2, n)
+    bump = pd.Series(hood).map({"north": 40000, "south": 0, "east": 20000, "west": -20000}).to_numpy()
+    price = 50000 + 120 * sqft + 8000 * beds - 600 * age + bump + 15000 * garage + 0.02 * sqft * garage * 100 + rng.normal(0, 25000, n)
+    df = pd.DataFrame({"sqft": sqft, "bedrooms": beds, "age_years": age, "neighborhood": hood, "has_garage": garage,
+                       "price": price.round(0)})
+    buf = io.StringIO()
+    df.to_csv(buf, index=False)
+    return buf.getvalue().encode()

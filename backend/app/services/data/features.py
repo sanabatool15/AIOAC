@@ -46,10 +46,11 @@ def numeric_like_columns(df: pd.DataFrame, target: str) -> list[str]:
     return out
 
 
-def prepare_features(df: pd.DataFrame, target: str) -> pd.DataFrame:
-    """Returns df with ID and answer-copy columns dropped, duplicate rows removed, and numeric-looking text converted to numbers."""
-    df = df.drop(columns=id_like_columns(df, target))
-    df = df.drop(columns=leaky_columns(df, target)).drop_duplicates()
+def prepare_features(df: pd.DataFrame, target: str | None, keep: tuple | list = ()) -> pd.DataFrame:
+    """Returns df with ID and answer-copy columns dropped, duplicate rows removed, and numeric-looking text converted to numbers.
+    `target=None` is for tasks with no answer column (nothing is compared with an answer). Columns in `keep` are never dropped."""
+    df = df.drop(columns=[c for c in id_like_columns(df, target) if c not in keep])
+    df = df.drop(columns=[c for c in leaky_columns(df, target) if c not in keep]).drop_duplicates()
     for c in numeric_like_columns(df, target):
         df[c] = pd.to_numeric(df[c].astype(str).str.strip().replace("", None), errors="coerce")
     return df

@@ -13,8 +13,16 @@ import io
 BANNED = re.compile(r"\b(f1|precision|recall|mae|rmse|r2|r-squared|train/test split|hyperparameters?|leakage)\b", re.I)
 
 
-def frame():
+def frame(kind=None):
+    """A small table with an answer column for the kind: 'left' (yes/no) or 'price' (a number)."""
+    if kind is not None and kind.id == "regression":
+        from tests.helpers.ml_slices import house_csv
+        return pd.read_csv(io.BytesIO(house_csv(600)))
     return pd.read_csv(io.BytesIO(churn_csv(600)))
+
+
+def answer(kind):
+    return "price" if kind.id == "regression" else "left"
 
 
 @pytest.fixture(params=sorted(tasks.TASKS))
@@ -30,24 +38,26 @@ def test_every_kind_provides_the_whole_interface(kind):
 
 
 def test_splits_are_deterministic_and_disjoint(kind):
-    df = frame()
-    a, b = kind.locked_split(df, "left", 0.2, 7), kind.locked_split(df, "left", 0.2, 7)
+    df, t = frame(kind), answer(kind)
+    a, b = kind.locked_split(df, t, 0.2, 7), kind.locked_split(df, t, 0.2, 7)
     assert a[0].equals(b[0]) and a[1].equals(b[1])
     assert not set(a[0].index) & set(a[1].index) and len(a[0]) + len(a[1]) == len(df)
-    Xtr, Xte, ytr, yte = kind.split(df, "left", 0.2, 0)
+    Xtr, Xte, ytr, yte = kind.split(df, t, 0.2, 0)
     assert not set(Xtr.index) & set(Xte.index) and len(Xte) == len(yte)
 
 
 def test_scores_are_plain_json_numbers(kind):
-    s = kind.score(["a", "b", "a", "a"], ["a", "a", "a", "a"], y_train=["a", "a", "b"])
+    labels = ([10.0, 20.0, 30.0, 40.0], [12.0, 18.0, 33.0, 37.0], [10.0, 20.0, 30.0]) if kind.id == "regression" else \
+        (["a", "b", "a", "a"], ["a", "a", "a", "a"], ["a", "a", "b"])
+    s = kind.score(labels[0], labels[1], y_train=labels[2])
     assert 0 <= s.value <= 1 and 0 <= s.simple_guess <= 1
     json.dumps({"v": s.value, "g": s.simple_guess, "x": s.extras})
     assert kind.finite_test_variance(0.8, 100) > 0 and kind.finite_test_variance(0.8, 0) > 0
 
 
 def test_a_built_kind_builds_every_family(kind):
-    df = frame()
-    X = df.drop(columns=["left"])
+    df = frame(kind)
+    X = df.drop(columns=[answer(kind)])
     for fam in kind.families:
         assert hasattr(kind.build(fam, X), "fit")
 
@@ -63,7 +73,7 @@ def test_classification_numbers_are_what_they_were():
 def test_unknown_and_unbuilt_ids_are_refused_in_plain_words():
     assert tasks.get(None).id == "classification"
     with pytest.raises(tasks.UnknownTask, match="not built yet"):
-        tasks.get("regression")
+        tasks.get("forecast")
     with pytest.raises(tasks.UnknownTask, match="unknown"):
         tasks.get("nonsense")
 
