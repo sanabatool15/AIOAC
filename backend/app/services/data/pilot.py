@@ -12,7 +12,6 @@ import time
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import KFold, StratifiedKFold
 
 from ...config import settings
 from ...db import Session
@@ -21,7 +20,7 @@ from ...ports import Storage
 from ...repositories import analysis as analysis_repo
 from ...repositories import datasets as datasets_repo
 from ...repositories import forecasts as forecasts_repo
-from . import baseline, families, verification
+from . import baseline, families, tasks, verification
 from .forecast import Prediction, extrapolate, not_eligible_reason, suggest_target
 
 PILOT_SHARE = 0.08          # of the work rows
@@ -36,17 +35,14 @@ class ForecastError(Exception):
     pass
 
 
-def _score(name: str, X: pd.DataFrame, y: pd.Series) -> tuple[float, float]:
-    """Mean accuracy and its standard error over the cross-validation folds."""
-    try:
-        folds = list(StratifiedKFold(FOLDS, shuffle=True, random_state=0).split(X, y))
-    except ValueError:
-        folds = list(KFold(FOLDS, shuffle=True, random_state=0).split(X))
+def _score(name: str, X: pd.DataFrame, y: pd.Series, task: str = "classification") -> tuple[float, float]:
+    """Mean score (accuracy for classification) and its standard error over the cross-validation folds."""
+    kind = tasks.get(task)
     accs = []
-    for tr, te in folds:
-        m = families.build(name, X.iloc[tr], families.PILOT_SIZE[name])
+    for tr, te in kind.folds(X, y, FOLDS, 0):
+        m = kind.build(name, X.iloc[tr], families.PILOT_SIZE[name])
         m.fit(X.iloc[tr], y.iloc[tr])
-        accs.append(float((m.predict(X.iloc[te]) == y.iloc[te].to_numpy()).mean()))
+        accs.append(kind.score(y.iloc[te].to_numpy(), m.predict(X.iloc[te])).value)
     return float(np.mean(accs)), float(np.std(accs, ddof=1) / math.sqrt(len(accs))) if len(accs) > 1 else 0.0
 
 
@@ -71,6 +67,7 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
     if version is None:
         raise ForecastError("choose a dataset first")
     work_key, locked_key = verification.split_for(session, storage, version)
+    task = tasks.task_of(project).id
     work = pd.read_csv(storage.path(work_key))
     locked_rows = len(pd.read_csv(storage.path(locked_key)))
     total_rows = len(work) + locked_rows
@@ -95,7 +92,7 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
     alive, dropped, history = list(PLAIN_NAMES), [], []
     t0 = time.perf_counter()
     for i, n in enumerate(rungs):
-        scores = {m: _score(m, X.iloc[:n], y.iloc[:n]) for m in alive}
+        scores = {m: _score(m, X.iloc[:n], y.iloc[:n], task) for m in alive}
         history.append({"rows": n, "scores": {m: round(s[0], 4) for m, s in scores.items()}})
         if i < len(rungs) - 1:
             keep = max(1, math.ceil(len(alive) / 2))
@@ -108,14 +105,14 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
     train_frac = (FOLDS - 1) / FOLDS  # cross-validation trains on 2/3 of each rung
     curve = []
     for n in rungs:
-        mean, se = _score(winner, X.iloc[:n], y.iloc[:n])
+        mean, se = _score(winner, X.iloc[:n], y.iloc[:n], task)
         curve.append((n * train_frac, mean, se))
     full_train = round(0.8 * len(work))  # the paid run trains on 80% of the work rows
-    pred = extrapolate(curve, full_train, locked_rows, target)
+    pred = extrapolate(curve, full_train, locked_rows, target, task)
     pilot = {"rows_used": pilot_rows, "share_of_data": round(pilot_rows / total_rows, 3), "rungs": history,
              "kept": PLAIN_NAMES[winner], "family": winner, "dropped": dropped,
              "cost_samples": [list(x) for x in cost_samples],
              "learning_curve": [{"training_rows": round(n), "accuracy": round(a, 4)} for n, a, _ in curve],
              "full_run_training_rows": full_train, "pilot_seconds": round(time.perf_counter() - t0, 2)}
-    suggested = suggest_target(curve, full_train, locked_rows) if pred.confidence < settings.forecast_min_confidence else None
+    suggested = suggest_target(curve, full_train, locked_rows, task) if pred.confidence < settings.forecast_min_confidence else None
     return save(pred, pilot, suggested)

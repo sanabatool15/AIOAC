@@ -13,13 +13,12 @@ import io
 
 import joblib
 import pandas as pd
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
 
 from ...db import Session
 from ...db.tables import DatasetVersion
 from ...ports import Storage
 from ...repositories import datasets as datasets_repo
+from . import tasks
 from .features import prepare_features
 
 LOCKED_SHARE = 0.20
@@ -47,7 +46,7 @@ def _csv_roundtrip(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def prepare_split(storage: Storage, version_id: str, storage_key: str, target: str,
-                  lineage: list[tuple[str, str]] | None = None) -> tuple[str, str]:
+                  lineage: list[tuple[str, str]] | None = None, task: str = "classification") -> tuple[str, str]:
     """Writes work.csv and locked.csv once (the same split every time) and returns their storage keys.
 
     `lineage` is the chain of ancestors of this version, ROOT FIRST, as (version id, storage key) pairs. With no lineage
@@ -59,7 +58,7 @@ def prepare_split(storage: Storage, version_id: str, storage_key: str, target: s
         return work_key, locked_key
     if lineage:
         parent_id, parent_key = lineage[-1]
-        _, parent_locked_key = prepare_split(storage, parent_id, parent_key, target, lineage[:-1])
+        _, parent_locked_key = prepare_split(storage, parent_id, parent_key, target, lineage[:-1], task)
         df = _csv_roundtrip(prepare_features(pd.read_csv(storage.path(storage_key)).dropna(subset=[target]), target))
         locked_parent = pd.read_csv(storage.path(parent_locked_key))
         cols = [c for c in df.columns if c in locked_parent.columns]
@@ -68,16 +67,13 @@ def prepare_split(storage: Storage, version_id: str, storage_key: str, target: s
         storage.put(locked_key, df[is_locked].to_csv(index=False).encode())
         return work_key, locked_key
     df = prepare_features(pd.read_csv(storage.path(storage_key)).dropna(subset=[target]), target)
-    try:
-        work, locked = train_test_split(df, test_size=LOCKED_SHARE, random_state=SPLIT_SEED, stratify=df[target])
-    except ValueError:  # a class with too few rows to stratify
-        work, locked = train_test_split(df, test_size=LOCKED_SHARE, random_state=SPLIT_SEED)
+    work, locked = tasks.get(task).locked_split(df, target, LOCKED_SHARE, SPLIT_SEED)
     storage.put(work_key, work.to_csv(index=False).encode())
     storage.put(locked_key, locked.to_csv(index=False).encode())
     return work_key, locked_key
 
 
-def split_for(session: Session, storage: Storage, version: DatasetVersion) -> tuple[str, str]:
+def split_for(session: Session, storage: Storage, version: DatasetVersion, task: str = "classification") -> tuple[str, str]:
     """The work and locked files of a dataset version, inheriting the locked rows from the root version (walks parent_id)."""
     chain, cur = [], version
     while cur.parent_id:
@@ -85,17 +81,17 @@ def split_for(session: Session, storage: Storage, version: DatasetVersion) -> tu
         if cur is None:
             break
         chain.append((cur.id, cur.storage_key))
-    return prepare_split(storage, version.id, version.storage_key, version.target_column, list(reversed(chain)))
+    return prepare_split(storage, version.id, version.storage_key, version.target_column, list(reversed(chain)), task)
 
 
-def verify_model(model_bytes: bytes | None, storage: Storage, locked_key: str, target: str) -> dict:
+def verify_model(model_bytes: bytes | None, storage: Storage, locked_key: str, target: str, task: str = "classification") -> dict:
     """Score the finished model on the locked rows. Returns {metric, value, rows}. Raises VerificationError."""
     if not model_bytes:
         raise VerificationError("no model to verify")
     try:
         model = joblib.load(io.BytesIO(model_bytes))
         locked = pd.read_csv(storage.path(locked_key))
-        value = float(accuracy_score(locked[target], model.predict(locked.drop(columns=[target]))))
+        value = tasks.get(task).score(locked[target], model.predict(locked.drop(columns=[target]))).value
     except Exception as exc:  # a broken model or file is OUR failure, never the buyer's
         raise VerificationError(type(exc).__name__) from exc
     return {"metric": "accuracy", "value": value, "rows": int(len(locked))}

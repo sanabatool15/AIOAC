@@ -20,7 +20,7 @@ def get_owned(session: Session, project_id: str, user_id: str, org_id: str) -> P
 
 
 def create(session: Session, goal: str, user_id: str | None = None, org_id: str | None = None) -> Project:
-    p = Project(goal=goal, user_id=user_id, org_id=org_id)
+    p = Project(goal=goal, user_id=user_id, org_id=org_id, task_type="classification")
     session.add(p)
     session.commit()
     return p

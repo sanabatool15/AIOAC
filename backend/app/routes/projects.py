@@ -18,7 +18,7 @@ from ..repositories import projects as projects_repo
 from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
 from ..config import settings
-from ..services.data import analysis, dataset_link, datasets, families, pilot
+from ..services.data import analysis, dataset_link, datasets, families, pilot, tasks
 from ..services.data.samples import CATALOG
 from .forecast import forecast_view, previous_on_other_data
 from .payments import receipt
@@ -92,7 +92,7 @@ def read(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(
         forecast = None   # the data was changed (a guided fix) after this forecast: it says nothing about the new data, so run the free pilot again
     pay = payments_repo.for_quote(s, q.id) if q else None
     run = runs_repo.latest_for_project(s, pid)
-    return {"id": p.id, "goal": p.goal, "status": p.status, "readiness_grade": p.readiness_grade,
+    return {"id": p.id, "goal": p.goal, "status": p.status, "task_type": tasks.task_of(p).id, "readiness_grade": p.readiness_grade,
             "trust_level": p.trust_level, "baseline": p.baseline_result,
             "quote": q and {"id": q.id, "estimate_cents": q.estimate_cents, "low_cents": q.low_cents,
                             "high_cents": q.high_cents, "cap_cents": q.cap_cents, "success_fee_max_cents": q.fee_cents,

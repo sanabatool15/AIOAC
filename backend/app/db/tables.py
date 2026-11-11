@@ -50,7 +50,8 @@ class Project(Stamped, Base):
     __table_args__ = (Index("ix_projects_org_user", "org_id", "user_id"),)
     org_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True)  # always set for new rows
     goal: Mapped[str] = mapped_column(String)
-    task_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    task_type: Mapped[str | None] = mapped_column(String, nullable=True)   # null reads as "classification" (services/data/tasks)
+    task_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)   # per-type settings (time column, horizon, ...); unused until those types are built
     status: Mapped[str] = mapped_column(String, default="described")
     chosen_dataset_version_id: Mapped[str | None] = mapped_column(String, nullable=True)
     readiness_grade: Mapped[str | None] = mapped_column(String, nullable=True)

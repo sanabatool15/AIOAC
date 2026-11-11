@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ...config import settings
+from . import tasks
 
 MAX_EXPONENT = 0.4
 MAX_ERROR_SHRINK = 0.5      # the full run is never forecast to cut the error by more than half
@@ -33,8 +34,9 @@ class Prediction:
     confidence: float
 
 
-def extrapolate(curve: list[tuple[float, float, float]], full_train_rows: int, locked_rows: int, target: float) -> Prediction:
-    """curve = [(training rows, accuracy, standard error)] from the survivor. Pure maths, easy to test."""
+def extrapolate(curve: list[tuple[float, float, float]], full_train_rows: int, locked_rows: int, target: float,
+                task: str = "classification") -> Prediction:
+    """curve = [(training rows, score, standard error)] from the survivor. Pure maths, easy to test."""
     ns = np.array([n for n, _, _ in curve], dtype=float)
     err = np.clip(1 - np.array([a for _, a, _ in curve]), 1e-3, 1.0)
     last_n, last_err, last_se = ns[-1], err[-1], curve[-1][2]
@@ -46,19 +48,19 @@ def extrapolate(curve: list[tuple[float, float, float]], full_train_rows: int, l
     growth = max(full_train_rows / last_n, 1.0)
     pred_err = max(last_err * growth ** (-c), last_err * MAX_ERROR_SHRINK)
     pred = 1 - pred_err
-    p = min(max(pred, 0.01), 0.99)
     sigma = math.sqrt(max(last_se, MIN_SIGMA) ** 2 + scatter ** 2
-                      + (EXTRAPOLATION_SIGMA * math.log2(growth)) ** 2 + p * (1 - p) / max(locked_rows, 1))
+                      + (EXTRAPOLATION_SIGMA * math.log2(growth)) ** 2 + tasks.get(task).finite_test_variance(pred, locked_rows))
     confidence = 1 - _phi((target - pred) / sigma)
     return Prediction(round(pred, 4), round(max(0.0, pred - 1.96 * sigma), 4), round(min(1.0, pred + 1.96 * sigma), 4),
                       round(confidence, 3))
 
 
-def suggest_target(curve: list[tuple[float, float, float]], full_train_rows: int, locked_rows: int) -> float | None:
+def suggest_target(curve: list[tuple[float, float, float]], full_train_rows: int, locked_rows: int,
+                   task: str = "classification") -> float | None:
     """The highest target (0.50 to 0.99) we could honestly sell: confidence at least forecast_min_confidence. None if none."""
     for pct in range(99, 49, -1):
         t = pct / 100
-        if extrapolate(curve, full_train_rows, locked_rows, t).confidence >= settings.forecast_min_confidence:
+        if extrapolate(curve, full_train_rows, locked_rows, t, task).confidence >= settings.forecast_min_confidence:
             return t
     return None
 

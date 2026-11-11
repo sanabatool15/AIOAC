@@ -132,3 +132,12 @@ def test_database_without_column_labels_gets_the_table_added(tmp_path, capsys):
     cols = {c["name"] for c in inspect(eng).get_columns("column_labels")}
     assert {"dataset_version_id", "labels", "model", "created_at"} <= cols
     assert any(i["unique"] for i in inspect(eng).get_indexes("column_labels"))
+
+
+def test_upgrade_adds_the_task_columns_as_nullable(tmp_path, capsys):
+    eng, _ = make_old(tmp_path)
+    main(["--check"], eng)
+    assert "MISSING COLUMN projects.task_config" in capsys.readouterr().out
+    assert main(["--upgrade", "--yes"], eng) == 0
+    cols = {c["name"]: c for c in inspect(eng).get_columns("projects")}
+    assert cols["task_type"]["nullable"] and cols["task_config"]["nullable"]
