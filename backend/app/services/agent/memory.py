@@ -48,11 +48,12 @@ def get_conversation(session: Session, project_id: str, source: str = "app", met
 
 
 def user_texts(session: Session, project) -> list[str]:
-    """The project goal plus everything the user has typed in the project's newest conversation."""
+    """The project goal plus everything the user has typed in the project's newest conversation. A click on an answer button
+the model offered (kind "choice") is not typed by the user, so it never counts for the target and search-choice guards."""
     texts = [project.goal or ""]
     conv = conversations.newest_active(session, project.id)
     if conv is not None:
-        texts += [m.content for m in conversations.all_messages(session, conv.id) if m.role == "user" and m.content]
+        texts += [m.content for m in conversations.all_messages(session, conv.id) if m.role == "user" and m.content and m.kind != "choice"]
     return texts
 
 

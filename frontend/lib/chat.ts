@@ -153,7 +153,7 @@ export interface ActivityLine {
 export const getActivity = (projectId: string) => api<ActivityLine[]>(`/projects/${projectId}/activity`);
 
 // The only function that talks to the model. `approve` carries the card's tool name and nothing else.
-export const postChat = (projectId: string, body: { message?: string; approve?: string[] }) =>
+export const postChat = (projectId: string, body: { message?: string; approve?: string[]; choice?: boolean }) =>
   api<ChatReply>(`/projects/${projectId}/chat`, { body });
 
 export function fromStored(m: StoredMessage): ChatItem {

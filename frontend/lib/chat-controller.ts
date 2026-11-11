@@ -43,7 +43,7 @@ export interface ChatDeps {
   boot: (projectId: string, goal: string, sendGoal: boolean, onGoalSent?: (goal: ChatItem) => void) => ReturnType<typeof bootChat>;
   getMessages: (projectId: string) => Promise<StoredMessage[]>;
   getActivity: (projectId: string) => Promise<ActivityLine[]>;
-  postChat: (projectId: string, body: { message?: string; approve?: string[] }) => Promise<ChatReply>;
+  postChat: (projectId: string, body: { message?: string; approve?: string[]; choice?: boolean }) => Promise<ChatReply>;
 }
 
 export const liveDeps: ChatDeps = { boot: bootChat, getMessages, getActivity, postChat };
@@ -146,7 +146,7 @@ export class ChatController {
     if (b.items.some((i) => i.role === "assistant") ) void this.onChanged();
   }
 
-  private async turn(body: { message?: string; approve?: string[] }, shown?: ChatItem): Promise<void> {
+  private async turn(body: { message?: string; approve?: string[]; choice?: boolean }, shown?: ChatItem): Promise<void> {
     if (this.sending) return; // a second click while one call is in flight does nothing
     this.sending = true;
     const since = Date.now();
@@ -164,6 +164,14 @@ export class ChatController {
       this.stopPoll();
       this.set({ busy: false, busySince: null, liveSteps: [], lastSteps: this.state.liveSteps.length ? this.state.liveSteps : [] });
     }
+  }
+
+  // A click on an answer button the model offered. The server marks it so it never counts as the user's own typed words
+  // (target accuracy, "I have no data"); it is still shown as the user's message.
+  choose(text: string): Promise<void> {
+    const t = text.trim();
+    if (!t || this.sending) return Promise.resolve();
+    return this.turn({ message: t, choice: true }, userItem(t));
   }
 
   send(text: string): Promise<void> {
