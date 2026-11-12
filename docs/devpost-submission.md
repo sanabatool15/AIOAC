@@ -104,11 +104,18 @@ AI does the work a person would otherwise need an ML engineer for, but it never 
 - Sandbox-first PayPal development is practical: authorize, capture and void map cleanly onto "hold, charge actual, release the rest".
 
 ## What's next
+**The big vision (not built yet, and we say so).** Today AIOaC handles tabular models on one small CPU instance. The same promise, "describe it, see an honest forecast and a capped price, approve a PayPal hold, pay only for what was used", gets more valuable as the work gets more expensive:
+- **Full deep learning.** Images, text, audio and time-series networks, not just scikit-learn. The training interface, cap-to-runtime enforcement and hold, capture and void flow are already independent of the model type, so a new backend plugs in behind the same `TrainingBackend` port.
+- **LLM fine-tuning.** Fine-tune an open model on the user's own data (for example with SageMaker's fine-tuning jobs) with the same free pilot on a small slice, a forecast against the user's target, a verified check on locked data, and a hard spending cap.
+- **GPU training.** The instance is already a request value chosen by code, never by the model. The estimator would pick the cheapest GPU instance that meets a time target; AWS still ends the job at the cap.
+- **Fundraising when the GPU bill is bigger than one person can afford.** A real training run can cost hundreds or thousands of dollars. Instead of giving up, a user could open a funding campaign: backers pledge into PayPal holds, the job starts only when the goal is reached, compute is captured at actual cost, and everything unused is voided or released back to backers. A simulated version of this existed in an early design and was removed to keep the hackathon scope focused; the hold, capture and void ledger we built is exactly the foundation it needs.
+- **Bigger safety work for bigger money.** Higher spend needs real identity checks, per-user spend limits, and review of every payment path before any move beyond the sandbox.
+
+**Near-term engineering work.**
 - Run the complete flow in a browser against the live PayPal sandbox and SageMaker together, with a person approving as the sandbox buyer.
 - Verify webhook signatures against a public URL, and check PayPal's limits on captures per authorization and hold lifetime.
 - Calibrate prices and the speed factor from more real jobs so quotes stop being dominated by the platform fee.
 - Run paid SageMaker jobs for the newer task types (regression, forecasting, grouping, unusual records).
-- Choose the instance size from the data, and a possible GPU path.
 - A shared rate limiter for multi-process deployment, scheduled cleanup of expired candidates and leftover cloud resources, password reset and team invites.
 ```
 
