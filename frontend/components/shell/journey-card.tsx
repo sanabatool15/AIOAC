@@ -30,8 +30,11 @@ function itemsFor(i: number, p: BProject): string[] {
     case 3: {
       const f = toForecast(p.forecast);
       if (f?.target != null) out.push(`Your target: ${f.target} out of 100`);
-      if (f?.expected != null) out.push(`Expected: about ${f.expected} out of 100 (estimate)`);
-      if (f?.confidence != null) out.push(`Chance of reaching it: about ${f.confidence}% (estimate)`);
+      if (p.forecast && p.forecast.eligible === false) out.push("No price yet: the small test could not forecast a result for this target (see below)");
+      else {
+        if (f?.expected != null) out.push(`Expected: about ${f.expected} out of 100 (estimate)`);
+        if (f?.confidence != null) out.push(`Chance of reaching it: about ${f.confidence}% (estimate)`);
+      }
       break;
     }
     case 4: {

@@ -125,6 +125,8 @@ def messages(pid: str, *, p: Project = Depends(owned_project), s: Session = Depe
                 continue
             out.append({"id": m.id, "role": "assistant", "text": card.get("what", ""), "kind": "card", "card": card, "blocks": m.payload or [], "created_at": m.created_at})
         elif m.role in ("user", "assistant") and m.kind in ("chat", "note", "choice") and m.content:
+            if out and out[-1]["role"] == m.role == "assistant" and out[-1]["kind"] != "card" and out[-1]["text"].strip() == m.content.strip():
+                out.pop()   # the model said the same thing before a tool call and again in its final reply: show it once
             out.append({"id": m.id, "role": m.role, "text": m.content, "kind": m.kind, "blocks": m.payload or [], "created_at": m.created_at})
     return out
 
