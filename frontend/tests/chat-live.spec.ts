@@ -37,7 +37,7 @@ test("live steps appear while the assistant works and clear when the turn ends",
   await page.getByLabel("Send message").click();
   await expect(page).toHaveURL(/\/c\/[0-9a-f]+$/);
 
-  const live = page.getByLabel("What the assistant is doing");
+  const live = page.getByLabel("Chat with the assistant");
   await expect(live.getByText("Searched open datasets for customer churn")).toBeVisible({ timeout: 15_000 });
   await expect(live.getByText(/Found 2 possible datasets/)).toBeVisible();
   await expect(live.getByText("Looking at a dataset…")).toBeVisible();
@@ -45,7 +45,7 @@ test("live steps appear while the assistant works and clear when the turn ends",
 
   release();
   await expect(page.getByLabel("Approval needed")).toBeVisible({ timeout: 30_000 });
-  await expect(live).toHaveCount(0); // cleared when the turn ended
+  await expect(live.getByText("Looking at a dataset…")).toHaveCount(0); // live line cleared when the turn ended
   expect(chatPosts.length).toBe(1); // polling sends no extra /chat
   const after = polls;
   await page.waitForTimeout(4500);

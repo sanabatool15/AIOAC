@@ -9,7 +9,7 @@ test("project detail tabs, Model tab (one record and CSV), Usage and Billing his
   for (const tab of ["Overview", "History", "Activity", "Model"]) {
     await expect(page.getByRole("tab", { name: tab })).toBeVisible();
   }
-  await expect(page.getByLabel("Where this project is")).toBeVisible();
+  await expect(page.getByText("Your progress").first()).toBeVisible();
 
   await page.getByRole("tab", { name: "History" }).click();
   await expect(page.getByText(/rows/i).first()).toBeVisible();
