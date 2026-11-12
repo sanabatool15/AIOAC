@@ -178,6 +178,7 @@ export const runBaseline = (id: string) =>
 export const runPilot = (id: string, goal: number | { typicalError: number } | null) =>
   api<BForecast>(`/chats/${id}/pilot`, {
     body: goal === null ? {} : typeof goal === "number" ? { target: goal } : { typical_error: goal.typicalError },
+    timeoutMs: 150_000, // the free pilot is bounded; if nothing came back by now, show a plain message instead of spinning forever
   });
 // A guided data fix. Propose is free and changes nothing; apply is the user's click.
 export const proposeFix = (id: string) => api<BFixProposal>(`/chats/${id}/fix/propose`, { method: "POST" });

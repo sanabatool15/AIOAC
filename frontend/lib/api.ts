@@ -358,7 +358,7 @@ export function detailMessage(body: unknown, status: number): string {
 
 export async function api<T>(
   path: string,
-  init: { method?: string; body?: unknown } = {},
+  init: { method?: string; body?: unknown; timeoutMs?: number } = {},
 ): Promise<T> {
   // /public/* needs no login: send no cookies and never send the browser to the login screen.
   const isPublic = path.startsWith("/public/");
@@ -369,8 +369,10 @@ export async function api<T>(
       credentials: isPublic ? "omit" : "include",
       headers: init.body === undefined ? undefined : { "Content-Type": "application/json" },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      signal: init.timeoutMs ? AbortSignal.timeout(init.timeoutMs) : undefined,
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "TimeoutError") throw new ApiError("This is taking longer than expected. Nothing was charged. Reload the page to see if it finished, or try again.", 0);
     throw new ApiError("We could not reach the server. Check that it is running, then try again.", 0);
   }
   let body: unknown = null;
