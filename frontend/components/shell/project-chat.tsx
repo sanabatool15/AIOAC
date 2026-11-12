@@ -59,6 +59,13 @@ export function hasEstimateBlock(b: { type: string }): boolean {
   return b.type === "baseline" || b.type === "quote";
 }
 
+// The model sometimes offers its own "Upload a file / Share a link / I have no data" buttons. The screen already has the real
+// ones under the chat (they open the upload and link panels), so the model's copy is hidden while no data is chosen.
+function isStartChoices(b: { type: string; options?: unknown }): boolean {
+  if (b.type !== "choices" || !Array.isArray(b.options)) return false;
+  return b.options.some((o) => typeof o === "string" && /upload|link|no data/i.test(o));
+}
+
 export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStatus: string }) {
   const { chat, state } = pc;
   // Replies that arrive after the chat opened are typed out; the ones already there are not.
@@ -94,7 +101,7 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
                 onDecline={() => chat.decline(m.id)}
               />
             )}
-            {m.blocks.map((b, i) => (
+            {m.blocks.filter((b) => !(projectStatus === "described" && isStartChoices(b))).map((b, i) => (
               <ChatBlockView key={i} b={b} onChoose={(t) => void chat.choose(t)} locked={state.busy || mi < state.items!.length - 1} />
             ))}
           </AgentRow>

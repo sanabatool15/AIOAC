@@ -83,6 +83,8 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
   const [adding, setAdding] = useState<AddDataKind | null>(null);
   const [attached, setAttached] = useState<File | null>(null); // a CSV waiting under the text in the box
   const [pendingText, setPendingText] = useState("");
+  // Once the person said they have no data, the search is running or done: the three start buttons are not needed any more.
+  const searchStarted = !!items?.some((m) => m.role === "user" && /\bno\s+data/i.test(m.text));
   const lastIsUser = items?.[items.length - 1]?.role === "user";
   // The newest chat message (or the live steps) stays next to the composer. A reader who scrolled up is not moved.
   useFollowChat(bottom, `${items?.length ?? 0}:${pc.state.busy}:${pc.state.liveSteps.length}`, !!lastIsUser, items !== null);
@@ -136,7 +138,7 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
       <div data-region="conversation" className="flex flex-col gap-4">
         <ChatThread pc={pc} projectStatus={project.status} />
         {/* Under the thread, so the three choices stay next to the composer instead of scrolling away. */}
-        {onData && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
+        {onData && !searchStarted && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
         {project.run && project.status === "done" && (
           <div className="pl-9">
             <ModelPanel projectId={project.id} />

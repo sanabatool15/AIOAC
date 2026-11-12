@@ -78,7 +78,7 @@ def sanitise_license(text, trusted: bool = False) -> str:
 
 
 NEXT_STEP = {
-    "described": "If the goal is not yes/no, call set_task_type first. Then wait for the user to pick: upload, link, or no data. Only if they said they have no data, call discover_datasets; if they gave a file or link, use that. Then inspect a dataset and ask the user to approve one.",
+    "described": "If the goal is not yes/no, call set_task_type first. Then wait for the user to pick: upload, link, or no data. Only if they said they have no data, call discover_datasets; if they gave a file or link, use that. Then call select_dataset for one (a typed yes is no approval). No ask_choice for the start buttons.",
     "data_chosen": "Say in one plain sentence what you are about to check and why, then run the readiness check. If the user asks about a column, use profile_data.",
     "readiness_done": "Explain what the check found in 2 or 3 plain sentences (name the columns, say what it means for them) with one recommendation and its reason, then run the free baseline test. If you saw a suspect or the user asks about a column, use profile_data.",
     "baseline_done": "Explain the free test result in 2 or 3 plain sentences with one recommendation and its reason. Ask the user for their target if you do not have it, run the free small test, and explain the forecast. If it is eligible create the quote; if not, say honestly why and you may offer propose_data_fix (never promise it helps). If they ask what matters or whether another model or more rows would help, use compare_models.",
