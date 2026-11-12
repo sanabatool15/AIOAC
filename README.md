@@ -4,6 +4,46 @@ Describe a prediction problem in plain words. An AI agent checks the data, runs 
 
 Status (2026-11-06): the backend, the agent and the web app are built and tested offline, and the web app has browser tests against a test server. Checked live earlier: PayPal sandbox hold, capture and void; SageMaker training jobs; the Azure model on the eval set. **Not yet done:** one full click-through with the real PayPal sandbox and a real SageMaker run (the owner does this by hand), the PayPal webhook, and Inngest. See `specs/status.md` and `specs/breakpoints.md`.
 
+## Quick start for judges (about 5 minutes, no keys needed)
+
+This runs the real app (backend, login, database layer, permission gate, ledger, cost and forecast code, local training) with **no API keys and no network**. Two outside systems are stand-ins so it works offline: the AI model is a scripted one, and PayPal is the in-memory mock. To see the real PayPal sandbox, use "Real PayPal sandbox" below. Everything is sandbox only: no real money, cards or passwords.
+
+Needs Python 3.11 or newer and Node.js 20 or newer. Use two terminals.
+
+**Terminal 1: backend** (macOS or Linux; Windows PowerShell steps are further down)
+
+```bash
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python -m tests.browser_server --port 8765 --frontend http://localhost:3000
+```
+
+It prints `Browser test server on http://127.0.0.1:8765`. It uses a throwaway database and clears any real keys from your shell.
+
+**Terminal 2: frontend**
+
+```bash
+cd frontend
+echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:8765" > .env.local
+npm install
+npm run dev
+```
+
+**Then in the browser** (http://localhost:3000):
+
+1. Sign up with any email and a password of 8 or more characters.
+2. Type a goal, for example `which customers may stop buying`, then choose **No data: let the agent find one**.
+3. Approve the dataset card. Click through the data check, the free test, the target, and the price.
+4. Click **Approve and pay**. The mock PayPal hold is confirmed by the server, then training starts (local, free, so most of the hold is released).
+5. Read the result and the receipt: held, compute charged, success fee (only if verified), released.
+
+Check the money rules without a browser: `cd backend && pytest tests/e2e/test_payments_and_demo.py` runs the whole flow on the mock payment double (no network).
+
+**Real PayPal sandbox:** follow "Run it on Windows (PowerShell)" and "PayPal sandbox test (the real cycle)" below. You need a free PayPal developer account, a sandbox app (client id and secret), a sandbox buyer account, and an LLM key (Azure AI Foundry or OpenRouter). `TRAINING_BACKEND=local` is free; `sagemaker` needs AWS and costs cents.
+
+If something fails: the API says `login is not set up` when `SECRET_KEY` is missing (the launcher sets one itself); a blank page usually means the frontend is not pointing at port 8765 (check `frontend/.env.local`, then restart `npm run dev`).
+
 ## How PayPal is used
 
 Money model "forecast, then verify" (sandbox only; no real money, cards or passwords anywhere). The app uses PayPal's REST API (Orders v2 and Payments v2):
