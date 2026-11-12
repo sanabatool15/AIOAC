@@ -78,7 +78,7 @@ def _release(project_id: str) -> None:
 
 
 def run_agent(ctx: ToolContext, llm: LLMClient, user_message: str | None, log: RunLog | None = None,
-              conversation_id: str | None = None, source: str = "app", meta: dict | None = None) -> AgentResult:
+              conversation_id: str | None = None, source: str = "app", meta: dict | None = None, choice: bool = False) -> AgentResult:
     """One user turn. Only one turn per project can run at a time (TurnInProgress otherwise, mapped to HTTP 409)."""
     log = log or RunLog()  # no sinks: does nothing
     session = ctx.session
@@ -93,7 +93,7 @@ def run_agent(ctx: ToolContext, llm: LLMClient, user_message: str | None, log: R
                  model=getattr(llm, "model", type(llm).__name__), conversation_id=conv.id)
         result: AgentResult | None = None
         try:
-            result = _turn(ctx, llm, user_message, run, conv, log)
+            result = _turn(ctx, llm, user_message, run, conv, log, choice)
             return result
         finally:
             run.status = result.status if result else "failed"
@@ -108,7 +108,7 @@ def run_agent(ctx: ToolContext, llm: LLMClient, user_message: str | None, log: R
         _release(ctx.project.id)
 
 
-def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: AgentRun, conv, log: RunLog) -> AgentResult:
+def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: AgentRun, conv, log: RunLog, choice: bool = False) -> AgentResult:
     trace = TraceRepository(ctx.session)
     pid = ctx.project.id
     # the card the user is answering now: if they approved it and the model does not make the call, the server makes it (see below)
@@ -123,7 +123,7 @@ def _turn(ctx: ToolContext, llm: LLMClient, user_message: str | None, run: Agent
     if user_message:
         trace.add(pid, "user", {"text": user_message}, run.id)
         # kind "approval": the model reads it in its history, the chat screen does not show it (routes/projects.py)
-        memory.add_message(ctx.session, conv.id, "user", user_message, run_id=run.id, kind="approval" if synthetic else "chat")
+        memory.add_message(ctx.session, conv.id, "user", user_message, run_id=run.id, kind="approval" if synthetic else "choice" if choice else "chat")
         log.emit("user_message", text=user_message)
     seen: dict[str, int] = {}
 

@@ -38,6 +38,7 @@ class ProjectIn(BaseModel):
 class ChatIn(BaseModel):
     message: str | None = None
     approve: list[str] = []  # L1 actions the user approved on the card
+    choice: bool = False  # the message is a click on an answer button the model offered, not typed text
 
 
 class UploadIn(BaseModel):
@@ -123,7 +124,7 @@ def messages(pid: str, *, p: Project = Depends(owned_project), s: Session = Depe
             except ValueError:
                 continue
             out.append({"id": m.id, "role": "assistant", "text": card.get("what", ""), "kind": "card", "card": card, "blocks": m.payload or [], "created_at": m.created_at})
-        elif m.role in ("user", "assistant") and m.kind in ("chat", "note") and m.content:
+        elif m.role in ("user", "assistant") and m.kind in ("chat", "note", "choice") and m.content:
             out.append({"id": m.id, "role": m.role, "text": m.content, "kind": m.kind, "blocks": m.payload or [], "created_at": m.created_at})
     return out
 
@@ -136,7 +137,7 @@ def _approved_actions(names: list[str]) -> set[str]:
 @router.post("/{pid}/chat")
 def chat(pid: str, *, p: Project = Depends(owned_project), body: ChatIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory), llm=Depends(get_llm_client)):
     try:
-        r = run_agent(make(p, _approved_actions(body.approve)), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"))
+        r = run_agent(make(p, _approved_actions(body.approve)), llm, body.message, log=RunLog([DbSink(s)], log_id=f"app/{pid}"), choice=body.choice)
     except TurnInProgress as e:
         raise HTTPException(409, str(e))
     return {"status": r.status, "text": r.text, "card": r.card, "blocks": r.blocks}

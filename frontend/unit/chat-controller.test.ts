@@ -101,6 +101,14 @@ test("on a later step an empty history is NOT a reason to send the goal", async 
   assert.deepEqual(t.c.getState().items, []);
 });
 
+test("a click on an answer button is sent as a choice, typed text is not", async () => {
+  const t = make({ stored: [storedUser], replies: [replyBlocks, replyBlocks] });
+  await t.c.open("data_chosen");
+  await t.c.choose("Column A");
+  await t.c.send("Column A");
+  assert.deepEqual(t.posts, [{ message: "Column A", choice: true }, { message: "Column A" }]);
+});
+
 test("send makes exactly one /chat call, shows the user's words, and re-reads the project after", async () => {
   const t = make({ stored: [storedUser], replies: [replyBlocks] });
   await t.c.open("data_chosen");

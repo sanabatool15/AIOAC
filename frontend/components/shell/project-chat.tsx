@@ -95,7 +95,7 @@ export function ChatThread({ pc, projectStatus }: { pc: ProjectChat; projectStat
               />
             )}
             {m.blocks.map((b, i) => (
-              <ChatBlockView key={i} b={b} onChoose={(t) => void chat.send(t)} locked={state.busy || mi < state.items!.length - 1} />
+              <ChatBlockView key={i} b={b} onChoose={(t) => void chat.choose(t)} locked={state.busy || mi < state.items!.length - 1} />
             ))}
           </AgentRow>
           {m.card && chat.isDeclined(m.id) && (

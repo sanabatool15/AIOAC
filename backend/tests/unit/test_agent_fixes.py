@@ -192,3 +192,25 @@ def test_feed_has_titles_not_ids_and_drops_approval_text(session, storage, provi
     assert "uci:" not in texts and "hf:" not in texts and "[redacted" not in texts
     assert 'Looked at "Credit card default"' in texts and 'Downloaded "Credit card default"' in texts
     assert "Looked at a dataset" in texts
+
+
+# ---------------------------------------------------------------- a button the model offered is not the user's own words
+def test_a_clicked_model_option_does_not_name_the_target(session, storage, provider, baselined):
+    """ask_choice buttons are worded by the model. A click on "80 out of 100" must not satisfy the G1 target guard."""
+    llm = FakeLLM([call("run_pilot", target=0.8), LLMResponse(text="How many out of 100 do you need right?")])
+    run_agent(ctx(session, storage, provider, baselined), llm, "80 out of 100", choice=True)
+    assert _results(session, baselined, "run_pilot")[0]["need_target"] is True
+
+
+def test_a_typed_target_still_counts_after_a_choice_click(session, storage, provider, baselined):
+    run_agent(ctx(session, storage, provider, baselined), FakeLLM([LLMResponse(text="ok")]), "70 out of 100", choice=True)
+    llm = FakeLLM([call("run_pilot", target=0.8), LLMResponse(text="Here is the forecast.")])
+    run_agent(ctx(session, storage, provider, baselined), llm, "I need 80 out of 100 right")
+    assert "need_target" not in _results(session, baselined, "run_pilot")[0]
+
+
+def test_a_clicked_option_is_shown_in_the_chat_like_any_user_message(session, storage, provider, baselined):
+    from app.repositories import conversations
+    run_agent(ctx(session, storage, provider, baselined), FakeLLM([LLMResponse(text="ok")]), "Column A", choice=True)
+    msgs = conversations.project_messages(session, baselined.id)
+    assert any(m.role == "user" and m.content == "Column A" and m.kind == "choice" for m in msgs)

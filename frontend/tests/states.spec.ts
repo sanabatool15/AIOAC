@@ -68,7 +68,8 @@ test("a missed target: compute only, no success fee, and a free Improve round", 
   await expect(page.getByTestId("result-missed")).toBeVisible();
   await expect(page.getByText("NOT MET")).toBeVisible();
   await expect(page.getByText("$0.40").first()).toBeVisible();
-  await expect(page.getByText("$0.00").first()).toBeVisible(); // success fee
+  const fee = page.getByTestId("receipt").getByText("Success fee charged").locator("..");
+  await expect(fee).toContainText("$0.00"); // success fee: none after a miss
 });
 
 test("a failed run on our side: nothing is charged", async ({ page }) => {

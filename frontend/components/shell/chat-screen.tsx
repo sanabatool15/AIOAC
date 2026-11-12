@@ -9,6 +9,7 @@ import { ChatComposer, ChatThread, useProjectChat } from "./project-chat";
 import { BudgetButton } from "./budget-panel";
 import { PayPrompt } from "./pay-prompt";
 import { AddDataDialog, type AddDataKind } from "./data-dialog";
+import { DataPicker } from "./data-picker";
 import { InlineChatFrame } from "./inline-chat";
 import { ModelPanel } from "./model-panel";
 import { ProjectPanel } from "./project-panel";
@@ -133,6 +134,7 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
         </p>
       )}
       <div data-region="conversation" className="flex flex-col gap-4">
+        {onData && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
         <ChatThread pc={pc} projectStatus={project.status} />
         {project.run && project.status === "done" && (
           <div className="pl-9">

@@ -16,22 +16,36 @@ _CLAIMS = [
     (re.compile(r"\b(payment|pay(ing)?)\b[^.!?\n]{0,40}\b(was|has been|is|went)\s+(received|confirmed|complete[d]?|successful|through)\b|"
                 r"\byou(?:'ve| have) (been charged|paid)\b|\bi(?:'ve| have) (charged|taken) (your|the) (payment|card)", re.I),
      PAID_OR_LATER, "no payment has been confirmed by the server yet"),
-    (re.compile(r"\b(training|the model)\b[^.!?\n]{0,30}\b(has started|is now running|is running|has finished|is finished|is complete|is ready|is trained)\b|"
-                r"\bi(?:'ve| have) (started|begun|launched) (the )?training\b|\bi(?:'ve| have) trained\b", re.I),
+    # Paid vocabulary only. "I trained a quick model" / "the model is ready" can be true of the free test, so they are not here.
+    (re.compile(r"\b((paid |full )?training|the (paid|full) run)\b[^.!?\n]{0,30}\b(has started|is now running|is running|has finished|is finished|is complete)\b|"
+                r"\bi(?:'ve| have) (started|begun|launched) (the )?training\b", re.I),
      TRAINED | SETTLED, "paid training has not started"),
     (re.compile(r"\b(refund(ed)?|released|voided)\b[^.!?\n]{0,30}\b(sent|issued|processed|on its way|complete[d]?)\b|\bi(?:'ve| have) (refunded|released|voided)\b", re.I),
      SETTLED, "nothing has been released yet"),
     # a promise to run something, where this step has no tools (the user must press the button on screen)
-    (re.compile(r"\b(i(?:'ll| will| can)|let me|shall i|do you (still )?want (me )?to)\s+(now\s+)?(run|start|try|launch|test|re-?run|re-?train|train|re-?do|re-?build)\b", re.I),
+    (re.compile(r"\b(i(?:'ll| will| can)|let me|shall i|do you (still )?want (me )?to)\s+(now\s+)?(run|start|launch|test|re-?run|re-?train|train|re-?do|re-?build)\b(?!\s+(with|by|to|off|over)\b)", re.I),
      set(ORDER_WITH_TOOLS), "nothing can be run from this step by chat; the result screen has a 'Try a higher target' button"),
 ]
+
+
+# A sentence that sets a condition before the claim ("Once your payment is confirmed, training starts") is a plan, not a claim.
+_CONDITION = re.compile(r"\b(once|when|whenever|after|if|until|unless|as soon as)\b", re.I)
+
+
+def _asserted(rx: re.Pattern, text: str) -> bool:
+    """True if the pattern matches somewhere that is not after a condition word in the same sentence."""
+    for m in rx.finditer(text):
+        start = max(text.rfind(c, 0, m.start()) for c in ".!?\n") + 1
+        if not _CONDITION.search(text[start:m.start()]):
+            return True
+    return False
 
 
 def false_claims(text: str | None, status: str) -> list[str]:
     """Statements about money or training that the stored project state does not support."""
     if not text:
         return []
-    return [reality for rx, ok_in, reality in _CLAIMS if rx.search(text) and status not in ok_in]
+    return [reality for rx, ok_in, reality in _CLAIMS if status not in ok_in and _asserted(rx, text)]
 
 
 def correct_reply(text: str, status: str, problems: list[str]) -> str:

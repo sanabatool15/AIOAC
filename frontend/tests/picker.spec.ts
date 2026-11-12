@@ -20,7 +20,8 @@ test("the three-way picker comes first; nothing is searched until 'No data' is c
 
   // Upload opens its own panel and needs no assistant.
   await page.getByRole("button", { name: /Upload your own CSV/ }).click();
-  await expect(page.getByLabel("CSV file")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Upload your own data" }).getByLabel("CSV file")).toBeAttached();
+  await page.keyboard.press("Escape"); // the panel is a modal: close it before using the page behind it
 
   // Only now does the search start, and it ends in the approval card.
   await noData.click();
@@ -43,7 +44,7 @@ test("pasting a dataset link: a bad address is refused in plain words, a good on
 
   await page.getByLabel("Dataset link").fill("https://huggingface.co/datasets/eval/churn-table");
   await page.getByRole("button", { name: "Get this dataset" }).click();
-  await expect(page.getByText(/Found a table with 1,500 rows/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/1,500 rows · 5 columns/)).toBeVisible({ timeout: 30_000 });
   await page.getByLabel("Which column should we predict?").selectOption("left");
   await page.getByRole("button", { name: "Use this data" }).click();
   await expect(page.getByRole("button", { name: "Check my data" })).toBeVisible({ timeout: 30_000 });
