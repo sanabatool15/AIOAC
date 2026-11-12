@@ -23,6 +23,19 @@ const MODEL_TAB = { id: "model", label: "Test your model" };
 function TargetCard({ project }: { project: BProject }) {
   const base = toBaseline(project)?.right ?? null;
   const target = toForecast(project.forecast)?.target ?? null;
+  const task = project.task_type ?? "classification";
+  if (task !== "classification") {   // a number, a forecast, groups or unusual records have no "out of 100": use the server's words
+    const f = project.forecast?.plain;
+    if (!project.baseline?.plain && !f) return null;
+    return (
+      <Card aria-label="Target to verify" className="gap-3 p-4">
+        <h2 className="text-section text-ink">Target to verify</h2>
+        {project.baseline?.plain && <p className="text-body text-ink-2">Free test: {project.baseline.plain.result}</p>}
+        {f?.target_text && <p className="text-body text-ink-2">Your goal: {f.target_text}</p>}
+        <p className="text-micro text-muted">You are charged only if the independent test reaches your goal. Everything here is an estimate.</p>
+      </Card>
+    );
+  }
   if (base === null || target === null) return null;
   return (
     <Card aria-label="Target to verify" className="gap-3 p-4">
