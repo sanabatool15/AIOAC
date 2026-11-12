@@ -16,7 +16,8 @@ for (const [name, size] of [["desktop", { width: 1440, height: 900 }], ["phone",
 
     // My own message and then the assistant's reply both appear, and the last one is visible on screen.
     await expect(thread.locator("> *")).toHaveCount(before + 2, { timeout: 60_000 });
-    await expect(thread.getByText("Thank you, what does this result mean?")).toBeInViewport();
+    // On a phone a long reply can push my own line above the screen; the newest message (the reply) is what must be in view.
+    if (name === "desktop") await expect(thread.getByText("Thank you, what does this result mean?")).toBeInViewport();
     await expect(thread.locator("> *").last()).toBeInViewport();
     // The composer is on screen with it.
     await expect(page.getByLabel("Message AIOAC")).toBeInViewport();

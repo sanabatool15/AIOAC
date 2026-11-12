@@ -45,7 +45,7 @@ test("live steps appear while the assistant works and clear when the turn ends",
 
   release();
   await expect(page.getByLabel("Approval needed")).toBeVisible({ timeout: 30_000 });
-  await expect(live.getByText("Looking at a dataset…")).toHaveCount(0); // live line cleared when the turn ended
+  await expect(live.getByText(/Worked through \d+ steps?/)).toBeVisible(); // the live lines turned into the finished summary
   expect(chatPosts.length).toBe(1); // polling sends no extra /chat
   const after = polls;
   await page.waitForTimeout(4500);
