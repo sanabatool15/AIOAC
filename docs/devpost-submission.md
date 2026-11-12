@@ -46,26 +46,70 @@ PayPal sandbox is the spending control of the product, not a checkout bolted on:
 - An **append-only ledger** records every capture; the app refuses to capture above the hold or above the compute cap.
 
 ## How we use AI
-- **Agent (LLM, via Azure AI Foundry or OpenRouter):** a custom tool-calling loop that searches and previews datasets, explains readiness in plain words, runs the free test and pilot, builds the quote and explains results. The agent *proposes*; ordinary code *disposes*: a permission gate between the model and every tool that costs money or changes data checks stored state (approved quote, server-confirmed hold, cap) and the model cannot argue its way past it.
-- **Guards:** schema-checked tool arguments, a code check that the target accuracy came from the user's own words, a reply guard that blocks false claims about payment or training, step/token/cost/time limits per turn, and untrusted-data wrapping for dataset text.
-- **Evals:** an eval harness with 15 cases; the real model (gpt-5.4 on Azure) passed 22/22 runs with zero safety violations (small sample, not a guarantee).
-- **Classic ML:** scikit-learn models (linear, forest, boosted trees) chosen by the free pilot; the same code runs locally and in the SageMaker training script.
+AI does the work a person would otherwise need an ML engineer for, but it never holds the wallet.
+
+**1. The agent (LLM through Azure AI Foundry or OpenRouter).** A custom tool-calling loop, small enough for us to test and trace ourselves. In plain words it:
+- **Finds data.** When the user has no data, `discover_datasets` searches a hand-checked list of 12 datasets plus UCI, OpenML and Hugging Face side by side (about 5-10 s live), removes near-copies, ranks the results and explains the top three in one plain sentence each. It can also look at a dataset's size and columns before anything is downloaded.
+- **Checks the data.** Readiness grade, plain OK/NOTE findings, a column-by-column profile with suspects (a column that copies the answer, row IDs, numbers stored as text), and a side-by-side comparison of model types with "which columns matter" clues.
+- **Runs the free steps.** The free test on held-out rows, then the free pilot and forecast against the user's own target.
+- **Explains.** The quote, the result ("verified 84 out of 100 right vs 70 for a simple guess"), and what could help after a miss. Numbers always come from code, never from the model's own claims.
+
+**2. The agent proposes, the system disposes.** A permission gate (ordinary code) sits between the model and every tool. Level 0 tools are free and run on their own. Level 1 tools (choose a dataset, apply a data fix) need the user's click on an approval card. Level 2 tools (request payment, start training) need an approved, unexpired quote and a **server-confirmed PayPal hold**. The gate reads stored state, never what the model says happened, and logs every allow and refuse. If the user approves a card and the model replies with text only, the server runs the exact call stored on the card, so the model cannot talk its way out of or around an approval.
+
+**3. Guards around the model.**
+- Tool arguments are checked against each tool's schema (types, ranges, arrays) and bad calls go back to the model as errors.
+- The target accuracy must come from the user's own words; otherwise `run_pilot` answers "ask the user" and the model cannot pick it.
+- A reply guard replaces any final answer that claims a payment, training run or settlement the stored state does not support, or promises to run something when it has no tools.
+- Limits per turn: 12 steps, 80,000 tokens, a 120 s deadline, 60 s per free tool, and a stop if the same call repeats more than 3 times. Limits per project: 600,000 tokens and a model-cost ceiling. When one is hit the user gets a plain message.
+- Server-side gates for the data choice and for vague goals: search tools answer "wait" until the user's own words say they have no data, or name an actual outcome.
+- Dataset titles, column names, sample rows and licenses are wrapped as untrusted data so a poisoned dataset cannot give the model instructions.
+
+**4. Context engineering.** Each step the model sees a short rules prompt, a live state block rebuilt from the database (status, chosen dataset, grade, free test, quote, next step), only the tools that fit the current stage, and stored history inside a token budget. Eleven short skill playbooks (leakage, lopsided answers, too little data, a suspiciously good baseline, choosing the target column, explaining results plainly, and others) load on demand. Skills hold wording and judgment only; money rules live in code.
+
+**5. Evaluation, not vibes.** An eval harness runs scripted and real models against fixed cases with a mock payment provider, local training and a throwaway database. It checks that no paid work ran, no false claims, plain language, no accuracy promise, tool order and limits. With `gpt-5.4` on Azure: 22 of 22 runs passed on 11 dataset and flow cases and 12 of 12 on 4 skill cases built on synthetic files (lopsided, 80 rows, exact copy, near copy of the answer), with zero safety violations. The smaller `gpt-5.4-mini` passed 15 of 22 on the same scoring, which is why the guards are in code and not in the prompt. Rewriting skill descriptions to say exactly when to load them cut unneeded skill loads from 12 of 12 runs to 0 of 12. These are small samples, not a guarantee.
+
+**6. Classic ML that is honest.** scikit-learn only, on tabular data: classification, regression, forecasting, grouping and unusual records. The free pilot tries linear, forest and boosted-tree models on 5-10% of the rows, drops weak ones early, and fits a learning curve to forecast the full-run result with a band and a confidence. Below 0.60 confidence, or with too little data, we do not sell the run. The paid run trains the model type the quote pinned, then scores it once on locked test rows it never saw. The same feature and model code is copied verbatim into the SageMaker training script, so local and cloud cannot drift apart.
+
+**7. Small extra AI uses.** One cached, validated LLM call turns column names like `Attribute1` into plain labels ("Checking account status") on the Model tab; a failure just shows the raw names.
 
 ## How we built it
-Next.js (TypeScript) frontend, FastAPI backend, SQLite or Postgres. Strict layering (routes, services, repositories, integrations) enforced by an architecture test. Every outside system (PayPal, AWS, LLM, datasets, storage, jobs) sits behind an interface, with in-memory doubles used only in tests. Training runs on AWS SageMaker using AWS's scikit-learn image; the cap becomes SageMaker's `MaxRuntimeInSeconds`, so AWS itself ends the job at the cap even if our code is down. Terraform describes the bucket, roles and budget alert.
+**Stack.** Next.js (TypeScript) frontend; FastAPI (Python) backend; SQLite for the demo and Postgres-compatible (Supabase) for real use; scikit-learn; AWS SageMaker and S3; PayPal REST sandbox; Azure AI Foundry or OpenRouter for the agent.
+
+**Architecture.** The dependency direction is fixed: routes, then services, then repositories and integrations, then database and interfaces. Services contain no SQL; only repositories touch the database. Every outside system (PayPal, AWS, LLM, dataset sources, storage, job runner, local training) has its own folder behind an interface in `ports.py`, and one factory builds each from config. In-memory stand-ins (mock PayPal, scripted model, offline datasets) live in `doubles/` and are used only by tests; the app has no mock mode. An architecture test fails the build if a service imports SQLAlchemy or the app imports a double.
+
+**The money path.** A project moves through fixed states (`described`, `data_chosen`, `readiness_done`, `baseline_done`, `quoted`, `awaiting_payment`, `paid`, `training`, `done`, plus `failed`, `stopped`, `voided`) and steps cannot be skipped. `paid` is set only after the server asks PayPal to authorize the order and checks the amount. Settlement saves each step (compute capture, fee capture or skip, void of the rest) before the next, so it can resume after a crash or PayPal outage without moving money twice. The ledger is insert-only and refuses a balance below zero. Every capture and void carries an idempotency key, and webhook events are stored once by event id.
+
+**Training.** `POST /train` returns at once; the job runs in the background (a thread by default, Inngest optional). Progress, spend so far and an ETA range are shown in plain words, and Stop captures the compute used so far with no success fee. Three layers prevent a duplicate paid run (event id, an atomic "claimed" timestamp, and a SageMaker job named after the run so AWS itself refuses a second one). On start-up, orphaned runs are failed and their holds voided. On SageMaker the quote's cap becomes `MaxRuntimeInSeconds` (minus a 120 s grace and a safety margin), so AWS stops the job at the cap even if our server is down. Actual cost is billable seconds times the hourly price, never above the cap. Plain boto3, AWS's own scikit-learn image and our script: no custom Docker image.
+
+**Product extras.** Email and password login with one organization per signup and owner-scoped routes (404, never 403, for someone else's project), a live activity feed, model versions, "Try a higher target" and free "Improve" rounds, guided data fixes (limit 3, forecast shown before and after), try-one-record, CSV predictions, model download, usage and billing history, and a public read-only result link.
+
+**Testing.** Hundreds of offline backend tests (unit, contract on mocked HTTP and boto3, end-to-end on doubles), frontend unit tests, and Playwright browser tests against a test launcher. A demo check (`tests/e2e/test_payments_and_demo.py`) runs the whole flow with no network. Live checks (`RUN_REAL=1`) are separate; paid ones need a second switch (`RUN_PAID=1`) so a normal run can never start a paid job. Terraform for the bucket, roles and budget alert is written in the repo.
 
 ## Challenges
-- Designing the money model: first "charge the cap, refund later", then "pay $0 if the target is missed" (rejected, the compute is real). We settled on **forecast, then verify**: hold the cap, always capture real compute, charge the fee only on a verified result, void the rest.
-- Honest cost estimates from tiny samples; platform fee dominates small jobs.
-- Real data traps: ID columns, numbers stored as text, columns that copy the answer (our baseline once scored 100% before we fixed it).
-- A model trained under scikit-learn 1.4 crashed on 1.9 at predict time; we pinned the SageMaker image to 1.9.
-- Making an LLM agent safe near money: most guards live in code, not in the prompt.
+- **The money model took three tries.** First "charge the cap, then refund the unused part". Then "pay $0 if the target is missed", which we rejected: the compute is real and someone pays for it. We landed on **forecast, then verify**: hold the cap, always capture the real compute, capture a 5% success fee only if the result passes a check on locked data, and void the rest. If our own code fails, the whole hold is voided.
+- **Payment edge cases.** An audit found races and stuck states: a hold confirmed but the project never moved to paid, a late authorize after a cancel that nothing would void, an amount mismatch that left a hold at PayPal, two simultaneous requests hitting a unique key. Each got a small reviewed fix and a test on the mock provider (atomic status updates, void first then transition, refuse and void a late authorize).
+- **Real PayPal sandbox behavior.** Early credentials were rejected. Once working, we proved authorize, a repeated authorize, a partial capture, a second capture on the same hold, repeated capture and void with the same request id, void of the remainder, and a refused capture after the void. Webhook signatures, many captures per hold and hold lifetime are still unchecked.
+- **Honest cost estimates.** Timing small samples and extrapolating is shaky: at 4,800 rows we projected 2.3 s and measured 2.1 s, but at 20,000 rows we projected 3.0 s and measured 5.8 s, because the baseline timed 100 trees while the cloud script used 300. We fixed the timing to use the chosen model type. The platform fee still dominates small quotes, and prices are placeholders until more real jobs are measured (one real job: cap 60 cents, 69 billable seconds, real AWS compute about 0.44 cents).
+- **Messy real data.** A customer-ID column was one-hot encoded and hurt the model; numbers stored as text; and a column that exactly copied the answer made the baseline score 100% while readiness said it would be ignored. We fixed leakage detection and added skills and checks for near copies.
+- **A silent version bug.** A model trained on scikit-learn 1.4 loaded on 1.9 with a warning and then crashed at predict time. The app runs Python 3.13, which 1.4 does not support, so we pinned the SageMaker image to 1.9 and added a test that loads and predicts in the app environment.
+- **Making an LLM safe near money.** A real model chose the target accuracy itself and ran pilot and quote in one turn; it asked for approval twice instead of acting; vague goals triggered searches; it used jargon like "pilot" and "cap". The fixes live in code (target guard, forced approved call, clarity and data-choice gates, plain wording rules), not in prompt pleading.
+- **Wiring a polished UI to real data.** We had two UIs (a fake-data one and a plain real one) and merged them into one, with chat position, live steps and approval cards that name the dataset instead of an id.
 
 ## What we learned
-Put every irreversible step behind code that reads stored state. Idempotency keys and compare-and-swap status changes make retries safe. Small honest numbers ("about 8 out of 10, an estimate") build more trust than big promises.
+- Put every irreversible step behind code that reads stored state, and let the model only propose. A prompt is advice; a gate is a guarantee.
+- Idempotency keys, compare-and-swap status changes and "save each step before the next" make retries and crashes boring.
+- The cap should be enforced by the party that bills you (AWS's maximum runtime), with our timer only as a backstop.
+- Small honest numbers ("about 8 out of 10, an estimate", a confidence, "no success fee if missed") build more trust than big promises, and the free steps are what make users willing to pay.
+- Evaluate agents on real models with repeats; a smaller model that looks fine in one run fails the same cases a stronger one passes.
+- Sandbox-first PayPal development is practical: authorize, capture and void map cleanly onto "hold, charge actual, release the rest".
 
 ## What's next
-Run the full cycle in a browser against live PayPal sandbox plus SageMaker, verify the webhook with a public URL, calibrate prices from real jobs, multi-process rate limits, instance selection by data size.
+- Run the complete flow in a browser against the live PayPal sandbox and SageMaker together, with a person approving as the sandbox buyer.
+- Verify webhook signatures against a public URL, and check PayPal's limits on captures per authorization and hold lifetime.
+- Calibrate prices and the speed factor from more real jobs so quotes stop being dominated by the platform fee.
+- Run paid SageMaker jobs for the newer task types (regression, forecasting, grouping, unusual records).
+- Choose the instance size from the data, and a possible GPU path.
+- A shared rate limiter for multi-process deployment, scheduled cleanup of expired candidates and leftover cloud resources, password reset and team invites.
 ```
 
 ### Built with (tags, max 25)
