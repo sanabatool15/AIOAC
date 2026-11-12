@@ -78,14 +78,6 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
   // A new chat has nothing to show yet, so the right panel starts closed and opens once the process starts.
   // After the reader opens or closes it themselves, their choice stays.
   const [panelChoice, setPanelChoice] = useState<boolean | null>(null);
-  // On a phone the panel would sit above the chat and leave it a thin strip, so it starts closed there (the button opens it).
-  useEffect(() => {
-    if (window.matchMedia?.("(max-width: 1023px)").matches) setPanelChoice((c) => c ?? false);
-  }, []);
-  // On a phone the panel would sit above the chat and leave it a thin strip, so it starts closed there (the button opens it).
-  useEffect(() => {
-    if (window.matchMedia?.("(max-width: 1023px)").matches) setPanelChoice((c) => c ?? false);
-  }, []);
   const panelOpen = panelChoice ?? !onData; // closed until the process starts, then it opens by itself
   // Attach (the clip) and dropping a file on the chat both open "Add data". Only while no data is chosen yet.
   const [adding, setAdding] = useState<AddDataKind | null>(null);
