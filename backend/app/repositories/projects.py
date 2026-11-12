@@ -31,6 +31,12 @@ def set_status(session: Session, project: Project, new: str) -> None:
     session.commit()
 
 
+def set_task_config(session: Session, project: Project, config: dict) -> None:
+    """Save the per-type settings (for a forecast: the date column, how often, how far ahead, the season)."""
+    project.task_config = config
+    session.commit()
+
+
 def set_chosen_version(session: Session, project: Project, version_id: str) -> None:
     """Point the project at another dataset version (a guided fix makes a child version)."""
     project.chosen_dataset_version_id = version_id

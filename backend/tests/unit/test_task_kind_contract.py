@@ -18,11 +18,14 @@ def frame(kind=None):
     if kind is not None and kind.id == "regression":
         from tests.helpers.ml_slices import house_csv
         return pd.read_csv(io.BytesIO(house_csv(600)))
+    if kind is not None and kind.id == "forecast":
+        from tests.helpers.ml_slices import sales_frame
+        return sales_frame("seasonal", 120)
     return pd.read_csv(io.BytesIO(churn_csv(600)))
 
 
 def answer(kind):
-    return "price" if kind.id == "regression" else "left"
+    return {"regression": "price", "forecast": "units"}.get(kind.id, "left")
 
 
 @pytest.fixture(params=sorted(tasks.TASKS))
@@ -47,7 +50,7 @@ def test_splits_are_deterministic_and_disjoint(kind):
 
 
 def test_scores_are_plain_json_numbers(kind):
-    labels = ([10.0, 20.0, 30.0, 40.0], [12.0, 18.0, 33.0, 37.0], [10.0, 20.0, 30.0]) if kind.id == "regression" else \
+    labels = ([10.0, 20.0, 30.0, 40.0], [12.0, 18.0, 33.0, 37.0], [10.0, 20.0, 30.0]) if kind.id in ("regression", "forecast") else \
         (["a", "b", "a", "a"], ["a", "a", "a", "a"], ["a", "a", "b"])
     s = kind.score(labels[0], labels[1], y_train=labels[2])
     assert 0 <= s.value <= 1 and 0 <= s.simple_guess <= 1
@@ -72,8 +75,9 @@ def test_classification_numbers_are_what_they_were():
 
 def test_unknown_and_unbuilt_ids_are_refused_in_plain_words():
     assert tasks.get(None).id == "classification"
-    with pytest.raises(tasks.UnknownTask, match="not built yet"):
-        tasks.get("forecast")
+    for unbuilt in set(tasks.TASK_IDS) - set(tasks.TASKS):
+        with pytest.raises(tasks.UnknownTask, match="not built yet"):
+            tasks.get(unbuilt)
     with pytest.raises(tasks.UnknownTask, match="unknown"):
         tasks.get("nonsense")
 

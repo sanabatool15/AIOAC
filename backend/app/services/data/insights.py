@@ -4,6 +4,7 @@ Numbers come from code, never from a model. Same input gives the same grade.
 """
 import re
 
+import numpy as np
 import pandas as pd
 
 from .features import id_like_columns, leaky_columns, numeric_like_columns
@@ -79,16 +80,81 @@ def _number_answer(df: pd.DataFrame, target: str):
     return m, out
 
 
-def analyze(df: pd.DataFrame, target: str, task: str = "classification") -> dict:
+def _series_answer(df: pd.DataFrame, target: str, tcol: str | None, config: dict | None):
+    """Readiness checks for a number over time (specs/ml-tasks/01 section 2.3). Returns (measurements, [(kind, text, penalty)]).
+    Plain words; the date column is the time axis, not a row label."""
+    from .tasks import forecast as fc
+    config = dict(config or {})
+    if tcol:
+        config["time_column"] = tcol
+    if not tcol:
+        return {}, [("NOTE", "We found no column with dates, so we cannot test a forecast on this file.", 100)]
+    try:
+        s, info = fc.prepare_series(df, target, config)
+    except fc.ForecastDataError as e:
+        return {}, [("NOTE", str(e), 100)]
+    y, n, word = s["y"].to_numpy(), len(s), info["period"]
+    season = config["season"] if "season" in config else fc.detect_season(y, info["frequency"])
+    m = {"time_column": tcol, "periods": n, "frequency": info["frequency"], "period": word, "season": season, "gaps": info["gaps"],
+         "repeated_dates": info["repeated_dates"]}
+    out = []
+    if info["bad_dates"]:
+        out.append(("NOTE", f"{info['bad_dates']:,} rows have a date we could not read and are left out", 5))
+    if info["repeated_dates"]:
+        how = "averaged" if info["aggregate"] == "mean" else "added together"
+        out.append(("NOTE", f"{info['repeated_dates']:,} rows share a date with another row and are {how}", 3))
+    if info["gaps"]:
+        share = info["gaps"] / max(n, 1)
+        out.append(("NOTE", f"{info['gaps']:,} missing {word}s are filled in by joining the values either side", 25 if share > 0.2 else 15 if share > 0.05 else 5))
+    if info["missing_answers"]:
+        out.append(("NOTE", f"{info['missing_answers']:,} {word}s have no answer and are filled in the same way", 5))
+    if n < 36:
+        out.append(("NOTE", f"Only {n} periods of history, which is short for a reliable forecast", 30))
+    elif n < 100:
+        out.append(("NOTE", f"{n} periods of history; about 100 or more makes a forecast more reliable", 8))
+    else:
+        out.append(("OK", f"Plenty of history ({n} periods)", 0))
+    if n >= 3 and np.std(y) == 0:
+        out.append(("NOTE", "Every period has the same answer, so there is nothing to learn.", 100))
+    else:
+        run = best = 1
+        for a, b in zip(y[:-1], y[1:]):
+            run = run + 1 if a == b else 1
+            best = max(best, run)
+        if best >= max(6, n // 10):
+            out.append(("NOTE", f"Stretches with the same answer for {best} periods in a row, which often means missing data", 10))
+    if n >= 15:
+        recent = y[-13:-1]
+        med = float(np.median(recent))
+        spread = 1.4826 * float(np.median(np.abs(recent - med)))
+        if abs(y[-1] - med) > 4 * max(spread, 1e-9) and spread > 0:
+            out.append(("NOTE", "The latest value is far from the recent ones, which can distort a forecast", 5))
+    if season:
+        out.append(("OK", f"A repeating pattern every {season} {word}s was found", 0))
+    elif n >= 36:
+        out.append(("OK", "No repeating pattern was found, so the forecast leans on the recent level and direction", 0))
+    known = set(config.get("known_columns") or [])
+    other = [c for c in df.columns if c not in (tcol, target) and c not in known]
+    if other:
+        out.append(("NOTE", f"{len(other)} other {_col_word(len(other))} are not used unless you tell us they are known ahead of time (like a planned promotion): {_names(other)}", 0))
+    return m, out
+
+
+def analyze(df: pd.DataFrame, target: str, task: str = "classification", config: dict | None = None) -> dict:
     rows, cols = df.shape
-    ids = id_like_columns(df, target)
+    series = task == "forecast"   # a number over time: the date column is the time axis, and repeated rows are real data
+    tcol = None
+    if series:
+        from .tasks import forecast as fc
+        tcol = (config or {}).get("time_column") or fc.detect_time_column(df, target)
+    ids = [c for c in id_like_columns(df, target) if c != tcol]
     texty_numbers = numeric_like_columns(df, target)
     df = df.drop(columns=ids)
     feats = df.drop(columns=[target])
     missing_pct = float(df.isna().sum().sum() / max(df.size, 1) * 100)
-    dupes = int(df.duplicated().sum())
+    dupes = 0 if series else int(df.duplicated().sum())
     number = task == "regression"
-    if not number:
+    if not (number or series):
         counts = df[target].value_counts(normalize=True)
         minority = float(counts.min()) if len(counts) else 0.0
     constant = [c for c in feats.columns if feats[c].nunique(dropna=True) <= 1]
@@ -105,13 +171,17 @@ def analyze(df: pd.DataFrame, target: str, task: str = "classification") -> dict
         add("NOTE", f"{len(ids)} {_col_word(len(ids))} {_look(len(ids))} like row labels (such as an ID) and will be ignored: {_names(ids)}")
     if texty_numbers:
         add("NOTE", f"{len(texty_numbers)} {_col_word(len(texty_numbers))} hold numbers stored as text and are read as numbers: {_names(texty_numbers)}")
-    if rows < 300:
+    if series:
+        pass   # periods, not rows, are counted below
+    elif rows < 300:
         add("NOTE", f"Only {rows:,} rows, which is small for a reliable model", 30)
     elif rows < 1000:
         add("NOTE", f"{rows:,} rows is on the small side", 12)
     else:
         add("OK", "Enough rows to train a useful model")
-    if dupes:
+    if series:
+        pass
+    elif dupes:
         add("NOTE", f"{dupes:,} duplicate rows found (removed automatically)", 5)
     else:
         add("OK", "No duplicate rows")
@@ -119,8 +189,8 @@ def analyze(df: pd.DataFrame, target: str, task: str = "classification") -> dict
         add("NOTE", f"{missing_pct:.0f}% of values are missing", 20)
     elif missing_pct > 0:
         add("NOTE", f"{missing_pct:.0f}% of values are missing (filled in automatically)", 3)
-    if number:
-        target_m, target_findings = _number_answer(df, target)
+    if number or series:
+        target_m, target_findings = _number_answer(df, target) if number else _series_answer(df, target, tcol, config)
         for kind, text, penalty in target_findings:
             add(kind, text, penalty)
     elif minority < 0.10:
@@ -134,7 +204,7 @@ def analyze(df: pd.DataFrame, target: str, task: str = "classification") -> dict
 
     return {
         "measurements": {"rows": rows, "columns": cols, "missing_pct": round(missing_pct, 2),
-                         "duplicates": dupes, **(target_m if number else {"minority_share": round(minority, 4)}),
+                         "duplicates": dupes, **(target_m if (number or series) else {"minority_share": round(minority, 4)}),
                          "constant_columns": constant, "leaky_columns": leaky,
                          "id_columns": ids, "numbers_stored_as_text": texty_numbers},
         "findings": findings,
