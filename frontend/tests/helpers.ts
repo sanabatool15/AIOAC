@@ -34,8 +34,8 @@ export async function runDemoPath(page: Page): Promise<string> {
   const id = page.url().split("/c/")[1];
 
   // Nothing is searched until the person chooses "No data": the picker is shown first.
-  await expect(page.getByRole("button", { name: /No data: let the agent find one/ })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: /No data: let the agent find one/ }).click();
+  await expect(page.getByRole("button", { name: /I have no data/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: /I have no data/ }).click();
 
   // The approval card names the dataset before anything is chosen.
   const card = page.getByRole("button", { name: "Approve", exact: true });
