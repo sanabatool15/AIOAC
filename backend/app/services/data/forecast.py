@@ -14,12 +14,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from ...config import settings
-from . import tasks
+from . import task_wording, tasks
 
 MAX_EXPONENT = 0.4
 MAX_ERROR_SHRINK = 0.5      # the full run is never forecast to cut the error by more than half
 MIN_SIGMA = 0.015
 EXTRAPOLATION_SIGMA = 0.01  # added per doubling of training size beyond the pilot
+REGRESSION_MIN_SCORE = 0.05  # a number answer must be forecast at least this much closer than the average guess
 
 
 def _phi(z: float) -> float:
@@ -35,8 +36,10 @@ class Prediction:
 
 
 def extrapolate(curve: list[tuple[float, float, float]], full_train_rows: int, locked_rows: int, target: float,
-                task: str = "classification") -> Prediction:
-    """curve = [(training rows, score, standard error)] from the survivor. Pure maths, easy to test."""
+                task: str = "classification", finite_test_sigma: float | None = None) -> Prediction:
+    """curve = [(training rows, score, standard error)] from the survivor. Pure maths, easy to test.
+    `finite_test_sigma`: the standard deviation of the locked-rows score from the finite locked set, when the task
+    measured it (a number answer). None keeps the task's own variance term, so classification is unchanged."""
     ns = np.array([n for n, _, _ in curve], dtype=float)
     err = np.clip(1 - np.array([a for _, a, _ in curve]), 1e-3, 1.0)
     last_n, last_err, last_se = ns[-1], err[-1], curve[-1][2]
@@ -48,30 +51,33 @@ def extrapolate(curve: list[tuple[float, float, float]], full_train_rows: int, l
     growth = max(full_train_rows / last_n, 1.0)
     pred_err = max(last_err * growth ** (-c), last_err * MAX_ERROR_SHRINK)
     pred = 1 - pred_err
-    sigma = math.sqrt(max(last_se, MIN_SIGMA) ** 2 + scatter ** 2
-                      + (EXTRAPOLATION_SIGMA * math.log2(growth)) ** 2 + tasks.get(task).finite_test_variance(pred, locked_rows))
+    finite = tasks.get(task).finite_test_variance(pred, locked_rows) if finite_test_sigma is None else finite_test_sigma ** 2
+    sigma = math.sqrt(max(last_se, MIN_SIGMA) ** 2 + scatter ** 2 + (EXTRAPOLATION_SIGMA * math.log2(growth)) ** 2 + finite)
     confidence = 1 - _phi((target - pred) / sigma)
     return Prediction(round(pred, 4), round(max(0.0, pred - 1.96 * sigma), 4), round(min(1.0, pred + 1.96 * sigma), 4),
                       round(confidence, 3))
 
 
 def suggest_target(curve: list[tuple[float, float, float]], full_train_rows: int, locked_rows: int,
-                   task: str = "classification") -> float | None:
-    """The highest target (0.50 to 0.99) we could honestly sell: confidence at least forecast_min_confidence. None if none."""
-    for pct in range(99, 49, -1):
+                   task: str = "classification", finite_test_sigma: float | None = None) -> float | None:
+    """The highest target (0.50 to 0.99; 0.05 to 0.99 for a number answer) we could honestly sell: confidence at least forecast_min_confidence. None if none."""
+    for pct in range(99, 4 if task == "regression" else 49, -1):
         t = pct / 100
-        if extrapolate(curve, full_train_rows, locked_rows, t, task).confidence >= settings.forecast_min_confidence:
+        if extrapolate(curve, full_train_rows, locked_rows, t, task, finite_test_sigma).confidence >= settings.forecast_min_confidence:
             return t
     return None
 
 
-def not_eligible_reason(pred: Prediction | None, target: float, rows: int | None, suggested: float | None = None) -> str | None:
+def not_eligible_reason(pred: Prediction | None, target: float, rows: int | None, suggested: float | None = None,
+                        task: str = "classification", scale: dict | None = None) -> str | None:
     """Plain-words reason the run should not be sold, or None when it is eligible."""
     if rows is not None and rows < settings.forecast_min_rows:
         return (f"There are only {rows:,} usable rows. That is too little for an honest forecast, "
                 "so we cannot sell you a full run.")
     if pred is None:
         return "The test run could not produce a forecast for this data."
+    if task == "regression":
+        return _regression_reason(pred, target, suggested, scale or {})
     if pred.confidence >= settings.forecast_min_confidence:
         return None
     pct = round(pred.confidence * 100)
@@ -81,3 +87,24 @@ def not_eligible_reason(pred: Prediction | None, target: float, rows: int | None
                 f"below your target of {round(target * 100)}. The chance of reaching it is about {pct}%." + offer)
     return (f"We are only about {pct}% sure the full run would reach your target of {round(target * 100)} out of 100. "
             "That is not enough to sell you a run. A lower target or better data would help." + offer)
+
+
+def _regression_reason(pred: Prediction, target: float, suggested: float | None, scale: dict) -> str | None:
+    """Same rules for a number answer, said in the answer's own units. Not sold when the forecast is under
+    REGRESSION_MIN_SCORE (barely better than always guessing the average) or the confidence is under the bar."""
+    if pred.predicted < REGRESSION_MIN_SCORE:
+        return ("The columns barely help predict this number: in our test we expect to be only about as close as always "
+                "guessing the average, so we cannot sell you a full run.")
+    if pred.confidence >= settings.forecast_min_confidence:
+        return None
+    ref, unit = float(scale.get("guess_error") or 0), scale.get("unit", "")
+    miss = lambda score: task_wording.plain_amount((1 - score) * ref, unit)
+    pct = round(pred.confidence * 100)
+    offer = f" We can honestly offer a typical miss of about {miss(suggested)}." if suggested is not None and ref else ""
+    if not ref:
+        return f"We are only about {pct}% sure the full run would reach your goal. That is not enough to sell you a run." + offer
+    if pred.band_high < target:
+        return (f"Even in the best case we expect to be off by about {miss(pred.band_high)} on average, more than your goal of "
+                f"{miss(target)}. The chance of reaching it is about {pct}%." + offer)
+    return (f"We are only about {pct}% sure the full run would be off by no more than {miss(target)} on average. "
+            "That is not enough to sell you a run. A looser goal or better data would help." + offer)

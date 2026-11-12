@@ -247,7 +247,55 @@ def r3(session, storage, numbers, **_):
     plain(task_wording.plain_score("regression", res["score"], res["extras"]) + task_wording.plain_guess("regression", res["extras"]))
 
 
-REGRESSION_CHECKS = {"A1": r1, "A2": r2, "A3": r3}
+def r4(session, storage, provider, numbers, **_):
+    analysis.readiness(session, storage, numbers)
+    analysis.baseline_detailed(session, storage, numbers)
+    f = pilot.run_pilot(session, storage, numbers, 0.5)
+    assert f.band_low <= f.predicted_metric <= f.band_high and 0 <= f.confidence <= 1 and f.eligible
+    assert f.pilot["score_scale"]["guess_error"] > 0 and f.metric == "error_reduction"
+    high = pilot.run_pilot(session, storage, numbers, 0.99)
+    assert not high.eligible and high.reason and "$" in high.reason and "out of 100" not in high.reason
+    plain(high.reason)
+    # the route: a goal in dollars is converted by code, and the view speaks in dollars
+    from fastapi import FastAPI
+    from app.deps import get_ctx_factory
+    from app.routes import forecast as forecast_routes
+    from app.services.agent.tools import ToolContext
+    from tests.helpers.auth import sign_in
+    web = sign_in(FastAPI())
+    web.include_router(forecast_routes.router)
+    web.dependency_overrides[get_session] = lambda: session
+    web.dependency_overrides[get_ctx_factory] = lambda: (
+        lambda p, approved=frozenset(): ToolContext(session, p, storage, provider, "mock", LocalBackend(), None, set()))
+    api = TestClient(web)
+    ref = f.pilot["score_scale"]["guess_error"]
+    body = api.post(f"/chats/{numbers.id}/pilot", json={"typical_error": round(ref / 3)}).json()
+    assert body["task_type"] == "regression" and body["is_estimate"] and body["target"] == pytest.approx(1 - round(ref / 3) / ref, abs=1e-3)
+    words = " ".join(body["plain"].values())
+    assert "$" in words and "an estimate" in words and "out of 100" not in words
+    plain(words)
+    assert api.post(f"/chats/{numbers.id}/pilot", json={"typical_error": ref * 2}).status_code == 400
+    assert api.post(f"/chats/{numbers.id}/pilot", json={}).status_code == 422
+    assert api.get(f"/jobs/{numbers.id}/forecast").json()["plain"] == body["plain"]
+
+
+def r5(session, storage, numbers, provider, **_):
+    analysis.readiness(session, storage, numbers)
+    analysis.baseline_detailed(session, storage, numbers)
+    f = pilot.run_pilot(session, storage, numbers, 0.4)
+    assert f.eligible
+    q = quotes.create_quote(session, numbers)
+    assert q.family == f.family and q.dataset_version_id == numbers.chosen_dataset_version_id and q.forecast_id == f.id
+    assert q.cap_cents == q.compute_cap_cents + q.fee_cents > 0
+    quotes.approve_quote(session, numbers, q)
+    pay, _ = payments.create_order(session, provider, "mock", numbers)
+    assert pay.amount_cents == q.cap_cents
+    # a goal the forecast cannot support is not eligible, so it is never priced
+    noise = pilot.run_pilot(session, storage, numbers, 0.99)
+    assert not noise.eligible
+
+
+REGRESSION_CHECKS = {"A1": r1, "A2": r2, "A3": r3, "A4": r4, "A5": r5}
 
 
 @pytest.mark.parametrize("stage", STAGES)

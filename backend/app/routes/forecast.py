@@ -1,6 +1,6 @@
 """The free pilot and its forecast. One id is used for the chat and the job: the project id."""
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ..config import settings
 from ..db import Session, get_session
@@ -9,13 +9,20 @@ from ..deps import get_ctx_factory, owned_project
 from ..repositories import forecasts as forecasts_repo
 from ..repositories.traces import TraceRepository
 from ..services import gate, lifecycle
-from ..services.data import families, pilot
+from ..services.data import families, pilot, task_wording
 
 router = APIRouter(tags=["forecast"])
 
 
 class PilotIn(BaseModel):
-    target: float = Field(gt=0, lt=1, description="what the verified result should reach, e.g. 0.8 for 80 out of 100")
+    target: float | None = Field(default=None, gt=0, lt=1, description="what the verified result should reach, e.g. 0.8 for 80 out of 100")
+    typical_error: float | None = Field(default=None, gt=0, description="a number answer only: 'typically off by no more than this', in the answer's own units; the server converts it")
+
+    @model_validator(mode="after")
+    def _one_goal(self):
+        if (self.target is None) == (self.typical_error is None):
+            raise ValueError("send either target or typical_error")
+        return self
 
 
 def previous_on_other_data(s: Session, f: Forecast) -> Forecast | None:
@@ -28,6 +35,15 @@ def previous_on_other_data(s: Session, f: Forecast) -> Forecast | None:
     return None
 
 
+def plain_view(f: Forecast) -> dict | None:
+    """A number answer in its own units (dollars): typical miss, band, goal and chance, all estimates. None for other types."""
+    scale = (f.pilot or {}).get("score_scale")
+    if (f.pilot or {}).get("task_type") != "regression" or not scale:
+        return None
+    return task_wording.plain_forecast(f.predicted_metric, f.band_low, f.band_high, f.target, f.confidence, scale,
+                                       (f.pilot or {}).get("unit", ""))
+
+
 def forecast_view(f: Forecast, before: Forecast | None = None) -> dict:
     return {"forecast_id": f.id, "metric": f.metric, "target": f.target, "is_estimate": True,
             "predicted_metric": f.predicted_metric, "band_low": f.band_low, "band_high": f.band_high,
@@ -35,6 +51,7 @@ def forecast_view(f: Forecast, before: Forecast | None = None) -> dict:
             "min_confidence": settings.forecast_min_confidence,
             "suggested_target": (f.pilot or {}).get("suggested_target"), "issues": (f.pilot or {}).get("issues", []),
             "model_type": families.type_info(f.family) if f.family else None,
+            "task_type": (f.pilot or {}).get("task_type", "classification"), "plain": plain_view(f),
             "before_fix": before and {"predicted_metric": before.predicted_metric, "band_low": before.band_low, "band_high": before.band_high,
                                       "confidence": before.confidence, "target": before.target, "eligible": before.eligible}}
 
@@ -63,7 +80,9 @@ def run_pilot(pid: str, *, p: Project = Depends(owned_project), body: PilotIn, s
     if p.status not in {"baseline_done", "quoted"}:
         raise HTTPException(409, _PILOT_BLOCKED.get(p.status, "run the free baseline first"))
     try:
-        f = pilot.run_pilot(s, make(p).storage, p, body.target)
+        storage = make(p).storage
+        target = body.target if body.target is not None else pilot.target_for_error(s, storage, p, body.typical_error)
+        f = pilot.run_pilot(s, storage, p, target)
     except pilot.ForecastError as e:
         raise HTTPException(400, str(e))
     TraceRepository(s).add(p.id, "forecast", {"forecast_id": f.id, "confidence": f.confidence, "eligible": f.eligible})

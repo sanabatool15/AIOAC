@@ -36,3 +36,21 @@ def plain_guess(task: str, extras: dict | None = None) -> str:
     if task == "regression":
         return f"a simple guess, always the average, is off by about {extras.get('unit', '')}{_num(extras.get('guess_error', 0))}"
     return f"a simple guess would get about {round(extras.get('simple_guess', 0) * 100)} out of 100 right"
+
+
+def plain_amount(x: float, unit: str = "") -> str:
+    return f"{unit}{_num(x)}"
+
+
+def plain_forecast(predicted: float, band_low: float, band_high: float, target: float, confidence: float,
+                   scale: dict, unit: str = "") -> dict:
+    """The forecast of a number answer in the answer's own units. `scale["guess_error"]` is the frozen error of always
+    guessing the average; a score s means a typical miss of (1 - s) * that. A better score is a smaller miss, so the band
+    runs from the best case (band_high) to the worst (band_low). Everything is an estimate."""
+    ref = float(scale.get("guess_error") or 0)
+    miss = lambda score: plain_amount((1 - score) * ref, unit)
+    return {"typical_error_text": f"typically off by about {miss(predicted)} on average (an estimate)",
+            "band_text": f"between about {miss(band_high)} and {miss(band_low)} (an estimate)",
+            "target_text": f"typically off by no more than {miss(target)}",
+            "simple_guess_error_text": f"a simple guess, always the average, is off by about {plain_amount(ref, unit)}",
+            "confidence_text": f"about {round(confidence * 100)}% chance (an estimate)"}

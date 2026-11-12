@@ -7,6 +7,7 @@ Score = how much closer the model is than a simple guess that always says the av
 converts to the same score before and after the paid run. The simple guess scores 0 by construction. Pure code plus
 the free test; it delegates to baseline.py and families.py, which ship to SageMaker and must not import this package."""
 import io
+import math
 import time
 
 import joblib
@@ -68,9 +69,16 @@ class RegressionTask:
         return Score(value, 0.0, {"error": error, "guess_error": guess_error, "rows_test": int(len(yt))})
 
     def finite_test_variance(self, score, locked_rows):
-        # Placeholder until the pilot stores the spread of the errors (slice S3: sd(|error|) / sqrt(rows) / guess error).
-        # A score between 0 and 1 has a standard deviation of at most 0.5, so this is a cautious upper bound.
+        # Cautious fallback, used only when no spread of errors is given (the pilot always gives one, see finite_test_sigma).
+        # A score between 0 and 1 has a standard deviation of at most 0.5, so this is an upper bound.
         return 0.25 / max(locked_rows, 1)
+
+    def finite_test_sigma(self, abs_error_sd, locked_rows, guess_error_ref):
+        """Standard deviation of the locked-rows score from the finite number of locked rows: the standard error of the
+        average distance, sd(|error|) / sqrt(rows), divided by the frozen scale so it sits on the 0 to 1 score scale."""
+        if locked_rows <= 0 or guess_error_ref <= 0 or abs_error_sd <= 0:
+            return 0.0
+        return float(abs_error_sd) / math.sqrt(locked_rows) / float(guess_error_ref)
 
     def trust(self, grade, score, simple_guess=0.0):
         from ..insights import trust_level

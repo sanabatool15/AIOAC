@@ -19,7 +19,7 @@ STAGE_TITLES = {
     "A11": "blocks and activity", "A12": "UI", "A13": "tenant isolation", "A14": "limits",
 }
 
-SLICES_BUILT: set[str] = {"S0", "S1", "S2"}
+SLICES_BUILT: set[str] = {"S0", "S1", "S2", "S3"}
 
 # The slice that makes each stage real for a type (specs/ml-tasks/07-audit-and-test-plan.md section 3). A tuple means
 # every slice in it is needed. "S0" means: it exists today (classification). "UI" is not a slice: browser tests are
