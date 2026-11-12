@@ -23,7 +23,7 @@ class ScriptedBackend:
     def __init__(self, cost=0, fail=False):
         self.cost, self.fail, self.families, self.paths = cost, fail, [], []
 
-    def run(self, path, target, cap, on_progress=None, should_stop=None, job_key=None, family="forest"):
+    def run(self, path, target, cap, on_progress=None, should_stop=None, job_key=None, family="forest", task_type="classification", config=None):
         self.families.append(family)
         self.paths.append(str(path))
         if self.fail:

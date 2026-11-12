@@ -70,7 +70,7 @@ def _work_rows(session: Session, storage: Storage, project: Project, version: Da
     """The work rows (never the locked rows) and the number of locked rows. A number answer is read as numbers."""
     work_key, locked_key = verification.split_for(session, storage, version, task)
     work = pd.read_csv(storage.path(work_key))
-    if task == "regression":
+    if task in ("regression", "forecast"):
         work[version.target_column] = regression.to_number(work[version.target_column])
         work = work.dropna(subset=[version.target_column]).reset_index(drop=True)
     return work, len(pd.read_csv(storage.path(locked_key)))
@@ -101,6 +101,10 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
         raise ForecastError("choose a dataset first")
     task = tasks.task_of(project).id
     work, locked_rows = _work_rows(session, storage, project, version, task)
+    if task == "forecast":
+        return _run_forecast_pilot(session, project, version, work, target)
+    if not tasks.get(task).needs_target:
+        return _run_no_answer_pilot(session, project, version, work, task, target)
     is_number = task == "regression"
     ref = regression.guess_error_ref(work[version.target_column]) if is_number else None   # frozen: the scale of every later score
     unit = task_wording.unit_for(version.target_column) if is_number else ""
@@ -158,3 +162,88 @@ def run_pilot(session: Session, storage: Storage, project: Project, target: floa
         pilot.update({"task_type": task, "unit": unit, "score_scale": {"guess_error": ref, "abs_error_sd": abs_error_sd}})
     suggested = suggest_target(curve, full_train, locked_rows, task, sigma) if pred.confidence < settings.forecast_min_confidence else None
     return save(pred, pilot, suggested)
+
+
+def _run_forecast_pilot(session: Session, project: Project, version: DatasetVersion, work: pd.DataFrame, target: float) -> Forecast:
+    """Free pilot for a series over time (tasks/forecast.pilot_curve): the newest block of the WORK periods is held out, the
+    best simple repeat on it is the frozen scale, and the learning curve grows with the amount of older history. The locked
+    periods are never read here, only counted."""
+    from .tasks import forecast as fc
+    cfg = project.task_config or {}
+    unit = task_wording.unit_for(version.target_column)
+
+    def save(pred, pilot, suggested=None, ref=None, reason_override=None):
+        scale = {"guess_error": ref, "unit": unit} if ref else None
+        reason = reason_override or not_eligible_reason(pred, target, None, suggested, "regression", scale)
+        if reason is not None:
+            pilot = {**pilot, "suggested_target": suggested, "issues": data_issues(session, project, version, pilot.get("periods", 0) or 0)}
+        return forecasts_repo.add(session, project_id=project.id, target=target, metric=regression.METRIC,
+                                  predicted_metric=pred.predicted if pred else 0.0, band_low=pred.band_low if pred else 0.0,
+                                  band_high=pred.band_high if pred else 0.0, confidence=pred.confidence if pred else 0.0,
+                                  eligible=reason is None, reason=reason, pilot=pilot, family=pilot.get("family"),
+                                  dataset_version_id=version.id)
+
+    try:
+        c = fc.pilot_curve(work, version.target_column, cfg)
+    except fc.ForecastDataError as exc:
+        return save(None, {"task_type": "forecast", "rows_used": 0, "note": "too little history"}, reason_override=str(exc))
+    locked_periods = max(1, round(0.2 * c["periods"] / 0.8))
+    windows = max(1, locked_periods // max(c["horizon"], 1))   # the locked check scores whole windows
+    sigma = regression.RegressionTask().finite_test_sigma(c["abs_error_sd"], windows, c["ref"])
+    pred = extrapolate(c["curve"], c["full_train_rows"], locked_periods, target, "forecast", sigma)
+    suggested = suggest_target(c["curve"], c["full_train_rows"], locked_periods, "regression", sigma) \
+        if pred.confidence < settings.forecast_min_confidence else None
+    pilot = {"task_type": "forecast", "unit": unit, "family": c["family"], "periods": c["periods"], "horizon": c["horizon"],
+             "rows_used": c["periods"], "kept": families.REGRESSION_PLAIN_NAMES.get(c["family"], c["family"]),
+             "score_scale": {"guess_error": c["ref"], "abs_error_sd": c["abs_error_sd"]}, "best_simple_repeat": c["best_simple_repeat"],
+             "cost_samples": [list(x) for x in c["cost_samples"]],
+             "learning_curve": [{"training_rows": round(n), "score": round(a, 4), "accuracy": round(a, 4)} for n, a, _ in c["curve"]],
+             "full_run_training_rows": c["full_train_rows"], "config": c["cfg"]}
+    return save(pred, pilot, suggested, ref=c["ref"])
+
+
+NO_ANSWER_MIN_SCORE = 0.30     # below this there are no clear groups / nothing clearly unusual: not sold
+NO_ANSWER_SEEDS = (0, 1, 2)
+
+
+def _run_no_answer_pilot(session: Session, project: Project, version: DatasetVersion, work: pd.DataFrame, task: str, target: float) -> Forecast:
+    """Free pilot for grouping and unusual records (tasks/unsupervised.py): three looks at different halves of the WORK rows
+    give how steady the result is and how much that varies; the locked rows are never read. `target` is the steadiness the
+    user asks for (0 to 1). Everything is an estimate."""
+    from .tasks import unsupervised as un
+    cfg = project.task_config or {}
+    name = "groups" if task == "grouping" else "unusual records"
+
+    def save(pred, pilot, reason):
+        return forecasts_repo.add(session, project_id=project.id, target=target, metric=un.METRIC,
+                                  predicted_metric=pred.predicted if pred else 0.0, band_low=pred.band_low if pred else 0.0,
+                                  band_high=pred.band_high if pred else 0.0, confidence=pred.confidence if pred else 0.0,
+                                  eligible=reason is None, reason=reason, pilot=pilot, family=pilot.get("family"), dataset_version_id=version.id)
+
+    family = "kmeans" if task == "grouping" else "isolation"
+    base = {"task_type": task, "family": family, "kept": families.UNSUPERVISED_NAMES[family], "rows_used": len(work)}
+    try:
+        runs = [un.evaluate_grouping(work, seed=s, k=cfg.get("n_clusters")) if task == "grouping"
+                else un.evaluate_unusual(work, seed=s, contamination=float(cfg.get("contamination") or un.CONTAMINATION))
+                for s in NO_ANSWER_SEEDS]
+    except un.UnsupervisedDataError as exc:
+        return save(None, {**base, "note": "too little data"}, str(exc))
+    scores = np.array([r["score"] for r in runs])
+    mean, sd = float(scores.mean()), float(scores.std(ddof=1))
+    sigma = max(sd, 0.05)
+    from .forecast import _phi
+    pred = Prediction(round(mean, 4), round(max(0.0, mean - 1.96 * sigma), 4), round(min(1.0, mean + 1.96 * sigma), 4),
+                      round(1 - _phi((target - mean) / sigma), 3))
+    timing_df = un.clean(work)
+    param = runs[0].get("groups") if task == "grouping" else runs[0].get("flag_share")
+    pilot = {**base, "learning_curve": [{"training_rows": len(timing_df), "score": round(mean, 4), "accuracy": round(mean, 4)}],
+             "cost_samples": [list(x) for x in un._timings(timing_df, task, param)], "groups": runs[0].get("groups"),
+             "flag_share": runs[0].get("flag_share"), "full_run_training_rows": len(timing_df), "separation": round(runs[0]["separation"], 3)}
+    reason = None
+    if mean < NO_ANSWER_MIN_SCORE:
+        reason = (f"We could not find clear {name}: when we looked at different rows we got different answers, so we cannot sell "
+                  "you a full run.")
+    elif pred.confidence < settings.forecast_min_confidence:
+        reason = (f"We are only about {round(pred.confidence * 100)}% sure the {name} would be as steady as you asked "
+                  f"({round(target * 100)} out of 100). That is not enough to sell you a run. A lower bar or better data would help.")
+    return save(pred, pilot, reason)

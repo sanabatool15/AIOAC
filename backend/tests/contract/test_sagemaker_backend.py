@@ -382,3 +382,64 @@ def test_other_create_errors_still_fail(csv_path):
     smc.create_training_job = lambda **kw: (_ for _ in ()).throw(ClientError())
     with pytest.raises(ClientError):
         b.run(csv_path, "churn", 100)
+
+
+# ---- slice S4: a number as the answer ---------------------------------------------------------------------
+def test_the_task_type_is_sent_as_a_hyperparameter(csv_path):
+    b, smc, _ = backend([completed()])
+    b.run(csv_path, "price", 200, family="ridge", task_type="regression")
+    hp = smc.created["HyperParameters"]
+    assert json.loads(hp["task_type"]) == "regression" and json.loads(hp["family"]) == "ridge"
+    b2, smc2, _ = backend([completed()])
+    b2.run(csv_path, "churn", 200)
+    assert json.loads(smc2.created["HyperParameters"]["task_type"]) == "classification"   # the default
+
+
+def test_a_regression_result_carries_the_number_score(csv_path):
+    metrics = {"accuracy": 0.61, "score": 0.61, "simple_guess_accuracy": 0.0, "error": 12000.0, "guess_error": 30800.0,
+               "task_type": "regression", "family": "ridge", "train_seconds": 3.0, "sklearn_version": __import__("sklearn").__version__}
+    b, _, _ = backend([completed()], artifact=model_tar(metrics))
+    res = b.run(csv_path, "price", 200, family="ridge", task_type="regression")
+    assert res.task_type == "regression" and res.score == 0.61 and res.accuracy == 0.61 and res.simple_guess_accuracy == 0.0
+
+
+def test_script_trains_the_regression_families(tmp_path):
+    import importlib.util
+    import numpy as np
+    import pandas as pd
+    from app.services.data import baseline, families, features
+    rng = np.random.default_rng(1)
+    df = pd.DataFrame({"a": rng.normal(size=300), "b": rng.choice(["x", "y"], 300)})
+    df["price"] = 100 + 40 * df["a"] + np.where(df["b"] == "x", 15, 0) + rng.normal(0, 5, 300)
+    train_dir = tmp_path / "t"
+    train_dir.mkdir()
+    df.to_csv(train_dir / "d.csv", index=False)
+    sys.path.insert(0, str(sm.SCRIPT_DIR))
+    sys.modules.setdefault("aioac_core", type(sys)("aioac_core"))
+    try:
+        sys.modules["aioac_core.baseline"], sys.modules["aioac_core.features"] = baseline, features
+        sys.modules["aioac_core.families"] = families
+        spec = importlib.util.spec_from_file_location("sm_train_reg", sm.SCRIPT_DIR / "train.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        for fam in ("ridge", "boosting"):
+            m = mod.train(str(train_dir), str(tmp_path / fam), "price", family=fam, task_type="regression")
+            assert m["task_type"] == "regression" and m["family"] == fam and not m["interrupted"]
+            assert 0 < m["score"] <= 1 and m["accuracy"] == m["score"] and m["simple_guess_accuracy"] == 0.0
+            assert 0 < m["error"] < m["guess_error"]
+        m = mod.train(str(train_dir), str(tmp_path / "f"), "price", n_estimators=100, should_stop=lambda: True, task_type="regression")
+        assert m["interrupted"] and m["trees_built"] == mod.BATCH_TREES   # the forest still saves a partial model
+        with pytest.raises(ValueError):
+            mod.train(str(train_dir), str(tmp_path / "x"), "price", family="logistic", task_type="regression")   # a classifier is not a regressor
+        with pytest.raises(ValueError):
+            mod.train(str(train_dir), str(tmp_path / "y"), "price", task_type="nonsense")
+    finally:
+        sys.path.remove(str(sm.SCRIPT_DIR))
+        for k in ("aioac_core", "aioac_core.baseline", "aioac_core.features", "aioac_core.families"):
+            sys.modules.pop(k, None)
+
+
+def test_the_tarball_still_ships_only_the_three_shared_modules():
+    with tarfile.open(fileobj=io.BytesIO(sm.build_source_tarball()), mode="r:gz") as tar:
+        names = set(tar.getnames())
+    assert not any("tasks" in n or n.startswith("app/") for n in names)   # regression is done inside train.py, no new package

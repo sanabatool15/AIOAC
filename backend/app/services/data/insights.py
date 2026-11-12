@@ -213,17 +213,62 @@ def analyze(df: pd.DataFrame, target: str, task: str = "classification", config:
     }
 
 
+def analyze_no_answer(df: pd.DataFrame, task: str) -> dict:
+    """Readiness for grouping and unusual records: there is no answer column, so the checks are size, empty values,
+    repeated rows, row labels and columns that never change. Plain words, same grade scale."""
+    rows, cols = df.shape
+    ids = id_like_columns(df, None)
+    texty = numeric_like_columns(df, None)
+    kept = df.drop(columns=ids)
+    missing_pct = float(kept.isna().sum().sum() / max(kept.size, 1) * 100)
+    dupes = int(kept.duplicated().sum())
+    constant = [c for c in kept.columns if kept[c].nunique(dropna=True) <= 1]
+    score, findings = 100, []
+
+    def add(kind, text, penalty=0):
+        nonlocal score
+        score -= penalty
+        findings.append({"kind": kind, "text": text})
+
+    if ids:
+        add("NOTE", f"{len(ids)} {_col_word(len(ids))} {_look(len(ids))} like row labels (such as an ID) and will be ignored: {_names(ids)}")
+    if texty:
+        add("NOTE", f"{len(texty)} {_col_word(len(texty))} hold numbers stored as text and are read as numbers: {_names(texty)}")
+    if rows < 300:
+        add("NOTE", f"Only {rows:,} rows, which is small for finding " + ("groups" if task == "grouping" else "unusual records") + " reliably", 30)
+    elif rows < 1000:
+        add("NOTE", f"{rows:,} rows is on the small side", 12)
+    else:
+        add("OK", "Enough rows to look for " + ("groups" if task == "grouping" else "unusual records"))
+    if dupes:
+        add("NOTE", f"{dupes:,} duplicate rows found (removed automatically)", 5)
+    else:
+        add("OK", "No duplicate rows")
+    if missing_pct > 10:
+        add("NOTE", f"{missing_pct:.0f}% of values are missing", 20)
+    elif missing_pct > 0:
+        add("NOTE", f"{missing_pct:.0f}% of values are missing (filled in automatically)", 3)
+    if constant:
+        add("NOTE", f"{len(constant)} {_col_word(len(constant))} never change and will be ignored: {_names(constant)}", 3)
+    if len(kept.columns) - len(constant) < 2:
+        add("NOTE", "There are fewer than two columns that vary, which is too little to compare records", 30)
+    add("NOTE", "There is no right answer to check against, so we can only tell you how steady the result is, not how correct it is")
+    return {"measurements": {"rows": rows, "columns": cols, "missing_pct": round(missing_pct, 2), "duplicates": dupes,
+                             "constant_columns": constant, "id_columns": ids, "numbers_stored_as_text": texty},
+            "findings": findings, "score": max(score, 0), "grade": grade_for(max(score, 0))}
+
+
 def summarize(df: pd.DataFrame, target: str, top: int = 5) -> dict:
     """A small, plain summary of what analyze() looked at, for the agent. Column names and group labels are raw
     dataset text: the caller must wrap them (context.mark). Lists are cut to `top` items."""
     rows = len(df)
     ids = id_like_columns(df, target)
     kept = df.drop(columns=ids)
-    feats = kept.drop(columns=[target])
+    feats = kept.drop(columns=[target]) if target is not None else kept   # grouping and unusual have no answer column
     miss = (kept.isna().mean() * 100).round(1)
     miss = miss[miss > 0].sort_values(ascending=False)
     dupes = int(kept.duplicated().sum())
-    counts = kept[target].dropna().value_counts(normalize=True)
+    counts = kept[target].dropna().value_counts(normalize=True) if target is not None else pd.Series(dtype=float)
     balance = None
     if len(counts) >= 2:
         label, share = str(counts.index[-1]), float(counts.iloc[-1])
@@ -236,7 +281,7 @@ def summarize(df: pd.DataFrame, target: str, top: int = 5) -> dict:
         "balance": balance,
         "ignored_row_label_columns": [str(c)[:60] for c in ids[:top]],
         "ignored_constant_columns": [str(c)[:60] for c in feats.columns if feats[c].nunique(dropna=True) <= 1][:top],
-        "ignored_copy_of_answer_columns": [str(c)[:60] for c in leaky_columns(kept, target)[:top]],
+        "ignored_copy_of_answer_columns": [str(c)[:60] for c in leaky_columns(kept, target)[:top]] if target is not None else [],
         "numbers_stored_as_text_columns": [str(c)[:60] for c in numeric_like_columns(df, target)[:top]],
     }
 

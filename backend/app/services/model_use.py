@@ -19,6 +19,7 @@ from ..repositories import datasets as datasets_repo
 from ..repositories import training_runs as runs_repo
 from .data import column_labels
 from .data import models as versions
+from .data.tasks.forecast import ForecastModel
 
 MAX_BATCH_ROWS = 5_000
 MAX_BATCH_BYTES = 5 * 1024 * 1024
@@ -42,6 +43,10 @@ class BadInput(Exception):
 class Loaded:
     def __init__(self, row: Model, pipeline, trained_with: str | None, size: int):
         self.row, self.pipeline, self.trained_with, self.size = row, pipeline, trained_with, size
+        self.forecast = isinstance(pipeline, ForecastModel)   # a number over time: asked for "the next N periods", not for a row
+        if self.forecast:
+            self.num, self.cat, self.columns = [], [], []
+            return
         pre = pipeline.named_steps["pre"]
         parts = {name: cols for name, _, cols in pre.transformers_ if name in ("num", "cat")}
         self.num: list[str] = list(parts.get("num", []))
@@ -73,7 +78,8 @@ def load(session: Session, storage: Storage, project: Project, model_id: str | N
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             pipeline = joblib.load(io.BytesIO(data))
-        pipeline.named_steps["pre"].transformers_  # must be a fitted pipeline of the shape we trained
+        if not isinstance(pipeline, ForecastModel):
+            pipeline.named_steps["pre"].transformers_  # must be a fitted pipeline of the shape we trained
     except Exception:
         raise ModelUnusable("This model was saved with a different version of scikit-learn and cannot be opened here. "
                             "Download the file and open it with the version it was trained with.")
@@ -156,6 +162,10 @@ def describe(session: Session, storage: Storage, project: Project, model_id: str
         m = load(session, storage, project, row.id)
     except ModelUnusable as exc:
         return {**base, "unusable_reason": str(exc)}
+    if m.forecast:   # no input columns: the user asks for the next periods
+        return {**base, "sklearn_version": m.trained_with, "size_bytes": m.size, "usable": True, "task_type": "forecast",
+                "period": fc_period(m.pipeline), "horizon": m.pipeline.cfg.get("horizon"),
+                "last_date": str(m.pipeline.dates[-1].date())}
     try:
         examples, choices = _imputer_values(m), _choices(m)
     except Exception:  # hints only: never let them break the description
@@ -246,10 +256,52 @@ def _predict_frame(m: Loaded, frame: pd.DataFrame):
     return preds, proba
 
 
+def fc_period(model) -> str:
+    from .data.tasks.forecast import PERIOD_WORDS
+    return PERIOD_WORDS[model.spec.freq]
+
+
+MAX_FORECAST_PERIODS = 36
+
+
+def _predict_forecast(m: Loaded, record: dict) -> dict:
+    """The next N periods after the end of the model's history. Dates continue the series' own rhythm."""
+    model = m.pipeline
+    n = record.get("periods", model.cfg.get("horizon") or 12) if isinstance(record, dict) else None
+    try:
+        n = int(n)
+    except (TypeError, ValueError):
+        raise BadInput("Say how many periods ahead you want, for example {\"periods\": 6}.")
+    if not 1 <= n <= MAX_FORECAST_PERIODS:
+        raise BadInput(f"Ask for between 1 and {MAX_FORECAST_PERIODS} periods ahead.")
+    if model.known_cols:
+        raise BadInput("This forecast needs planned future values that we cannot take here yet.")
+    try:
+        values = model.forecast(n)
+    except Exception:
+        raise ModelUnusable("The model could not make a forecast here.")
+    q = (m.row.quality or {}).get("verification") or {}
+    return {"task_type": "forecast", "period": fc_period(model), "dates": [str(d.date()) for d in model.next_dates(n)],
+            "prediction": [round(float(v), 2) for v in values], "probabilities": None,
+            "typical_error": q.get("typical_error"), "note": NOTE}
+
+
+def _no_answer_fields(m: Loaded, frame: pd.DataFrame, preds, i: int, task: str) -> dict:
+    """Grouping: which group (numbered from 1). Unusual: whether it looks unlike the rest and a 0 to 1 'how unusual' rank.
+    Both are estimates; there is no true answer behind them."""
+    if task == "grouping":
+        return {"task_type": "grouping", "group": int(preds[i]) + 1, "prediction": f"group {int(preds[i]) + 1}"}
+    d = float(m.pipeline.decision_function(frame.iloc[[i]])[0])   # below 0 is unusual
+    return {"task_type": "unusual", "looks_unusual": bool(preds[i] == -1), "unusual_score": round(float(np.clip(0.5 - 2 * d, 0, 1)), 2),
+            "prediction": "looks unusual" if preds[i] == -1 else "looks typical"}
+
+
 def predict_one(session: Session, storage: Storage, project: Project, record: dict, model_id: str | None = None) -> dict:
+    m = load(session, storage, project, model_id)
+    if m.forecast:
+        return _predict_forecast(m, record or {})
     if not isinstance(record, dict) or not record:
         raise BadInput("Give at least one value, for example {\"column\": value}.")
-    m = load(session, storage, project, model_id)
     unknown = [k for k in record if k not in m.columns]
     if unknown:
         raise BadInput("The model does not use: " + ", ".join(str(u)[:40] for u in unknown[:5]) + ". Known columns: " + ", ".join(m.columns[:12]) + ".")
@@ -260,6 +312,12 @@ def predict_one(session: Session, storage: Storage, project: Project, record: di
     out = {"prediction": _plain(preds[0]), "probabilities": None, "note": NOTE}
     if proba is not None:
         out["probabilities"] = {str(c): round(float(p), 4) for c, p in zip(m.pipeline.classes_, proba[0])}
+    q = m.row.quality or {}
+    if q.get("task_type") in ("grouping", "unusual"):
+        out.update(_no_answer_fields(m, _frame(m, df), preds, 0, q["task_type"]))
+    if q.get("task_type") == "regression":   # a number: say how far off it usually is on rows the model never saw
+        out["prediction"] = round(float(out["prediction"]), 2)
+        out["typical_error"] = (q.get("verification") or {}).get("typical_error")
     return out
 
 
@@ -277,12 +335,20 @@ def predict_batch(session: Session, storage: Storage, project: Project, csv_text
     if len(df) > MAX_BATCH_ROWS:
         raise BadInput(f"Too many rows. The limit is {MAX_BATCH_ROWS:,} rows.")
     m = load(session, storage, project, model_id)
+    if m.forecast:
+        raise BadInput("A forecast does not take a file. Ask for the next periods instead, for example {\"periods\": 6}.")
     preds, proba = _predict_frame(m, _frame(m, df))
     out = df.copy()
     name = "prediction"
     while name in out.columns:
         name = "_" + name
-    out[name] = [_plain(p) for p in preds]
+    task = (m.row.quality or {}).get("task_type")
+    if task == "grouping":
+        out[name] = [f"group {int(p) + 1}" for p in preds]
+    elif task == "unusual":
+        out[name] = ["looks unusual" if p == -1 else "looks typical" for p in preds]
+    else:
+        out[name] = [_plain(p) for p in preds]
     if proba is not None and "confidence" not in out.columns:
         out["confidence"] = np.round(proba.max(axis=1), 4)
     preview = json.loads(out.head(20).to_json(orient="records"))

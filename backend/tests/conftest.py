@@ -133,7 +133,7 @@ def verdict(monkeypatch):
     from app.services.data import verification
     box = {"value": 0.9, "error": None, "calls": 0}
 
-    def fake(model_bytes, storage, locked_key, target):
+    def fake(model_bytes, storage, locked_key, target, *args, **kw):
         box["calls"] += 1
         if box["error"]:
             raise verification.VerificationError(box["error"])

@@ -127,6 +127,7 @@ class Quote(Stamped, Base):
     # The quote PINS what was priced: the data version and the model type. The gate refuses to train if either changed.
     dataset_version_id: Mapped[str | None] = mapped_column(String, nullable=True)
     family: Mapped[str | None] = mapped_column(String, nullable=True)
+    task_type: Mapped[str | None] = mapped_column(String, nullable=True)   # the kind of prediction priced (gate pin; null on old rows)
     prices_version: Mapped[str] = mapped_column(String)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

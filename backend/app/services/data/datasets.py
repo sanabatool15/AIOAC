@@ -9,6 +9,7 @@ from ...db.tables import DatasetCandidate, DatasetVersion, Project
 from ...repositories import datasets as repo
 from ...ports import Storage
 from .. import lifecycle
+from . import tasks
 
 
 class DatasetError(Exception):
@@ -31,13 +32,16 @@ def add_candidate(session: Session, storage: Storage, project: Project, name: st
                               expires_at=datetime.now(timezone.utc) + timedelta(hours=settings.candidate_ttl_hours))
 
 
-def select_candidate(session: Session, storage: Storage, project: Project, candidate_id: str, target: str) -> DatasetVersion:
-    """Copy the chosen candidate to permanent storage and delete all the others."""
+def select_candidate(session: Session, storage: Storage, project: Project, candidate_id: str, target: str | None) -> DatasetVersion:
+    """Copy the chosen candidate to permanent storage and delete all the others. Grouping and unusual records have no
+    answer column: for them `target` is None and nothing is checked."""
     cand = repo.get_candidate(session, candidate_id)
     if cand is None or cand.project_id != project.id:
         raise DatasetError("unknown dataset")
     df = pd.read_csv(io.BytesIO(storage.get(cand.storage_key)))
-    if target not in df.columns:
+    if not tasks.task_of(project).needs_target:
+        target = None
+    elif target not in df.columns:
         raise DatasetError(f"column '{target}' not found")
     key = f"datasets/{project.id}/v1.csv"
     storage.put(key, storage.get(cand.storage_key))

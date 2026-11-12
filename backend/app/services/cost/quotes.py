@@ -10,7 +10,7 @@ from ...repositories import forecasts as forecasts_repo
 from ...repositories import payments as payments_repo
 from ...repositories import quotes as quotes_repo
 from .. import lifecycle
-from ..data import families
+from ..data import families, tasks
 from .cost import estimate_quote
 
 
@@ -45,8 +45,10 @@ def create_quote(session: Session, project: Project) -> Quote:
     samples = (forecast.pilot or {}).get("cost_samples") or run.samples
     est = estimate_quote([tuple(s) for s in samples], version.rows, settings.max_job_cap_cents)
 
+    pays_fee = tasks.task_of(project).supports_fee   # grouping and unusual have no true result to verify: compute only, fee 0
+
     def fee_of(compute_cents: int) -> int:  # the success fee is a share of the compute
-        return math.ceil(settings.success_fee_percent * compute_cents)
+        return math.ceil(settings.success_fee_percent * compute_cents) if pays_fee else 0
 
     max_fee, fee_estimate = fee_of(est.cap_cents), fee_of(est.estimate_cents)  # max_fee is what the hold carries
     q = quotes_repo.add(
@@ -54,6 +56,7 @@ def create_quote(session: Session, project: Project) -> Quote:
         low_cents=est.low_cents + fee_of(est.low_cents), high_cents=est.high_cents + fee_of(est.high_cents),
         cap_cents=est.cap_cents + max_fee, compute_cap_cents=est.cap_cents, fee_cents=max_fee, forecast_id=forecast.id,
         dataset_version_id=version.id, family=forecast.family or families.DEFAULT_FAMILY,
+        task_type=tasks.task_of(project).id,
         breakdown={**est.breakdown, "compute_estimate_cents": est.estimate_cents,
                    "compute_low_cents": est.low_cents, "compute_high_cents": est.high_cents,
                    "success_fee_estimate_cents": fee_estimate, "success_fee_max_cents": max_fee,

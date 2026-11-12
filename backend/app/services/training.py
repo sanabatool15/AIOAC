@@ -30,7 +30,7 @@ from ..repositories.traces import TraceRepository
 from . import gate, lifecycle, payments
 from .data import families
 from .data import models as model_versions
-from .data import verification
+from .data import tasks, verification
 from .cost.prices import INSTANCES, PLATFORM_FEE_CENTS, STORAGE_CENTS
 
 
@@ -127,11 +127,13 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     def should_stop() -> bool:
         return runs_repo.heartbeat_and_stop_requested(session, run)
 
+    task = tasks.task_of(project).id   # "classification" for every project that has no other type
     family = quote.family or families.DEFAULT_FAMILY   # the model type the quote priced (the gate checked it is still the one)
     try:
-        work_key, locked_key = verification.split_for(session, storage, version)
+        work_key, locked_key = verification.split_for(session, storage, version, task)
         res = backend.run(storage.path(work_key), version.target_column, quote.compute_cap_cents,
-                          on_progress=on_progress, should_stop=should_stop, job_key=run.id, family=family)
+                          on_progress=on_progress, should_stop=should_stop, job_key=run.id, family=family, task_type=task,
+                          **({"config": project.task_config or {}} if task not in ("classification", "regression") else {}))
     except Exception as exc:
         rollback(session)
         fail_run(session, provider, run, type(exc).__name__)
@@ -150,7 +152,8 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     forecast = forecasts_repo.get(session, quote.forecast_id) if quote.forecast_id else None
     target = forecast.target if forecast else float(quote.breakdown.get("target", 1.0))
     try:
-        checked = verification.verify_model(res.model_bytes, storage, locked_key, version.target_column)
+        scale = ((forecast.pilot or {}).get("score_scale") or {}).get("guess_error") if forecast else None
+        checked = verification.verify_model(res.model_bytes, storage, locked_key, version.target_column, task, scale)
     except verification.VerificationError as exc:
         rollback(session)
         fail_run(session, provider, run, f"verification failed: {exc}")
@@ -158,6 +161,8 @@ def execute_run(session: Session, run_id: str, backend: TrainingBackend, storage
     verification_result = {**checked, "target": target, "passed": checked["value"] >= target}
     result = {"accuracy": res.accuracy, "simple_guess_accuracy": res.simple_guess_accuracy,
               "runtime_seconds": res.runtime_seconds, "verification": verification_result}
+    if task != "classification":   # classification results keep exactly today's keys
+        result.update({"task_type": task, "score": res.score})
     if not _claim(session, run, status="done", cost_cents=cost, progress_stage="finished", progress_fraction=1.0,
                   stopped_at_cap=res.stopped_at_cap or res.cost_cents >= quote.compute_cap_cents, result=result):
         return run

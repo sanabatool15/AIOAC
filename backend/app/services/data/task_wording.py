@@ -49,6 +49,10 @@ def plain_score(task: str, value: float, extras: dict | None = None) -> str:
     if task == "forecast":
         p = extras.get("period", "period")
         return f"typically off by about {extras.get('unit', '')}{_num(extras.get('error', 0))} a {p} over the next {extras.get('horizon', 12)} {p}s (an estimate)"
+    if task == "grouping":
+        return f"the groups were about {round(value * 100)} out of 100 steady when we looked at different rows (an estimate)"
+    if task == "unusual":
+        return f"the records flagged as unusual were about {round(value * 100)} out of 100 steady when we looked at different rows (an estimate)"
     return f"about {round(value * 100)} out of 100 predictions were right (an estimate)"
 
 
@@ -58,6 +62,8 @@ def plain_guess(task: str, extras: dict | None = None) -> str:
         return f"a simple guess, always the average, is off by about {extras.get('unit', '')}{_num(extras.get('guess_error', 0))}"
     if task == "forecast":
         return f"a simple repeat ({_repeat_phrase(extras)}) is off by about {extras.get('unit', '')}{_num(extras.get('guess_error', 0))}"
+    if task in ("grouping", "unusual"):
+        return "there is no right answer to compare with, so we only report how steady the result is"
     return f"a simple guess would get about {round(extras.get('simple_guess', 0) * 100)} out of 100 right"
 
 

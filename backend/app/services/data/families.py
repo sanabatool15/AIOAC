@@ -28,11 +28,15 @@ PILOT_SIZE = {"logistic": 300, "forest": 60, "boosting": 60, "ridge": 300}   # s
 FULL_SIZE = {"logistic": 300, "forest": 300, "boosting": 200, "ridge": 300}  # what the paid run (and the cost timing) uses
 
 
+UNSUPERVISED_NAMES = {"kmeans": "a grouping model that puts similar records together",
+                      "isolation": "a model that spots records unlike the rest"}
 TYPE_NOTE = "This is only the model type we tested, not a promise of a better result."
 
 
 def type_info(family: str | None) -> dict:
     """What the UI shows: the plain name of the model type and the not-a-promise sentence."""
+    if family in UNSUPERVISED_NAMES:   # grouping and unusual: a model type of their own
+        return {"family": family, "name": UNSUPERVISED_NAMES[family], "note": TYPE_NOTE}
     fam = family if family in FAMILIES else DEFAULT_FAMILY
     return {"family": fam, "name": PLAIN_NAMES[fam], "note": TYPE_NOTE}
 

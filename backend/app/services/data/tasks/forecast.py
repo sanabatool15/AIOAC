@@ -404,3 +404,130 @@ class ForecastTask:
 
     def free_test(self, path: str, target: str, config: dict | None = None, unit: str = "") -> baseline.BaselineOutcome:
         return free_test(path, target, config, unit)
+
+
+# ---- S9: the paid model, the pilot's learning curve, and the locked-block check ---------------------------------------
+_DATE_FREQ = {"h": "h", "D": "D", "W": "W-MON", "M": "MS", "Q": "QS", "Y": "YS"}
+
+
+class ForecastModel:
+    """What the paid run saves: the fitted model plus the history it needs to keep forecasting one period at a time.
+    It forecasts forward from the end of the history it was trained on; it never sees newer rows than that."""
+
+    def __init__(self, pipeline, spec: FeatureSpec, columns: list, history, dates, cfg: dict, known_cols: list, family: str):
+        self.pipeline, self.spec, self.columns = pipeline, spec, list(columns)
+        self.history, self.dates = np.asarray(history, dtype=float), list(dates)
+        self.cfg, self.known_cols, self.family = dict(cfg), list(known_cols), family
+
+    def next_dates(self, n: int) -> list:
+        return list(pd.date_range(self.dates[-1], periods=n + 1, freq=_DATE_FREQ[self.spec.freq])[1:])
+
+    def forecast(self, n: int, extra_rows=None) -> np.ndarray:
+        """The next `n` periods after the end of the history."""
+        return forecast_ahead(self.pipeline, self.history, self.next_dates(n), len(self.history), self.spec, self.columns, extra_rows)
+
+    def predict(self, X):   # so code that only knows a model with .predict(rows) still works on feature rows
+        return self.pipeline.predict(X)
+
+
+def _known_cols(cfg: dict, s: pd.DataFrame) -> list:
+    return [c for c in (cfg.get("known_columns") or []) if c in s.columns]
+
+
+def fit_forecaster(raw: pd.DataFrame, target: str, cfg: dict, family: str, size: int | None = None) -> ForecastModel:
+    """Fit `family` on every period of `raw` (the WORK rows of the paid run). Raises ForecastDataError (plain words)."""
+    cfg = resolve_config(raw, target, cfg)
+    s, info = prepare_series(raw, target, cfg)
+    spec = FeatureSpec(cfg["frequency"], cfg.get("season"))
+    known = _known_cols(cfg, s)
+    frame = make_features(s.reset_index(), "t", "y", spec, extra=known)
+    if len(frame) < 10:
+        raise ForecastDataError(f"Only {len(s)} periods of history, which is too few to train a forecast.")
+    X, yt = frame.drop(columns=["y"]), frame["y"]
+    pipe = families.build(family, X, size, "regression")
+    pipe.fit(X, yt)
+    return ForecastModel(pipe, spec, X.columns, s["y"].to_numpy(), list(s.index), cfg, known, family)
+
+
+def score_locked_block(model: ForecastModel, locked_raw: pd.DataFrame, target: str, guess_error_ref: float) -> dict:
+    """Score the finished model ONCE on the newest periods it never saw. Each window starts from real earlier values (the
+    model's own history, then the locked periods) and forecasts `horizon` periods ahead without seeing them. The value is
+    on the same scale as the target: 1 - typical miss / the frozen miss of the best simple repeat from the pilot."""
+    cfg = model.cfg
+    s_lock, _ = prepare_series(locked_raw, target, {**cfg, "period_alias": cfg["frequency"]})
+    start = len(model.history)
+    full_idx = pd.date_range(model.dates[0], periods=start + 1000, freq=_DATE_FREQ[model.spec.freq])
+    first_lock = s_lock.index.min()
+    pos = int(np.searchsorted(full_idx.values, np.datetime64(first_lock)))
+    n_gap = pos - start
+    last = s_lock.index.max()
+    total = int(np.searchsorted(full_idx.values, np.datetime64(last))) + 1
+    y_full = np.concatenate([model.history, np.full(max(n_gap, 0), np.nan), np.nan * np.ones(total - max(pos, start))])
+    y_full = pd.Series(y_full[:total]).copy()
+    for t, v in s_lock["y"].items():
+        y_full.iloc[int(np.searchsorted(full_idx.values, np.datetime64(t)))] = v
+    y_full = y_full.interpolate(limit_direction="both").to_numpy(dtype=float)
+    dates = list(full_idx[:total])
+    horizon = cfg["horizon"]
+    if not window_origins(start, total, horizon):
+        raise ForecastDataError("The newest periods held back are too few to check the forecast.")
+    if model.known_cols:
+        raise ForecastDataError("Forecasts that use planned future columns cannot be checked yet.")
+    errs = window_errors(model.pipeline, y_full, dates, start, horizon, model.spec, model.columns, None)
+    err = float(np.mean(errs))
+    return {"value": float(np.clip(1 - err / guess_error_ref, 0, 1)), "typical_error": err,
+            "rows": len(errs) * horizon, "windows": len(errs)}
+
+
+def pilot_curve(work_raw: pd.DataFrame, target: str, cfg: dict) -> dict:
+    """The free pilot for a series, on the WORK periods only. The newest block of the work periods is held out and the
+    best simple repeat on it gives the frozen scale. Two model types are fitted on growing amounts of the older periods
+    (60%, 80%, all) and each is scored on that same block; the closer type is kept. Returns the learning curve and what
+    the forecast needs. Raises ForecastDataError."""
+    cfg = resolve_config(work_raw, target, cfg)
+    s, info = prepare_series(work_raw, target, cfg)
+    n = len(s)
+    if n < MIN_PERIODS:
+        raise ForecastDataError(f"Only {n} periods of history, which is too few to test a forecast (we need at least {MIN_PERIODS}).")
+    y = s["y"].to_numpy(dtype=float)
+    dates = list(s.index)
+    season = cfg.get("season")
+    horizon = horizon_for(cfg, season, n)
+    block = test_block(n, horizon)
+    train_end = n - block
+    spec = FeatureSpec(cfg["frequency"], season)
+    known = _known_cols(cfg, s)
+    if known:
+        raise ForecastDataError("Forecasts that use planned future columns cannot be sold yet.")
+    frame = make_features(s.reset_index(), "t", "y", spec)
+    if not window_origins(train_end, n, horizon) or len(frame[frame.index < train_end]) < 10:
+        raise ForecastDataError(f"Only {n} periods of history, which is too few to test a forecast.")
+    repeats = simple_repeat_errors(y, train_end, horizon, season)
+    best = min(repeats, key=repeats.get)
+    ref = repeats[best]
+    if ref <= 0:
+        raise ForecastDataError("The history repeats itself exactly, so there is nothing to forecast.")
+    results: dict[str, list] = {}
+    for fam in ("ridge", "forest"):
+        pts = []
+        for share in (0.6, 0.8, 1.0):
+            cut = max(int(round(share * train_end)), spec.need + 10)
+            tr = frame[frame.index < min(cut, train_end)]
+            if len(tr) < 10:
+                continue
+            m = families.build(fam, tr.drop(columns=["y"]), FREE_TEST_TREES if fam == "forest" else None, "regression")
+            m.fit(tr.drop(columns=["y"]), tr["y"])
+            errs = window_errors(m, y, dates, train_end, horizon, spec, list(tr.drop(columns=["y"]).columns), None)
+            sc = [float(np.clip(1 - e / ref, 0, 1)) for e in errs]
+            pts.append((float(len(tr)), float(np.mean(sc)), float(np.std(sc, ddof=1) / np.sqrt(len(sc))) if len(sc) > 1 else 0.0, errs))
+        results[fam] = pts
+    family = max(results, key=lambda f: results[f][-1][1] if results[f] else -1)
+    pts = results[family]
+    if len(pts) < 2:
+        raise ForecastDataError(f"Only {n} periods of history, which is too few to test a forecast.")
+    last_errs = np.asarray(pts[-1][3], dtype=float)
+    return {"curve": [(a, b, c) for a, b, c, _ in pts], "family": family, "ref": ref, "best_simple_repeat": best,
+            "horizon": horizon, "periods": n, "full_train_rows": int(len(frame)), "cfg": cfg,
+            "abs_error_sd": float(np.std(last_errs, ddof=1)) if len(last_errs) > 1 else 0.0,
+            "cost_samples": baseline.sample_timings(frame, "y", family, FREE_TEST_TREES if family == "forest" else None, task="regression"),
+            "frame_rows": len(frame)}

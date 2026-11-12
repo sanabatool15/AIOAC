@@ -41,15 +41,22 @@ def test_every_kind_provides_the_whole_interface(kind):
 
 
 def test_splits_are_deterministic_and_disjoint(kind):
-    df, t = frame(kind), answer(kind)
+    df = frame(kind)
+    t = answer(kind) if kind.needs_target else None   # grouping and unusual have no answer column
     a, b = kind.locked_split(df, t, 0.2, 7), kind.locked_split(df, t, 0.2, 7)
     assert a[0].equals(b[0]) and a[1].equals(b[1])
     assert not set(a[0].index) & set(a[1].index) and len(a[0]) + len(a[1]) == len(df)
     Xtr, Xte, ytr, yte = kind.split(df, t, 0.2, 0)
-    assert not set(Xtr.index) & set(Xte.index) and len(Xte) == len(yte)
+    assert not set(Xtr.index) & set(Xte.index)
+    assert (len(Xte) == len(yte)) if kind.needs_target else (ytr is None and yte is None)
 
 
 def test_scores_are_plain_json_numbers(kind):
+    if not kind.needs_target:   # no answer to score: steadiness comes from free_test / score_locked (tasks/unsupervised.py)
+        with pytest.raises(NotImplementedError):
+            kind.score([], [])
+        assert kind.finite_test_variance(0.8, 100) > 0 and not kind.supports_fee
+        return
     labels = ([10.0, 20.0, 30.0, 40.0], [12.0, 18.0, 33.0, 37.0], [10.0, 20.0, 30.0]) if kind.id in ("regression", "forecast") else \
         (["a", "b", "a", "a"], ["a", "a", "a", "a"], ["a", "a", "b"])
     s = kind.score(labels[0], labels[1], y_train=labels[2])

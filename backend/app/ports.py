@@ -68,6 +68,8 @@ class TrainingResult:
     stopped_at_cap: bool = False
     model_bytes: bytes | None = None
     stopped: bool = False      # True when the run ended because should_stop() returned True
+    score: float | None = None          # a number answer only: error reduction against always guessing the average (0 to 1)
+    task_type: str = "classification"
 
 
 class TrainingBackend(Protocol):
@@ -77,13 +79,15 @@ class TrainingBackend(Protocol):
     def run(self, dataset_path: str, target: str, cap_cents: int,
             on_progress: Callable[[str, float], None] | None = None,
             should_stop: Callable[[], bool] | None = None, job_key: str | None = None,
-            family: str = "forest") -> TrainingResult:
+            family: str = "forest", task_type: str = "classification", config: dict | None = None) -> TrainingResult:
         """on_progress(stage, fraction) reports plain-language progress (fraction 0..1).
         should_stop() is polled between stages; when it returns True the backend ends early and returns
         TrainingResult(stopped=True, cost_cents=<used so far>).
         job_key is the training run id. A backend that creates remote jobs must derive the remote job's name from it,
         so that a repeated call for the same run finds the same job instead of starting (and billing) a second one.
-        family is the model type the quote pinned (logistic, forest or boosting; services/data/families.py)."""
+        family is the model type the quote pinned (logistic, forest or boosting; services/data/families.py).
+        task_type is "classification" (default) or "regression" (a number as the answer; the family is then ridge, forest or boosting) or "forecast" (a number over
+        time, local backend only; `config` then carries the series settings: time column, period, season, horizon)."""
         ...
 
 

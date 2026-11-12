@@ -170,7 +170,7 @@ def select_data(pid: str, *, p: Project = Depends(owned_project), candidate_id: 
     storage = get_storage()
     target = body.target if body else None
     try:
-        if not target:
+        if not target and tasks.task_of(p).needs_target:
             cols = datasets.candidate_columns(s, storage, p, candidate_id)
             raise HTTPException(400, "which column should we predict? Columns: " + ", ".join(cols))
         v = datasets.select_candidate(s, storage, p, candidate_id, target)

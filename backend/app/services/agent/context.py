@@ -9,6 +9,7 @@ from ...repositories import forecasts as forecasts_repo
 
 from ...db.tables import Project
 from .. import gate
+from ..data import task_wording
 from . import skills
 
 BASE = (
@@ -173,10 +174,16 @@ def state_block(session: Session, project: Project, approved=(), pending: dict |
         lines.append(f"Readiness grade: {project.readiness_grade}")
     if project.baseline_result:
         b = project.baseline_result
-        lines.append(f"Free test: about {round(b['accuracy'] * 100)} out of 100 right vs {round(b['simple_guess_accuracy'] * 100)} for a simple guess; trust {project.trust_level}")
+        if b.get("task_type") in ("regression", "forecast", "grouping", "unusual"):   # not a yes/no answer: say it in that type's own words
+            lines.append(f"Free test: {task_wording.plain_score(b['task_type'], b.get('score', b['accuracy']), b.get('extras'))}; "
+                         f"{task_wording.plain_guess(b['task_type'], b.get('extras'))}; trust {project.trust_level}")
+        else:
+            lines.append(f"Free test: about {round(b['accuracy'] * 100)} out of 100 right vs {round(b['simple_guess_accuracy'] * 100)} for a simple guess; trust {project.trust_level}")
     q = gate.latest_quote(session, project.id)
     if q:
-        lines.append(f"Quote (estimate): {_usd(q.estimate_cents)} (compute + success fee of 5% of compute, at most {_usd(q.fee_cents)}), range {_usd(q.low_cents)} to {_usd(q.high_cents)}, the most you can be charged {_usd(q.cap_cents)}, "
+        fee_text = (f"compute + success fee of 5% of compute, at most {_usd(q.fee_cents)}" if q.fee_cents
+                    else "compute only: no success fee for this kind of task")
+        lines.append(f"Quote (estimate): {_usd(q.estimate_cents)} ({fee_text}), range {_usd(q.low_cents)} to {_usd(q.high_cents)}, the most you can be charged {_usd(q.cap_cents)}, "
                      f"{'approved' if q.approved_at else 'not approved yet'}")
     if q and q.approved_at and project.status in ("quoted", "awaiting_payment") and _expired(q):
         lines.append("The quote has EXPIRED. The user needs a new one: call create_quote (a new approval is needed afterwards).")

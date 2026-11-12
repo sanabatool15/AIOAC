@@ -11,11 +11,13 @@ from .base import Score, TaskKind
 from .classification import ClassificationTask
 from .forecast import ForecastTask
 from .regression import RegressionTask
+from .unsupervised import GroupingTask, UnusualTask
 
 DEFAULT_TASK = "classification"
 TASK_IDS = ("classification", "regression", "forecast", "grouping", "unusual")
 TASKS: dict[str, TaskKind] = {"classification": ClassificationTask(), "regression": RegressionTask()}
 TASKS["forecast"] = ForecastTask()
+TASKS["grouping"], TASKS["unusual"] = GroupingTask(), UnusualTask()
 
 MAX_CATEGORY_TARGET = 20   # the same rule as profile.MAX_CATEGORY_TARGET: at most 20 distinct values is a few groups
 

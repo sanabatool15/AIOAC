@@ -12,6 +12,7 @@ from ..repositories import payments as payments_repo
 from ..repositories import quotes as quotes_repo
 from ..repositories.traces import TraceRepository
 from .cost import budget
+from .data import tasks
 
 
 class Action(str, Enum):
@@ -93,6 +94,8 @@ def authorize(session: Session, project: Project, action: Action, user_approved:
             # that would run: refuse and ask for a new price. Quotes made before pinning have no pins and skip this.
             if quote.dataset_version_id and quote.dataset_version_id != project.chosen_dataset_version_id:
                 deny("the data changed after this price was quoted; ask for a new price")
+            if quote.task_type and quote.task_type != tasks.task_of(project).id:
+                deny("the kind of prediction changed after this price was quoted; ask for a new price")
             latest = forecasts_repo.latest_for_project(session, project.id)
             if quote.family and latest is not None and latest.family and latest.family != quote.family:
                 deny("the model type changed after this price was quoted; ask for a new price")

@@ -123,7 +123,7 @@ class SageMakerBackend:
     def _put(self, key: str, body: bytes):
         self.s3.put_object(Bucket=self.bucket, Key=key, Body=body, ServerSideEncryption="AES256")
 
-    def _create_job(self, job: str, target: str, max_runtime: int, family: str = "forest") -> None:
+    def _create_job(self, job: str, target: str, max_runtime: int, family: str = "forest", task_type: str = "classification") -> None:
         base = f"s3://{self.bucket}/jobs/{job}"
         self.sm.create_training_job(
             TrainingJobName=job,
@@ -148,6 +148,7 @@ class SageMakerBackend:
                 "sagemaker_region": _hp(self.region),
                 "target": _hp(target),
                 "family": _hp(family),
+                "task_type": _hp(task_type),
             },
             ProfilerConfig={"DisableProfiler": True},
             Tags=[{"Key": "project", "Value": "aioac"}],
@@ -190,7 +191,9 @@ class SageMakerBackend:
         return f"aioac-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
     def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None, job_key=None,
-            family="forest") -> TrainingResult:
+            family="forest", task_type="classification", config=None) -> TrainingResult:
+        if task_type in ("forecast", "grouping", "unusual"):   # not packaged for SageMaker yet (local backend only)
+            raise SageMakerJobError("config", f"{task_type} runs are not available on SageMaker yet")
         progress = on_progress or (lambda *a, **k: None)
         stop_check = should_stop or (lambda: False)
         if not self.bucket or not self.role_arn:
@@ -205,7 +208,7 @@ class SageMakerBackend:
         self._put(f"jobs/{job}/input/train/dataset.csv", Path(dataset_path).read_bytes())
         self._put(f"jobs/{job}/code/{SOURCE_TAR_NAME}", build_source_tarball())
         try:
-            self._create_job(job, target, max_runtime, family or "forest")
+            self._create_job(job, target, max_runtime, family or "forest", task_type or "classification")
         except Exception as e:
             if _error_code(e) != "ResourceInUse":
                 raise
@@ -255,7 +258,10 @@ class SageMakerBackend:
             log.warning(msg)
 
         runtime = float(desc.get("TrainingTimeInSeconds") or metrics.get("train_seconds") or 0)
+        regression = metrics.get("task_type") == "regression"
         return TrainingResult(
+            score=float(metrics["score"]) if regression and "score" in metrics else None,
+            task_type="regression" if regression else "classification",
             accuracy=float(metrics.get("accuracy", 0.0)),
             simple_guess_accuracy=float(metrics.get("simple_guess_accuracy", 0.0)),
             runtime_seconds=runtime,
