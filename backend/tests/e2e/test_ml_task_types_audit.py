@@ -298,11 +298,54 @@ def r5(session, storage, numbers, provider, **_):
 REGRESSION_CHECKS = {"A1": r1, "A2": r2, "A3": r3, "A4": r4, "A5": r5}
 
 
+# ---- the forecast cells built so far (slice S8: stored type, readiness, free test) -----------------------------
+@pytest.fixture
+def monthly(session, storage, project):
+    """A project whose answer is a number over time: a synthetic monthly series, chosen."""
+    from tests.helpers.ml_slices import sales_csv
+    project.task_type = "forecast"
+    c = datasets.add_candidate(session, storage, project, "sales", "bundled", sales_csv("seasonal", 96))
+    datasets.select_candidate(session, storage, project, c.id, "units")
+    return project
+
+
+def f1(session, api, monthly, **_):
+    from app.services.data import tasks
+    from tests.helpers.ml_slices import sales_frame
+    assert tasks.infer_task_type(sales_frame(), "units", "forecast how many we sell next month") == "forecast"
+    assert tasks.task_of(monthly).id == "forecast"
+    assert api.get(f"/projects/{monthly.id}").json()["task_type"] == "forecast"
+
+
+def f2(session, storage, monthly, **_):
+    r = analysis.readiness(session, storage, monthly)
+    assert r.grade and r.findings and monthly.task_config["time_column"] == "month"
+    for f in r.findings:
+        assert f["kind"] in ("OK", "NOTE")
+        plain(f["text"])
+        assert "row labels" not in f["text"] and "duplicate" not in f["text"].lower()
+
+
+def f3(session, storage, monthly, **_):
+    from app.services.data import task_wording
+    analysis.readiness(session, storage, monthly)
+    run, out = analysis.baseline_detailed(session, storage, monthly)
+    again = analysis.baseline_detailed(session, storage, monthly)[1]
+    assert out.score == again.score and out.test_rows > 0 and out.simple_guess_accuracy == 0   # same held-out periods, same answer
+    res = monthly.baseline_result
+    assert set(res) >= {"accuracy", "simple_guess_accuracy", "score", "simple_guess_score", "task_type", "extras"}
+    assert res["extras"]["best_simple_repeat"] in ("last", "seasonal", "average")
+    plain(task_wording.plain_score("forecast", res["score"], res["extras"]) + task_wording.plain_guess("forecast", res["extras"]))
+
+
+FORECAST_CHECKS = {"A1": f1, "A2": f2, "A3": f3}
+
+
 @pytest.mark.parametrize("stage", STAGES)
 @pytest.mark.parametrize("task", TASK_TYPES)
 def test_cell(task, stage, session, request):   # `session` is named so the sign-in override in conftest applies
     skip_unless_built(task, stage)
-    table = {"classification": CHECKS, "regression": REGRESSION_CHECKS}.get(task, {})
+    table = {"classification": CHECKS, "regression": REGRESSION_CHECKS, "forecast": FORECAST_CHECKS}.get(task, {})
     assert stage in table, f"slice for {task} {stage} is marked built but has no check yet"
     check = table[stage]
     wanted = [n for n, p in inspect.signature(check).parameters.items() if p.kind is not p.VAR_KEYWORD]
