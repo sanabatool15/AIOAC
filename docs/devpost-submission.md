@@ -95,6 +95,83 @@ AI does the work a person would otherwise need an ML engineer for, but it never 
 - **Making an LLM safe near money.** A real model chose the target accuracy itself and ran pilot and quote in one turn; it asked for approval twice instead of acting; vague goals triggered searches; it used jargon like "pilot" and "cap". The fixes live in code (target guard, forced approved call, clarity and data-choice gates, plain wording rules), not in prompt pleading.
 - **Wiring a polished UI to real data.** We had two UIs (a fake-data one and a plain real one) and merged them into one, with chat position, live steps and approval cards that name the dataset instead of an id.
 
+## Testing
+Because the product moves money and runs an AI agent, testing is a core part of the project, not an afterthought. The rule in our repo is: write the tests for the payment provider, ledger and cost estimate *before* calling them done, and run the tests and the demo check before saying a task is finished.
+
+**Result of the latest full offline run (backend, run on 2026-11-12):** `1256 passed, 33 skipped, 0 failed` in 7 min 20 s. The 33 skips are the live-service tests, which only run when explicitly switched on (see layer 4). Nothing in the offline run touches the network, a real PayPal account, AWS or a real LLM, and the tests never read the developer's `.env`.
+
+### Four layers of backend tests
+| Layer | Tests | What it proves | Real or double |
+|---|---|---|---|
+| `unit/` | about 450 | Pure logic on in-memory SQLite: cost estimator maths, ledger, permission gate, lifecycle state machine, readiness and insights, forecast, pilot, locked split, features, agent tools and guards, memory and context, activity feed, architecture rules | No outside systems |
+| `contract/` | about 120 | Our code against each outside API on recorded or mocked HTTP and mocked boto3: PayPal provider, Azure and OpenRouter clients, Hugging Face, UCI and OpenML sources, S3 storage, SageMaker backend | Mocked transport |
+| `e2e/` | about 250 | Whole flows through the real HTTP API: describe, data, readiness, free test, forecast, quote, approve, hold, train, verify, capture, void, receipt; plus agent flows, background training and Stop, tenant isolation, higher-target round, data fix, all five ML task types | Mock PayPal and scripted model; local training, local storage and SQLite are real |
+| `integration/` | 21 | Live PayPal sandbox, AWS, the Azure LLM, the database and live dataset sources | Real services, skipped unless `RUN_REAL=1` |
+
+### Safety checks that must always pass
+These are asserted in code, not just described:
+- No paid action runs without an approved, unexpired quote.
+- Training never starts before a **server-confirmed** hold (a browser success screen is not proof).
+- A capture or void repeated with the same request id moves no money a second time.
+- The success fee is never captured unless the locked-test check passed.
+- Total captures never exceed the hold, and compute is never captured above the compute cap; a capture on a voided or fully captured hold is refused.
+- A repeated webhook can never credit or charge twice; a webhook can never create a hold or mark a project paid.
+- Actual cost never exceeds the cap.
+- Our own failure (training error, verification error, lost worker) voids the whole hold, so the user pays $0.
+- The ledger is append-only and refuses a balance below zero.
+- Two simultaneous requests (for example two `/train` calls) cannot start two paid runs.
+
+### Money-path scenarios covered end to end (on the mock PayPal double)
+Target reached (fee captured), target missed (compute only, no fee), user Stop mid-run (compute used so far, no fee), cap reached, hold never confirmed, hold declined or expired, late authorize after a cancel, amount mismatch, PayPal outage during settle followed by a safe `settle/retry`, crash recovery of orphaned runs, forecast too low ("Not eligible"), and a second paid round (Improve, or a higher target) with a fresh quote and hold. The demo check, `pytest tests/e2e/test_payments_and_demo.py`, runs the whole paid flow with no network and must pass before any task is called finished and before recording the video.
+
+### Architecture and privacy tests
+- An architecture test fails the build if a service imports SQLAlchemy or runs SQL, or if the app ever imports the test doubles. The app has no mock mode.
+- A tenant-isolation test lists every route and fails when a new route is not classified; another user's project or payment always answers 404, never 403.
+- The public share link is tested for the exact set of returned fields and scanned for leaks (no money, ids, emails, storage keys or traces).
+- Skills are tested to contain no payment or refund rules, and the system prompt has a size budget test.
+
+### Agent evaluation (real model)
+A separate eval harness runs fixed cases with a mock payment provider, local training and a throwaway database, and never approves a quote. Per run it checks: no paid work ran, no false claims about payment or training, plain language, no accuracy promise, expected tools called, forbidden tools not called, and limits respected.
+- `gpt-5.4` on Azure: **22 of 22** runs passed on 11 dataset and flow cases (2 repeats), **12 of 12** on 4 skill cases built on synthetic files (lopsided answers, only 80 rows, an exact copy of the answer, a near copy), with **0 safety violations**.
+- `gpt-5.4-mini` on the same scoring: 15 of 22 runs, which is why the guards are in code and not in the prompt.
+- Findings fed back into the product: the model chose the target accuracy itself, asked for approval twice, searched on a vague goal, and loaded unneeded skills. Each became a code guard or a rewritten description (unneeded skill loads fell from 12 of 12 runs to 0 of 12).
+- These are small samples. Treat them as "clearly better than mini", not as a guarantee.
+
+### Live-service tests (sandbox and cheap)
+Run on purpose with `RUN_REAL=1`; paid ones need a second switch, `RUN_PAID=1`, so a normal run can never start a paid job.
+- **PayPal sandbox:** authorize a 50 cent hold, repeat the authorize (same authorization), a 20 cent compute capture, a 5 cent fee capture on the *same* hold, a repeated capture with the same request id (returns the first capture), void of the remaining 25 cents, a repeated void (harmless), and a capture after the void (refused). A person approves the order as the sandbox buyer.
+- **AWS SageMaker:** one real capped job. Cap 60 cents, 69 billable seconds, accuracy 0.82 against 0.69 for a simple guess, real AWS compute about 0.44 cents. It checks the model beats a simple guess, the reported cost equals the formula on AWS's billable seconds, the model loads and predicts in the app environment, and no job is left running.
+- **AWS setup:** bucket accepts writes, training role is assumable, the scikit-learn image tag exists, training quota is above zero.
+- **LLM, database and datasets:** the Azure model answers and calls tools correctly, the database is reachable, Hugging Face search and the hand-checked dataset list work.
+- Every live test prints names, never secret values, cleans up after itself, and is sandbox money only.
+
+### Frontend tests
+Unit tests (27 files) cover the adapters, status-to-screen mapping, pay flow, training poll, markdown rendering with XSS cases, chat controller and a guard test that raw cents or decimals never reach a screen (money only through one dollar formatter). Playwright browser specs (16 files) drive the real app against a test launcher with a scripted model, mock PayPal and local training: signup and login, the whole demo path from describe to receipt, chat rendering and position, data picker and link, data fix, higher-target round, model versions, sharing, tenant isolation, and the failed, stopped and voided states. These were last run in full on 2026-11-06 to 2026-11-08; they were not re-run for this submission.
+
+### Real bugs the tests found
+- A column that exactly copied the answer made the baseline score 100% while readiness said it would be ignored.
+- A model trained on scikit-learn 1.4 loaded on 1.9 with a warning, then crashed at predict time.
+- The Model tab crashed (HTTP 500) on datasets with only number columns.
+- The "Improve" round could not be priced because the earlier settled hold still blocked a new quote.
+- Payment races: a project stuck in `awaiting_payment` after a confirmed hold, an unvoided hold after a late authorize, and a 500 from two simultaneous orders.
+- Live cost estimates ran low at 20,000 rows (projected 3.0 s, measured 5.8 s) because the baseline timed 100 trees and the cloud script used 300.
+
+### What is not tested yet (honest limits)
+- The full browser flow against the real PayPal sandbox and SageMaker together has not been run; each was checked separately.
+- PayPal webhook signature verification is tested on mocked HTTP only (it needs a public URL).
+- More than two captures per authorization and the hold lifetime are unchecked on the real sandbox.
+- Paid SageMaker runs for regression, forecasting, grouping and unusual records have not been run.
+- Quote prices are placeholders; cost accuracy needs more real jobs.
+
+### How a judge can reproduce this
+```bash
+cd backend && pip install -e '.[dev]'
+pytest                                          # all offline tests (about 7 minutes)
+pytest tests/e2e/test_payments_and_demo.py      # demo check: full flow, no network
+cd ../frontend && npm install && npm test       # unit tests
+npm run test:e2e                                # browser tests on mock PayPal and a scripted model
+```
+
 ## What we learned
 - Put every irreversible step behind code that reads stored state, and let the model only propose. A prompt is advice; a gate is a guarantee.
 - Idempotency keys, compare-and-swap status changes and "save each step before the next" make retries and crashes boring.
