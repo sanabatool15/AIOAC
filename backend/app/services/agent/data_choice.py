@@ -24,7 +24,7 @@ _NO_DATA = re.compile(
 WAITING_HINT = (
     "The user has not chosen how to bring data yet, so do not search. In one or two plain sentences tell them to pick one "
     "of the three choices on screen: upload their own CSV file, paste a link to an open dataset, or say they have no data "
-    "so you can find one. Do not call any dataset tool until they choose."
+    "so you can find one. Do not list the three choices as bullets and do not ask which one: they are already shown as cards on screen. Do not call any dataset tool until they choose."
 )
 
 

@@ -134,8 +134,9 @@ function Project({ project, error, reload }: { project: BProject; error: Error |
         </p>
       )}
       <div data-region="conversation" className="flex flex-col gap-4">
-        {onData && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
         <ChatThread pc={pc} projectStatus={project.status} />
+        {/* Under the thread, so the three choices stay next to the composer instead of scrolling away. */}
+        {onData && <DataPicker projectId={project.id} pc={pc} onChanged={reload} />}
         {project.run && project.status === "done" && (
           <div className="pl-9">
             <ModelPanel projectId={project.id} />
