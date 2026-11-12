@@ -58,3 +58,9 @@ def test_a_model_worded_button_cannot_start_a_search(session, storage, provider,
     from app.repositories.traces import TraceRepository
     res = [s.content["result"] for s in TraceRepository(session).steps(project.id, ("tool_result",)) if s.content["name"] == "search_datasets"]
     assert res[0].get("waiting_for_choice")
+
+
+def test_one_stray_letter_after_no_data_still_counts():
+    from app.services.agent.data_choice import wants_search
+    assert wants_search(["no dataA"])
+    assert not wants_search(["database design"])

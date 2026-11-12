@@ -2,11 +2,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FlaskConical, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { ErrorState, Skeleton } from "@/components/ui/state";
-import { listProjects, startDemoChat } from "@/lib/api-real";
+import { listProjects } from "@/lib/api-real";
 import { useAsync, useRealUser } from "@/lib/hooks";
 import { activeProjectId, isCurrent, NAV_ITEMS } from "@/lib/nav";
 import { statusLabel } from "@/lib/status";
@@ -24,38 +24,6 @@ export function Logo() {
       </span>
       <span className="text-section text-ink">AIOAC</span>
     </Link>
-  );
-}
-
-// Dev builds only: one click to a chat that is already at the price step, so payment can be tried without the long chat.
-function DemoChatButton({ onNavigate }: { onNavigate?: () => void }) {
-  const router = useRouter();
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  if (process.env.NODE_ENV === "production") return null;
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      block
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          const { id } = await startDemoChat();
-          window.dispatchEvent(new Event(PROJECTS_CHANGED));
-          onNavigate?.();
-          router.push(`/c/${id}/pay`);
-        } catch (e) {
-          toast(e instanceof Error && /not found/i.test(e.message) ? "Demo chats are off. Set DEMO_PROJECT_ENABLED=true in backend/.env." : "Could not make a demo chat.");
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      <FlaskConical aria-hidden />
-      {busy ? "Preparing…" : "Demo chat (test)"}
-    </Button>
   );
 }
 
@@ -97,7 +65,6 @@ export function Sidebar({ drawer, onNavigate }: { drawer?: boolean; onNavigate?:
         <Plus aria-hidden />
         New chat
       </LinkButton>
-      <DemoChatButton onNavigate={onNavigate} />
 
       <nav aria-label="Main" className="flex flex-col gap-0.5">
         {NAV_ITEMS.filter((n) => n.href !== "/projects").map((n) => {

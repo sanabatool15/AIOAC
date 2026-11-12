@@ -11,9 +11,9 @@ PICKER_MESSAGE = "I have no data. Please find a dataset."
 
 _NO_DATA = re.compile(
     r"""(?ix)
-    \b(?:i\s+)?(?:have|got)\s+no\s+(?:data|dataset|file|csv)\b
-  | \b(?:no|without)\s+(?:data|dataset|csv)\b
-  | \b(?:don'?t|do\s+not|dont)\s+have\s+(?:any\s+|a\s+|my\s+own\s+)?(?:data|dataset|file|csv)\b
+    \b(?:i\s+)?(?:have|got)\s+no\s+(?:data|dataset|file|csv)\w?\b
+  | \b(?:no|without)\s+(?:data|dataset|csv)\w?\b
+  | \b(?:don'?t|do\s+not|dont)\s+have\s+(?:any\s+|a\s+|my\s+own\s+)?(?:data|dataset|file|csv)\w?\b
   | \b(?:find|search|look)\s+(?:for\s+)?(?:me\s+)?(?:an?\s+|some\s+|the\s+)?(?:open\s+|free\s+|public\s+)?(?:data|dataset|datasets)\b
   | \b(?:data|dataset|ڈیٹا)\s+(?:nahi|nahin|nhi)\b
   | \b(?:mere|meray|mray)\s+(?:pas|paas)\s+(?:data|dataset)\s+(?:nahi|nahin|nhi)\b
