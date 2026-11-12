@@ -113,7 +113,7 @@ export const getModel = (id: string, modelId?: string) => api<BModel>(withModel(
 export const getModelVersions = (id: string) => api<BModelVersion[]>(`/projects/${id}/model/versions`);
 export const switchModelVersion = (id: string, modelId: string) =>
   api<{ model_id: string; version_no: number; is_current: boolean }>(`/projects/${id}/model/${encodeURIComponent(modelId)}/use`, { method: "POST" });
-export const predictOne = (id: string, record: Record<string, string | number>, modelId?: string) =>
+export const predictOne = (id: string, record: Record<string, string | number | null>, modelId?: string) =>
   api<BPredict>(withModel(`/projects/${id}/predict`, modelId), { body: { record } });
 export const predictBatch = (id: string, csvText: string, modelId?: string) =>
   api<BBatch>(withModel(`/projects/${id}/predict-batch`, modelId), { body: { csv_text: csvText } });
@@ -149,10 +149,17 @@ export const addDatasetLink = (id: string, url: string) =>
   api<{ candidate_id: string; rows: number; columns: string[]; suggested_target?: string }>(`/projects/${id}/data/link`, {
     body: { url },
   });
-export const selectDataset = (id: string, candidateId: string, target: string) =>
-  api<{ rows: number; target: string; status: string }>(
+// `target` is left out for groups and unusual records: they have no answer column.
+export const selectDataset = (id: string, candidateId: string, target?: string) =>
+  api<{ rows: number; target: string | null; status: string }>(
     `/projects/${id}/data/${candidateId}/select`,
-    { body: { target } },
+    { body: target ? { target } : {} },
+  );
+// What kind of prediction this is. Free, and only before a dataset is chosen.
+export const setTaskType = (id: string, taskType: string) =>
+  api<{ task_type: string; plain_name: string; needs_target: boolean; pays_success_fee: boolean }>(
+    `/projects/${id}/task-type`,
+    { body: { task_type: taskType } },
   );
 export const runReadiness = (id: string) =>
   api<{ grade: string; findings: { kind: string; text: string }[]; status: string }>(
@@ -166,8 +173,12 @@ export const runBaseline = (id: string) =>
   );
 
 // ---- pilot, forecast, quote ----
-export const runPilot = (id: string, target: number) =>
-  api<BForecast>(`/chats/${id}/pilot`, { body: { target } });
+// A yes/no or group answer sends a target (0 to 1). A number or a forecast sends the most the user accepts being off by,
+// in the answer's own units; the server turns it into a score. Groups and unusual records send nothing.
+export const runPilot = (id: string, goal: number | { typicalError: number } | null) =>
+  api<BForecast>(`/chats/${id}/pilot`, {
+    body: goal === null ? {} : typeof goal === "number" ? { target: goal } : { typical_error: goal.typicalError },
+  });
 // A guided data fix. Propose is free and changes nothing; apply is the user's click.
 export const proposeFix = (id: string) => api<BFixProposal>(`/chats/${id}/fix/propose`, { method: "POST" });
 export const applyFix = (id: string, versionId: string) =>

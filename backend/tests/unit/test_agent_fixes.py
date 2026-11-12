@@ -78,7 +78,7 @@ def test_prompt_has_the_wording_rules_and_fits_the_budget(session, project):
     text = context.build_system(session, project)
     for needle in ("no bold", "uci:144", "out of 100", "never cents", "Never choose the target accuracy", "top 2", "platform fee", "free small test", "the most you can be charged"):
         assert needle in text
-    assert len(text) < 4800  # 4000 -> 4200 (data-choice and data-fix rules) -> 4800 (Phase 2 persona and new skills)
+    assert len(text) < 5000  # 4800 -> 4900 -> 5000 (task-type rules); 4000 -> 4200 (data-choice and data-fix rules) -> 4800 (Phase 2 persona and new skills)
     assert "pilot" not in text.lower() and "hard cap" not in text.lower()
 
 

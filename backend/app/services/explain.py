@@ -9,7 +9,7 @@ from ..repositories import datasets as datasets_repo
 from ..repositories import forecasts as forecasts_repo
 from ..repositories import payments as payments_repo
 from ..repositories import training_runs as runs_repo
-from .data import families, models as model_versions
+from .data import families, models as model_versions, task_wording, tasks
 
 FLAT_CURVE = 0.01      # accuracy gain over the pilot's learning curve below which more rows barely help
 STEEP_CURVE = 0.03     # gain above which more rows probably help
@@ -75,6 +75,22 @@ def what_could_help(*, outcome: str, met: bool | None, verified: float | None, g
     return tips[:4]
 
 
+def _final_check_text(task: str, v: dict, forecast) -> str:
+    """The check on rows the model never saw, in the type's own words. An estimate, never a promise."""
+    pilot = (forecast.pilot or {}) if forecast else {}
+    if task in ("regression", "forecast") and v.get("typical_error") is not None:
+        unit = pilot.get("unit", "")
+        goal = ""
+        scale = (pilot.get("score_scale") or {}).get("guess_error")
+        if v.get("target") is not None and scale:
+            goal = f"; your goal was no more than {task_wording.plain_amount((1 - v['target']) * scale, unit)}"
+        return f"on rows it never saw the model was typically off by about {task_wording.plain_amount(v['typical_error'], unit)}{goal} (an estimate)"
+    if task in ("grouping", "unusual") and v.get("value") is not None:
+        what = "groups" if task == "grouping" else "flagged records"
+        return f"on rows it never saw the {what} were about {_out_of_100(v['value'])} out of 100 steady (an estimate); there is no right answer to check against"
+    return "the final check could not be summarised"
+
+
 def result_facts(session: Session, project: Project) -> dict:
     run = runs_repo.latest_for_project(session, project.id)
     if run is None or run.status == "running":
@@ -104,9 +120,15 @@ def result_facts(session: Session, project: Project) -> dict:
     out.update(verified_out_of_100=_out_of_100(verified), target_out_of_100=_out_of_100(target), target_met=met,
                simple_guess_out_of_100=_out_of_100(guess), free_test_out_of_100=_out_of_100(free),
                model_type=families.plain_name(fam))
+    task = tasks.task_of(project).id
+    if task != "classification":   # not "out of 100 right": say the final check in the type's own words
+        out["task_type"] = task
+        out["final_check_text"] = _final_check_text(task, v, forecast)
+        for k in ("verified_out_of_100", "target_out_of_100", "simple_guess_out_of_100", "free_test_out_of_100"):
+            out.pop(k, None)
     if model is not None:
         out["version"] = model_versions.version_numbers(runs_repo.models_for_project(session, project.id)).get(model.id)
-    if verified is not None and free is not None:
+    if verified is not None and free is not None and task == "classification":
         diff = _out_of_100(verified) - _out_of_100(free)
         out["verified_vs_free_test"] = (f"the final check scored {abs(diff)} out of 100 {'higher' if diff > 0 else 'lower'} than the free test" if diff
                                         else "the final check matched the free test") + "; they use different rows, so a small gap is normal"

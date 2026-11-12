@@ -9,7 +9,7 @@ from ...repositories import forecasts as forecasts_repo
 
 from ...db.tables import Project
 from .. import gate
-from ..data import task_wording
+from ..data import task_wording, tasks
 from . import skills
 
 BASE = (
@@ -18,14 +18,14 @@ BASE = (
     "Use everyday comparisons (a coin flip, a class of 100 students). Say 'I think' or 'probably' when you infer; say 'I checked' only for what a tool measured.\n"
     "Reply shape: what you found, what it means for them, your recommendation and why, then one question or next step. Bad news kindly, with a way forward.\n"
     "Rules:\n"
-    "- Greeting, small talk or no goal: greet warmly, say in one sentence you can predict a yes/no or a group from their records, ask what they want to predict, call NO tool.\n"
+    "- Greeting or no goal: greet warmly, say in one sentence you can predict a yes/no, a number, a trend, groups or unusual records, ask what they want, call NO tool.\n"
     "- Every figure comes from a tool result ('about 3 out of 4' is fine for a clean one); never invent, adjust or extrapolate. Never promise accuracy. Prices are ESTIMATES. You cannot spend money; the user approves and pays.\n"
     "- Load a skill with load_skill before doing what it covers. discover_datasets ONLY after the user says they have no data; before that point to the 3 on-screen choices. "
     "Look at or fetch at most the top 2. File or link given: skip discovery.\n"
-    "- Only categories (yes/no, groups) can be predicted, not exact numbers like a price: say so, offer yes/no.\n"
-    "- Never choose the target accuracy. Ask: how many out of 100 must be right? The free test got about N. Run the free small test only after they answer.\n"
+    "- Kinds: yes/no or groups (default), a number, a number over time, find groups, find unusual records. Not yes/no: call set_task_type first. Images, text, audio: not yet.\n"
+    "- Never choose the target accuracy. Yes/no: ask how many out of 100 must be right. Number or forecast: ask how far off is acceptable (an amount). Groups, unusual: no goal. Run the free small test only after they answer.\n"
     "- Reply in the user's language. A target is one column name.\n"
-    "- Table, chart, diagram, buttons: use show_table, show_chart, show_diagram, ask_choice, show_links.\n"
+    "- Use show_table, show_chart, show_diagram, ask_choice, show_links when they help.\n"
     "- Plain text. At most one short list (3 to 5 lines starting '- '); no bold, backticks or markdown tables; no ids like uci:144 (use the title); accuracy as 'about N out of 100', never 0.8; money in dollars ($0.56), never cents.\n"
     "- Model type: only the type tested. A data fix is a free try: 'we will test if this changes the estimate'.\n"
     "- Price: small compute part plus the fixed platform fee. Say 'the most you can be charged', never 'cap'; the success fee only if verified.\n"
@@ -78,7 +78,7 @@ def sanitise_license(text, trusted: bool = False) -> str:
 
 
 NEXT_STEP = {
-    "described": "Wait for the user to pick: upload, link, or no data. Only if they said they have no data, call discover_datasets; if they gave a file or link, use that. Then inspect a dataset and ask the user to approve one.",
+    "described": "If the goal is not yes/no, call set_task_type first. Then wait for the user to pick: upload, link, or no data. Only if they said they have no data, call discover_datasets; if they gave a file or link, use that. Then inspect a dataset and ask the user to approve one.",
     "data_chosen": "Say in one plain sentence what you are about to check and why, then run the readiness check. If the user asks about a column, use profile_data.",
     "readiness_done": "Explain what the check found in 2 or 3 plain sentences (name the columns, say what it means for them) with one recommendation and its reason, then run the free baseline test. If you saw a suspect or the user asks about a column, use profile_data.",
     "baseline_done": "Explain the free test result in 2 or 3 plain sentences with one recommendation and its reason. Ask the user for their target if you do not have it, run the free small test, and explain the forecast. If it is eligible create the quote; if not, say honestly why and you may offer propose_data_fix (never promise it helps). If they ask what matters or whether another model or more rows would help, use compare_models.",
@@ -93,7 +93,7 @@ NEXT_STEP = {
 }
 
 TOOLS_BY_STATUS = {
-    "described": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "discover_datasets", "search_datasets", "look_at_dataset", "fetch_dataset", "inspect_candidate", "select_dataset"],
+    "described": ["load_skill", "set_task_type", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "discover_datasets", "search_datasets", "look_at_dataset", "fetch_dataset", "inspect_candidate", "select_dataset"],
     "data_chosen": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "profile_data", "run_readiness"],
     "readiness_done": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "profile_data", "run_baseline"],
     "baseline_done": ["load_skill", "show_table", "show_chart", "show_diagram", "show_links", "ask_choice", "profile_data", "compare_models", "run_pilot", "create_quote", "propose_data_fix", "apply_data_fix"],
@@ -161,9 +161,12 @@ def _known_lines(session: Session, project: Project, v) -> list[str]:
 
 def state_block(session: Session, project: Project, approved=(), pending: dict | None = None) -> str:
     lines = [f"Goal: {project.goal}", f"Status: {project.status}"]
+    if getattr(project, "task_type", None) not in (None, "classification"):
+        lines.append(f"Kind of prediction: {tasks.task_of(project).plain_name} ({project.task_type})")
     if project.chosen_dataset_version_id:
         v = datasets_repo.get_version(session, project.chosen_dataset_version_id)
-        lines.append(f"Dataset: {v.source}, {v.rows:,} rows, answer column '{v.target_column}', license {sanitise_license(v.license, trusted=v.source == "bundled")}")
+        answer = f"answer column '{v.target_column}'" if v.target_column else "no answer column"
+        lines.append(f"Dataset: {v.source}, {v.rows:,} rows, {answer}, license {sanitise_license(v.license, trusted=v.source == "bundled")}")
         lines.extend(_known_lines(session, project, v))
     else:
         # tool results are not kept between turns, so the model needs the candidate ids here (e.g. to propose select_dataset again after approval)

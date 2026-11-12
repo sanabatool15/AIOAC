@@ -81,13 +81,20 @@ def target_for_error(session: Session, storage: Storage, project: Project, typic
     1 - X / (the frozen error of always guessing the average). Code does this, the model never does the arithmetic."""
     task = tasks.task_of(project).id
     version = datasets_repo.get_version(session, project.chosen_dataset_version_id) if project.chosen_dataset_version_id else None
-    if task != "regression" or version is None:
+    if task not in ("regression", "forecast") or version is None:
         raise ForecastError("a goal in the answer's own units only applies to a project that predicts a number")
     work, _ = _work_rows(session, storage, project, version, task)
-    ref = regression.guess_error_ref(work[version.target_column])
+    if task == "forecast":   # the scale is the miss of the best simple repeat on the newest block of the work periods
+        from .tasks import forecast as fc
+        try:
+            ref = fc.pilot_curve(work, version.target_column, project.task_config or {})["ref"]
+        except fc.ForecastDataError as exc:
+            raise ForecastError(str(exc))
+    else:
+        ref = regression.guess_error_ref(work[version.target_column])
     unit = task_wording.unit_for(version.target_column)
     if not 0 < typical_error < ref:
-        raise ForecastError(f"a simple guess, always the average, is already off by about {task_wording.plain_amount(ref, unit)}; "
+        raise ForecastError(f"a simple guess is already off by about {task_wording.plain_amount(ref, unit)}; "
                             "pick a smaller number than that")
     return round(1 - typical_error / ref, 4)
 
@@ -202,6 +209,7 @@ def _run_forecast_pilot(session: Session, project: Project, version: DatasetVers
     return save(pred, pilot, suggested, ref=c["ref"])
 
 
+DEFAULT_STEADINESS = 0.6       # the steadiness bar for grouping and unusual when the user names none
 NO_ANSWER_MIN_SCORE = 0.30     # below this there are no clear groups / nothing clearly unusual: not sold
 NO_ANSWER_SEEDS = (0, 1, 2)
 
@@ -247,3 +255,15 @@ def _run_no_answer_pilot(session: Session, project: Project, version: DatasetVer
         reason = (f"We are only about {round(pred.confidence * 100)}% sure the {name} would be as steady as you asked "
                   f"({round(target * 100)} out of 100). That is not enough to sell you a run. A lower bar or better data would help.")
     return save(pred, pilot, reason)
+
+
+def plain_view(f: Forecast) -> dict | None:
+    """A number answer in its own units (dollars): typical miss, band, goal and chance, all estimates. None for other types."""
+    p = f.pilot or {}
+    if p.get("task_type") in ("grouping", "unusual"):   # no answer to be off by: how steady the result is
+        return task_wording.plain_steadiness(p["task_type"], f.predicted_metric, f.band_low, f.band_high, f.target, f.confidence)
+    scale = p.get("score_scale")
+    if p.get("task_type") not in ("regression", "forecast") or not scale:
+        return None
+    return task_wording.plain_forecast(f.predicted_metric, f.band_low, f.band_high, f.target, f.confidence, scale,
+                                       (f.pilot or {}).get("unit", ""))

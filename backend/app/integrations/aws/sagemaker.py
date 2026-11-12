@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 SCRIPT_DIR = Path(__file__).parent / "train_script"
 SERVICES_DIR = Path(__file__).parents[2] / "services" / "data"
 SHARED_MODULES = ("features.py", "families.py", "baseline.py")   # copied verbatim into the tarball as package `aioac_core`
+TASK_MODULES = ("base.py", "regression.py", "forecast.py", "unsupervised.py")   # copied as `aioac_core/tasks/` (relative imports only)
 SOURCE_TAR_NAME = "sourcedir.tar.gz"
 
 # Registry accounts for the AWS scikit-learn image. Only regions we have seen in AWS docs are listed;
@@ -66,7 +67,8 @@ def image_uri(region: str, image_version: str, override: str = "") -> str:
 
 
 def build_source_tarball() -> bytes:
-    """train.py at the top level plus aioac_core/ (verbatim features.py, families.py and baseline.py, one source of truth)."""
+    """train.py at the top level plus aioac_core/ (verbatim features.py, families.py and baseline.py) and aioac_core/tasks/
+    (verbatim base, regression, forecast and unsupervised): one source of truth with the local code."""
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         tar.add(SCRIPT_DIR / "train.py", arcname="train.py")
@@ -75,6 +77,11 @@ def build_source_tarball() -> bytes:
         tar.addfile(init, io.BytesIO(b""))
         for name in SHARED_MODULES:
             tar.add(SERVICES_DIR / name, arcname=f"aioac_core/{name}")
+        tinit = tarfile.TarInfo("aioac_core/tasks/__init__.py")   # empty on purpose: the app's registry is not shipped
+        tinit.size = 0
+        tar.addfile(tinit, io.BytesIO(b""))
+        for name in TASK_MODULES:
+            tar.add(SERVICES_DIR / "tasks" / name, arcname=f"aioac_core/tasks/{name}")
     return buf.getvalue()
 
 
@@ -123,7 +130,8 @@ class SageMakerBackend:
     def _put(self, key: str, body: bytes):
         self.s3.put_object(Bucket=self.bucket, Key=key, Body=body, ServerSideEncryption="AES256")
 
-    def _create_job(self, job: str, target: str, max_runtime: int, family: str = "forest", task_type: str = "classification") -> None:
+    def _create_job(self, job: str, target: str, max_runtime: int, family: str = "forest", task_type: str = "classification",
+                    config: dict | None = None) -> None:
         base = f"s3://{self.bucket}/jobs/{job}"
         self.sm.create_training_job(
             TrainingJobName=job,
@@ -146,9 +154,10 @@ class SageMakerBackend:
                 "sagemaker_program": _hp("train.py"),
                 "sagemaker_submit_directory": _hp(f"{base}/code/{SOURCE_TAR_NAME}"),
                 "sagemaker_region": _hp(self.region),
-                "target": _hp(target),
+                "target": _hp(target or ""),   # grouping and unusual have no answer column
                 "family": _hp(family),
                 "task_type": _hp(task_type),
+                **({"config": _hp(config)} if config else {}),
             },
             ProfilerConfig={"DisableProfiler": True},
             Tags=[{"Key": "project", "Value": "aioac"}],
@@ -192,8 +201,6 @@ class SageMakerBackend:
 
     def run(self, dataset_path, target, cap_cents, on_progress=None, should_stop=None, job_key=None,
             family="forest", task_type="classification", config=None) -> TrainingResult:
-        if task_type in ("forecast", "grouping", "unusual"):   # not packaged for SageMaker yet (local backend only)
-            raise SageMakerJobError("config", f"{task_type} runs are not available on SageMaker yet")
         progress = on_progress or (lambda *a, **k: None)
         stop_check = should_stop or (lambda: False)
         if not self.bucket or not self.role_arn:
@@ -208,7 +215,7 @@ class SageMakerBackend:
         self._put(f"jobs/{job}/input/train/dataset.csv", Path(dataset_path).read_bytes())
         self._put(f"jobs/{job}/code/{SOURCE_TAR_NAME}", build_source_tarball())
         try:
-            self._create_job(job, target, max_runtime, family or "forest", task_type or "classification")
+            self._create_job(job, target, max_runtime, family or "forest", task_type or "classification", config)
         except Exception as e:
             if _error_code(e) != "ResourceInUse":
                 raise
@@ -258,10 +265,10 @@ class SageMakerBackend:
             log.warning(msg)
 
         runtime = float(desc.get("TrainingTimeInSeconds") or metrics.get("train_seconds") or 0)
-        regression = metrics.get("task_type") == "regression"
+        task = metrics.get("task_type") or "classification"
         return TrainingResult(
-            score=float(metrics["score"]) if regression and "score" in metrics else None,
-            task_type="regression" if regression else "classification",
+            score=float(metrics["score"]) if task == "regression" and "score" in metrics else None,
+            task_type=task,
             accuracy=float(metrics.get("accuracy", 0.0)),
             simple_guess_accuracy=float(metrics.get("simple_guess_accuracy", 0.0)),
             runtime_seconds=runtime,

@@ -19,6 +19,7 @@ from ...db.tables import DatasetVersion
 from ...ports import Storage
 from ...repositories import datasets as datasets_repo
 from . import tasks
+from .model_io import load_model
 from .features import prepare_features
 
 LOCKED_SHARE = 0.20
@@ -128,7 +129,7 @@ def verify_model(model_bytes: bytes | None, storage: Storage, locked_key: str, t
     if not model_bytes:
         raise VerificationError("no model to verify")
     try:
-        model = joblib.load(io.BytesIO(model_bytes))
+        model = load_model(model_bytes)
         locked = pd.read_csv(storage.path(locked_key))
         kind = tasks.get(task)
         if not kind.needs_target:   # grouping / unusual: refit on the locked rows and compare (tasks/unsupervised.py)

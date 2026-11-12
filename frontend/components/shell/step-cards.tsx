@@ -106,6 +106,19 @@ export function ScoreChart({ bars }: { bars: BarSpec[] }) {
 }
 
 export function FreeTestCard({ project }: { project: BProject }) {
+  const plain = project.baseline?.plain;
+  if (plain) {
+    // A number, a forecast, groups or unusual records: the server's own words, no "out of 100 right".
+    return (
+      <Card aria-label="Free test" data-testid="baseline-result" className="gap-3 p-4">
+        <h2 className="text-section text-ink">Free test</h2>
+        <p className="text-body text-ink-2">
+          On rows it had not seen, {plain.result}. Compare: {plain.guess}.
+        </p>
+        {project.trust_level && <p className="text-body text-muted">How much to trust this so far: {project.trust_level}</p>}
+      </Card>
+    );
+  }
   const b = toBaseline(project);
   if (!b || b.right === null || b.guess === null) return null;
   return (
@@ -179,6 +192,23 @@ function BeforeAfter({ f }: { f: ForecastView }) {
 
 // `note` is false where the screen shows its own EstimateNote (the price card).
 export function ForecastCard({ f, note = true }: { f: ForecastView; note?: boolean }) {
+  if (f.plain) {
+    // A number, a forecast, groups or unusual records: words from the server, every one an estimate.
+    return (
+      <Card aria-label="Forecast (estimate)" data-testid="forecast-card" className="gap-2.5 p-4">
+        <h2 className="text-section text-ink">Forecast (estimate)</h2>
+        <dl className="flex flex-col gap-1.5">
+          <Row label="Your goal" value={f.plain.target_text} />
+          <Row label="What we expect (estimate)" value={f.plain.typical_error_text ?? f.plain.steadiness_text ?? ""} />
+          <Row label="Likely range (estimate)" value={f.plain.band_text} />
+          <Row label="Chance of reaching your goal (estimate)" value={f.plain.confidence_text} />
+          {f.modelType && <Row label="Model type tested" value={f.modelType.name} />}
+        </dl>
+        {f.modelType && <p className="text-micro text-muted">{f.modelType.note}</p>}
+        {note && <EstimateNote>From a small free pilot. An estimate, not a promise.</EstimateNote>}
+      </Card>
+    );
+  }
   return (
     <Card aria-label="Forecast (estimate)" data-testid="forecast-card" className="gap-2.5 p-4">
       <h2 className="text-section text-ink">Forecast (estimate)</h2>
@@ -224,7 +254,7 @@ export function EligibilityCard({ project, onChanged }: { project: BProject; onC
       <BeforeAfter f={f} />
       <p className="text-small text-muted">The pilot is free, so you can try again as often as you like.</p>
       <FixPanel project={project} onChanged={onChanged} />
-      {f.suggestedTarget !== null && (
+      {f.suggestedTarget !== null && (project.task_type ?? "classification") === "classification" && (
         <div className="flex flex-wrap items-center gap-3">
           <Button
             disabled={busy}

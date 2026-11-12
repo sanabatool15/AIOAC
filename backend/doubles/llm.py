@@ -33,6 +33,7 @@ class ReactiveFake:
         self.query = spec.get("query", "customer churn")
         self.target = spec.get("target", "left")
         self.text = spec.get("text")
+        self.task = spec.get("task", "regression")
         self.final_text = spec.get("final_text")
         self.queries = spec.get("queries", ["customer churn", "subscription cancel"])
         self.skill = spec.get("skill", "plain-language")
@@ -71,6 +72,10 @@ class ReactiveFake:
     def chat(self, messages, tools):
         if self.behavior == "ask":
             return LLMResponse(text=self.text or "What would you like to predict, and do you have past records of it?")
+        if self.behavior == "set_task":   # a goal that is not yes/no: choose the kind of prediction, then say what happens next
+            if not any(m["role"] == "tool" for m in messages):
+                return LLMResponse(tool_calls=[ToolCall("c-set-task", "set_task_type", {"task_type": self.task})])
+            return LLMResponse(text=self.text or "Got it. Now bring your data: upload a file, paste a link, or tell me you have none.")
         if self.behavior == "decline":
             return LLMResponse(text=self.text or "I can only work with tables of data, so I can't build that here.")
         last = messages[-1]

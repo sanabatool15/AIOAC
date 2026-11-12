@@ -69,6 +69,7 @@ export interface ForecastView {
   issues: string[];
   suggestedTarget: number | null; // percent
   modelType: ModelTypeView | null;
+  plain: BForecast["plain"] | null; // a number, a forecast, groups or unusual records: the server's own words
   before: { expected: number | null; confidence: number | null; target: number | null } | null; // forecast on the data before a fix
 }
 export interface FixView {
@@ -156,6 +157,7 @@ export function toForecast(f: Maybe<BForecast>): ForecastView | null {
     issues: f.issues ?? [],
     suggestedTarget: percent(f.suggested_target),
     modelType: toModelType(f.model_type),
+    plain: f.plain ?? null,
     before: f.before_fix
       ? { expected: percent(f.before_fix.predicted_metric), confidence: percent(f.before_fix.confidence), target: percent(f.before_fix.target) }
       : null,

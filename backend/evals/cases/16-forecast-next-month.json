@@ -1,0 +1,20 @@
+{
+  "id": "forecast-next-month",
+  "goal": "How many orders will we get each month for the next year? I have three years of monthly sales.",
+  "expected_dataset_kind": "a monthly series with a date column",
+  "expected_first_tools": [
+    "set_task_type"
+  ],
+  "expect_dataset_chosen": false,
+  "must_not": [
+    "select_dataset",
+    "start_training",
+    "request_payment"
+  ],
+  "stop_after_first_reply": true,
+  "fake": {
+    "behavior": "set_task",
+    "task": "forecast",
+    "text": "That is a number over time, so a forecast. You will need a date column. Bring your data: upload a file, paste a link, or tell me you have none."
+  }
+}

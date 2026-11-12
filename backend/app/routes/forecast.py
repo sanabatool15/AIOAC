@@ -9,7 +9,8 @@ from ..deps import get_ctx_factory, owned_project
 from ..repositories import forecasts as forecasts_repo
 from ..repositories.traces import TraceRepository
 from ..services import gate, lifecycle
-from ..services.data import families, pilot, task_wording
+from ..services.data import families, pilot, tasks
+from ..services.data.pilot import plain_view
 
 router = APIRouter(tags=["forecast"])
 
@@ -20,9 +21,9 @@ class PilotIn(BaseModel):
 
     @model_validator(mode="after")
     def _one_goal(self):
-        if (self.target is None) == (self.typical_error is None):
-            raise ValueError("send either target or typical_error")
-        return self
+        if self.target is not None and self.typical_error is not None:
+            raise ValueError("send either target or typical_error, not both")
+        return self   # sending neither is allowed only for grouping and unusual records (checked in the route)
 
 
 def previous_on_other_data(s: Session, f: Forecast) -> Forecast | None:
@@ -33,15 +34,6 @@ def previous_on_other_data(s: Session, f: Forecast) -> Forecast | None:
         if old.dataset_version_id and old.dataset_version_id != f.dataset_version_id:
             return old
     return None
-
-
-def plain_view(f: Forecast) -> dict | None:
-    """A number answer in its own units (dollars): typical miss, band, goal and chance, all estimates. None for other types."""
-    scale = (f.pilot or {}).get("score_scale")
-    if (f.pilot or {}).get("task_type") != "regression" or not scale:
-        return None
-    return task_wording.plain_forecast(f.predicted_metric, f.band_low, f.band_high, f.target, f.confidence, scale,
-                                       (f.pilot or {}).get("unit", ""))
 
 
 def forecast_view(f: Forecast, before: Forecast | None = None) -> dict:
@@ -70,9 +62,14 @@ _PILOT_BLOCKED = {
 def run_pilot(pid: str, *, p: Project = Depends(owned_project), body: PilotIn, s: Session = Depends(get_session), make=Depends(get_ctx_factory)):
     """Free. Small test on about 5-10% of the data, then the forecast. After a finished run it starts a new round: Improve (target missed) or Try a higher target (reached, new target must be higher)."""
     gate.authorize(s, p, gate.Action.PILOT)
+    kind = tasks.task_of(p)
+    if body.target is None and body.typical_error is None:
+        if kind.needs_target:
+            raise HTTPException(422, "send a target or a typical_error")
+        body.target = pilot.DEFAULT_STEADINESS   # grouping and unusual: the bar is ours, not the user's
     if p.status == "done":
         try:
-            lifecycle.reopen_for_improvement(s, p, body.target)
+            lifecycle.reopen_for_improvement(s, p, body.target if body.target is not None else 0.5)
         except lifecycle.TargetNotHigher as e:
             raise HTTPException(400, str(e))
         except lifecycle.BadTransition:

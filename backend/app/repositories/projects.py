@@ -31,6 +31,12 @@ def set_status(session: Session, project: Project, new: str) -> None:
     session.commit()
 
 
+def set_task_type(session: Session, project: Project, task_type: str) -> None:
+    project.task_type = task_type
+    project.task_config = None   # settings belong to one kind of prediction
+    session.commit()
+
+
 def set_task_config(session: Session, project: Project, config: dict) -> None:
     """Save the per-type settings (for a forecast: the date column, how often, how far ahead, the season)."""
     project.task_config = config

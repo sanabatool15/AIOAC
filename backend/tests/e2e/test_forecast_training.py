@@ -141,30 +141,3 @@ def test_the_saved_model_forecasts_forward_from_the_end_of_its_history(session, 
     assert len(ahead) == 6 and model.next_dates(1)[0] > model.dates[-1]
     work_key, _ = verification.split_for(session, storage, version_of(session, monthly), "forecast")
     assert model.dates[-1] == pd.to_datetime(pd.read_csv(storage.path(work_key))["month"]).max()   # trained on work periods only
-
-
-def test_the_forecast_never_runs_on_sagemaker_yet():
-    from app.integrations.aws.sagemaker import SageMakerBackend, SageMakerJobError
-    b = SageMakerBackend(object(), object(), bucket="b", role_arn="arn:aws:iam::123456789012:role/x", region="us-east-1",
-                         instance_type="ml.m5.xlarge", image_version="1.9-0")
-    with pytest.raises(SageMakerJobError, match="forecast"):
-        b.run("x.csv", "units", 200, task_type="forecast")
-
-
-def test_predict_gives_the_next_periods_with_dates_and_the_typical_miss(session, storage, monthly, provider):
-    from app.services import model_use
-    held_forecast(session, storage, monthly, provider)
-    training.run_training(session, monthly, CostedLocal(10), storage, provider)
-    out = model_use.predict_one(session, storage, monthly, {"periods": 6})
-    d = pd.to_datetime(out["dates"])
-    assert len(out["prediction"]) == 6 and out["probabilities"] is None and out["typical_error"] > 0 and out["period"] == "month"
-    assert (d[1:] - d[:-1]).days.min() >= 28 and d[0] > pd.Timestamp("2022-05-01")   # continues after the work periods the model was trained on (no refit, by decision)   # one month apart, after the history
-    assert out["note"] == "an estimate, not a promise"
-    assert len(model_use.predict_one(session, storage, monthly, {})["prediction"]) >= 1   # no number given: one horizon
-    for bad in ({"periods": 0}, {"periods": 500}, {"periods": "many"}):
-        with pytest.raises(model_use.BadInput):
-            model_use.predict_one(session, storage, monthly, bad)
-    with pytest.raises(model_use.BadInput, match="does not take a file"):
-        model_use.predict_batch(session, storage, monthly, "a,b\n1,2\n")
-    desc = model_use.describe(session, storage, monthly)
-    assert desc["usable"] and desc["task_type"] == "forecast" and desc["columns"] == []

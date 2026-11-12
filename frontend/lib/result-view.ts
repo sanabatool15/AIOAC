@@ -29,6 +29,20 @@ export function toResultView(t: BTraining | null | undefined): ResultView {
   }
   const value = percent(v.value);
   const target = percent(v.target);
+  const text = t?.result?.final_check_text;
+  if (text) {
+    // A number, a forecast, groups or unusual records: the server's own words for the one check on rows the model never saw.
+    const said = text.charAt(0).toUpperCase() + text.slice(1) + ".";
+    const noFee = t?.result?.task_type === "grouping" || t?.result?.task_type === "unusual";
+    if (noFee) {
+      return { kind: v.passed === true ? "verified" : "missed", value, target, title: "Result checked",
+        body: `${said} You paid for compute only: there is no success fee for this kind of task.` };
+    }
+    return v.passed === true
+      ? { kind: "verified", value, target, title: "Goal reached", body: `${said} That reaches your goal.` }
+      : { kind: "missed", value, target, title: "Goal not reached",
+          body: `${said} That is not as close as you asked. You paid for compute only, no success fee. We kept the best model.` };
+  }
   const checked = `Checked once on test data we kept aside: about ${value} out of 100 right, `;
   if (v.passed === true) {
     return {

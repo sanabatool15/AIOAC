@@ -16,6 +16,10 @@ QUESTION_HINT = ("Do not choose the target yourself. Ask the user ONE short ques
                  "do they need to be right? Mention what the free test got (baseline_percent). Run the free small test only after they answer.")
 
 
+ERROR_QUESTION_HINT = ("Do not choose the number yourself. Ask the user ONE short question in plain words: how far off can the prediction be and still be useful "
+                       "(an amount, for example $5,000 or 200 units)? Run the free small test only after they answer with an amount.")
+
+
 def own_texts(texts: list[str]) -> list[str]:
     return [t for t in texts if t and not t.lstrip().startswith(APPROVAL_PREFIX)]
 

@@ -64,7 +64,11 @@ export function QuoteStep({ project, onChanged }: StepProps) {
             <Row label="Likely range (estimate)" value={q.range} />
             {q.modelType && <Row label="Model type" value={q.modelType.name} />}
             <Row label="Compute, up to" value={q.computeMax} />
-            <Row label="Success fee, up to (only if verified)" value={q.feeMax} />
+            {project.task?.pays_success_fee === false ? (
+              <Row label="Success fee" value="None for this kind of task" />
+            ) : (
+              <Row label="Success fee, up to (only if verified)" value={q.feeMax} />
+            )}
           </dl>
           {q.modelType && <p className="text-micro text-muted">{q.modelType.note}</p>}
           <p className="text-body text-ink-2">

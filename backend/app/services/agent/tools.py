@@ -16,7 +16,9 @@ from ...integrations.jobs.inline import InlineJobRunner
 from ...integrations.datasets.registry import SourceRegistry, as_registry
 from ...ports import PaymentProvider, Storage, TrainingBackend
 from ..data.samples import CATALOG
-from ..data import analysis, datasets, discovery, families, fixes, pilot, profile as data_profile
+from ..data import analysis, datasets, discovery, families, fixes, pilot, profile as data_profile, task_wording, tasks
+from ..data.pilot import plain_view
+from ...repositories import projects as projects_repo
 from ..cost import cost, quotes
 from .. import compare_models as compare_service, explain, gate, payments, training
 from . import clarity, data_choice, memory, skills, target as target_rule
@@ -241,7 +243,7 @@ def inspect_candidate(ctx, a):
 
 
 def select_dataset(ctx, a):
-    v = datasets.select_candidate(ctx.session, ctx.storage, ctx.project, a["candidate_id"], a["target"])
+    v = datasets.select_candidate(ctx.session, ctx.storage, ctx.project, a["candidate_id"], a.get("target"))
     return {"rows": v.rows, "target": v.target_column, "other_candidates": "deleted"}
 
 
@@ -267,7 +269,9 @@ def select_dataset_card(ctx, a) -> dict:
     source = "sample data" if cand.source == "bundled" else cand.source
     size = f"{source}, {cand.rows:,} rows" if cand.rows is not None else source
     what = f'Use "{cand.name}" ({size})'
-    if target and meaning:
+    if not tasks.task_of(ctx.project).needs_target:   # groups and unusual records have no answer column
+        what += " to look for " + ("groups" if ctx.project.task_type == "grouping" else "records that look unusual")
+    elif target and meaning:
         what += f' and predict "{target}": {meaning}'
     elif target:
         what += f' and predict the column "{target}"'
@@ -344,8 +348,31 @@ def compare_models(ctx, a):
     return r
 
 
+def set_task_type(ctx, a):
+    """Free: what kind of prediction this is (a number, a number over time, groups, unusual records). Only before a dataset is chosen."""
+    if ctx.project.status != "described":
+        return {"error": "the kind of prediction can only be chosen before a dataset is chosen"}
+    try:
+        kind = tasks.get(str(a.get("task_type", "")))
+    except tasks.UnknownTask:
+        return {"error": "that kind of prediction is not available", "available": list(tasks.TASKS)}
+    projects_repo.set_task_type(ctx.session, ctx.project, kind.id)
+    out = {"task_type": kind.id, "plain_name": kind.plain_name, "needs_answer_column": kind.needs_target}
+    out["next"] = ("tell the user plainly what will be predicted; " +
+                   ("no answer column is needed: they only choose the data" if not kind.needs_target else "ask which column is the answer once the data is chosen"))
+    if not kind.supports_fee:
+        out["money_note"] = "this kind of task is compute only: no success fee, because there is no true answer to check"
+    return out
+
+
 def run_baseline_tool(ctx, a):
     r, o = analysis.baseline_detailed(ctx.session, ctx.storage, ctx.project)
+    task = tasks.task_of(ctx.project).id
+    if task != "classification":   # not "out of 100 right": the type's own words (task_wording), numbers only as estimates
+        b = ctx.project.baseline_result or {}
+        return {"task_type": task, "result_text": task_wording.plain_score(task, b.get("score", r.accuracy), b.get("extras")),
+                "simple_guess_text": task_wording.plain_guess(task, b.get("extras")), "trust_level": ctx.project.trust_level,
+                "train_rows": o.train_rows, "test_rows": o.test_rows, "label": "estimate"}
     out = {"accuracy": round(r.accuracy, 3), "simple_guess_accuracy": round(r.simple_guess_accuracy, 3),
            "right_out_of_100": round(r.accuracy * 100), "simple_guess_out_of_100": round(r.simple_guess_accuracy * 100),
            "trust_level": ctx.project.trust_level, "train_rows": o.train_rows, "test_rows": o.test_rows}
@@ -404,16 +431,35 @@ def data_fix_card(ctx, a) -> dict:
 
 
 def run_pilot(ctx, a):
-    """The target is the user's choice: it must match a number in their own words (see target.py)."""
-    if not target_rule.user_named(memory.user_texts(ctx.session, ctx.project), float(a["target"])):
-        ctx.emit("need_target", "INFO")
-        b = ctx.project.baseline_result or {}
-        return {"need_target": True, "baseline_percent": round(b["accuracy"] * 100) if b.get("accuracy") is not None else None,
-                "hint": target_rule.QUESTION_HINT}
+    """The goal is the user's choice and must match a number in their own words (see target.py): out of 100 for a yes/no or
+    group answer, an amount for a number or a forecast. Grouping and unusual records have none: the bar is ours."""
+    kind = tasks.task_of(ctx.project)
+    texts = memory.user_texts(ctx.session, ctx.project)
     try:
-        f = pilot.run_pilot(ctx.session, ctx.storage, ctx.project, float(a["target"]))
+        if not kind.needs_target:
+            target = pilot.DEFAULT_STEADINESS
+        elif kind.id in ("regression", "forecast"):
+            amount = a.get("typical_error")
+            if amount is None or not target_rule.user_named_error(texts, float(amount)):
+                ctx.emit("need_target", "INFO")
+                return {"need_target": True, "task_type": kind.id, "hint": target_rule.ERROR_QUESTION_HINT}
+            target = pilot.target_for_error(ctx.session, ctx.storage, ctx.project, float(amount))
+        else:
+            if a.get("target") is None or not target_rule.user_named(texts, float(a["target"])):
+                ctx.emit("need_target", "INFO")
+                b = ctx.project.baseline_result or {}
+                return {"need_target": True, "baseline_percent": round(b["accuracy"] * 100) if b.get("accuracy") is not None else None,
+                        "hint": target_rule.QUESTION_HINT}
+            target = float(a["target"])
+        f = pilot.run_pilot(ctx.session, ctx.storage, ctx.project, target)
     except pilot.ForecastError as exc:
         return {"error": str(exc)}
+    if kind.id != "classification":   # plain words from the stored scale, never out of 100 for a number
+        p = f.pilot or {}
+        return {"label": "estimate", "task_type": kind.id, "eligible": f.eligible, "confidence": f.confidence, "plain": plain_view(f),
+                "model_type": families.type_info(f.family)["name"] if f.family else None, "issues": p.get("issues", []),
+                "suggested_target": p.get("suggested_target"),
+                "next": "create the quote" if f.eligible else "explain honestly why we cannot sell this run: " + (f.reason or "")}
     out = {"label": "estimate", "target": f.target, "target_out_of_100": round(f.target * 100),
            "predicted": round(f.predicted_metric, 3), "predicted_out_of_100": round(f.predicted_metric * 100),
            "band": [round(f.band_low, 3), round(f.band_high, 3)], "band_out_of_100": [round(f.band_low * 100), round(f.band_high * 100)], "confidence": f.confidence, "eligible": f.eligible,
@@ -535,7 +581,7 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("select_dataset", "Choose the dataset to use (user must approve). Deletes the other candidates. Always fill target_meaning: "
          "what the answer column means in plain words, for example 'whether the next payment was missed'.",
          {"type": "object", "properties": {"candidate_id": {"type": "string"}, "target": {"type": "string"},
-                                           "target_meaning": {"type": "string"}}, "required": ["candidate_id", "target"]},
+                                           "target_meaning": {"type": "string"}}, "required": ["candidate_id"]},   # no target for groups / unusual
          gate.Action.SELECT_DATASET, select_dataset),
     Tool("run_readiness", "Readiness grade and findings for the chosen dataset.", _obj(), gate.Action.ANALYZE, run_readiness),
     Tool("profile_data", "Free: look at the chosen data column by column (kind, gaps, common values, ranges) and flag suspects such as a column that gives the answer away. "
@@ -553,7 +599,13 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("apply_data_fix", "Apply the proposed data fix (the user must approve a card showing rows removed and columns dropped). Then run the free small test again.",
          {"type": "object", "properties": {"version_id": {"type": "string"}}, "required": []}, gate.Action.CLEAN, apply_data_fix),
     Tool("run_pilot", "Free small test on about 5-10% of the data, then forecast the full-run result against the target the USER named in their own words (0 to 1, e.g. 0.8). Never pick the target yourself: if they have not said it, ask.",
-         {"type": "object", "properties": {"target": {"type": "number"}}, "required": ["target"]}, gate.Action.PILOT, run_pilot),
+         {"type": "object", "properties": {"target": {"type": "number", "description": "yes/no or group answers: 0 to 1"},
+                                           "typical_error": {"type": "number", "description": "a number or a forecast: the most they accept being off by, in the answer's units, in the user's words"}},
+          "required": []}, gate.Action.PILOT, run_pilot),
+    Tool("set_task_type", "Say what kind of prediction this is, before choosing data: classification (yes/no or a few groups), regression (a number like a price), "
+         "forecast (a number over time, like next month's sales), grouping (find natural groups, no answer column) or unusual (find records unlike the rest). Free.",
+         {"type": "object", "properties": {"task_type": {"type": "string", "enum": ["classification", "regression", "forecast", "grouping", "unusual"]}},
+          "required": ["task_type"]}, gate.Action.ANALYZE, set_task_type),
     Tool("create_quote", "One fixed price for the full run (estimated compute + success fee) and the most the user can be charged. Only after an eligible forecast.", _obj(), gate.Action.CREATE_QUOTE, create_quote),
     Tool("request_payment", "Create the PayPal hold for the approved quote (nothing is charged yet).", _obj(), gate.Action.REQUEST_PAYMENT, request_payment),
     Tool("show_table", "Show the user a small table in the chat (at most 8 columns and 20 rows). Use it to compare options, list columns or summarise numbers you already have. Never invent figures.",

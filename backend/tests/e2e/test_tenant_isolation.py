@@ -184,6 +184,7 @@ PROJECT_ROUTES = {
     ("GET", "/projects/{pid}"): None, ("GET", "/projects/{pid}/messages"): None,
     ("POST", "/projects/{pid}/chat"): {"message": "hi"}, ("POST", "/projects/{pid}/data"): {"name": "x", "csv_text": "a,b\n1,2\n"},
     ("POST", "/projects/{pid}/data/link"): {"url": "https://huggingface.co/datasets/a/b"},
+    ("POST", "/projects/{pid}/task-type"): {"task_type": "regression"},
     ("POST", "/projects/{pid}/data/{candidate_id}/select"): {"target": "b"}, ("POST", "/projects/{pid}/readiness"): None,
     ("POST", "/projects/{pid}/baseline"): None, ("GET", "/projects/{pid}/payment"): None,
     ("POST", "/projects/{pid}/quote/approve"): None, ("POST", "/projects/{pid}/train"): None,

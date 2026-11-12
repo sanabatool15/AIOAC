@@ -18,7 +18,7 @@ from ..repositories import projects as projects_repo
 from ..repositories import training_runs as runs_repo
 from ..repositories.traces import TraceRepository
 from ..config import settings
-from ..services.data import analysis, dataset_link, datasets, families, pilot, tasks
+from ..services.data import analysis, dataset_link, datasets, families, pilot, task_wording, tasks
 from ..services.data.samples import CATALOG
 from .forecast import forecast_view, previous_on_other_data
 from .payments import receipt
@@ -92,8 +92,14 @@ def read(pid: str, *, p: Project = Depends(owned_project), s: Session = Depends(
         forecast = None   # the data was changed (a guided fix) after this forecast: it says nothing about the new data, so run the free pilot again
     pay = payments_repo.for_quote(s, q.id) if q else None
     run = runs_repo.latest_for_project(s, pid)
-    return {"id": p.id, "goal": p.goal, "status": p.status, "task_type": tasks.task_of(p).id, "readiness_grade": p.readiness_grade,
-            "trust_level": p.trust_level, "baseline": p.baseline_result,
+    kind = tasks.task_of(p)
+    base = p.baseline_result
+    if base and kind.id != "classification":   # the screen shows these words as they are: no "out of 100 right" for a number
+        base = {**base, "plain": {"result": task_wording.plain_score(kind.id, base.get("score", base.get("accuracy", 0)), base.get("extras")),
+                                  "guess": task_wording.plain_guess(kind.id, base.get("extras"))}}
+    return {"id": p.id, "goal": p.goal, "status": p.status, "task_type": kind.id, "readiness_grade": p.readiness_grade,
+            "task": {"id": kind.id, "plain_name": kind.plain_name, "needs_target": kind.needs_target, "pays_success_fee": kind.supports_fee},
+            "trust_level": p.trust_level, "baseline": base,
             "quote": q and {"id": q.id, "estimate_cents": q.estimate_cents, "low_cents": q.low_cents,
                             "high_cents": q.high_cents, "cap_cents": q.cap_cents, "success_fee_max_cents": q.fee_cents,
                             "approved": q.approved_at is not None, "model_type": families.type_info(q.family)},
@@ -160,6 +166,24 @@ def add_link(pid: str, *, p: Project = Depends(owned_project), body: LinkIn, s: 
 
 class SelectIn(BaseModel):
     target: str | None = None
+
+
+class TaskTypeIn(BaseModel):
+    task_type: str
+
+
+@router.post("/{pid}/task-type")
+def set_task_type(pid: str, *, p: Project = Depends(owned_project), body: TaskTypeIn, s: Session = Depends(get_session)):
+    """Free. The user (or the agent after asking) says what kind of prediction this is. Only before a dataset is chosen,
+    because the answer column, the checks and the price all depend on it."""
+    if p.status != "described":
+        raise HTTPException(409, "the kind of prediction can only be chosen before a dataset is chosen")
+    try:
+        kind = tasks.get(body.task_type)
+    except tasks.UnknownTask:
+        raise HTTPException(400, "that kind of prediction is not available")
+    projects_repo.set_task_type(s, p, kind.id)
+    return {"task_type": kind.id, "plain_name": kind.plain_name, "needs_target": kind.needs_target, "pays_success_fee": kind.supports_fee}
 
 
 @router.post("/{pid}/data/{candidate_id}/select")

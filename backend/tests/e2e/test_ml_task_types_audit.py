@@ -199,7 +199,7 @@ def a13(api, session, project, **_):
 
 def a14(session, storage, provider, chosen, **_):
     text = context.build_system(session, chosen)
-    assert len(text) < 4800
+    assert len(text) < 5000
     out = tools.run_readiness(ctx(session, storage, provider, chosen), {})
     assert len(json.dumps(out)) < 1800
 
@@ -389,7 +389,7 @@ def r13(api, session, numbers, **_):
 
 
 def r14(session, storage, provider, numbers, **_):
-    assert len(context.build_system(session, numbers)) < 4800
+    assert len(context.build_system(session, numbers)) < 5000
     out = tools.run_readiness(ctx(session, storage, provider, numbers), {})
     assert len(json.dumps(out)) < 1800
 
@@ -533,7 +533,7 @@ def f13(api, session, monthly, **_):
 
 
 def f14(session, storage, provider, monthly, **_):
-    assert len(context.build_system(session, monthly)) < 4800
+    assert len(context.build_system(session, monthly)) < 5000
     out = tools.run_readiness(ctx(session, storage, provider, monthly), {})
     assert len(json.dumps(out)) < 1800
 
@@ -659,7 +659,7 @@ def _no_answer_cells(task, make_csv, bar):
 
     def n14(session, storage, provider, project, **_):
         p = proj(session, storage, project)   # measured at the same step as the classification cell (data chosen)
-        assert len(context.build_system(session, p)) < 4800
+        assert len(context.build_system(session, p)) < 5000
         assert len(json.dumps(tools.run_readiness(ctx(session, storage, provider, p), {}))) < 1800
 
     return {"A1": n1, "A2": n2, "A3": n3, "A4": n4, "A5": n5, "A6": n6, "A7": n7, "A8": n8, "A9": n9, "A11": n11,

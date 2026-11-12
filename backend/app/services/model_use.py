@@ -19,6 +19,7 @@ from ..repositories import datasets as datasets_repo
 from ..repositories import training_runs as runs_repo
 from .data import column_labels
 from .data import models as versions
+from .data.model_io import load_model
 from .data.tasks.forecast import ForecastModel
 
 MAX_BATCH_ROWS = 5_000
@@ -77,7 +78,7 @@ def load(session: Session, storage: Storage, project: Project, model_id: str | N
     try:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            pipeline = joblib.load(io.BytesIO(data))
+            pipeline = load_model(data)
         if not isinstance(pipeline, ForecastModel):
             pipeline.named_steps["pre"].transformers_  # must be a fitted pipeline of the shape we trained
     except Exception:
@@ -157,7 +158,7 @@ def describe(session: Session, storage: Storage, project: Project, model_id: str
             "trained_at": row.created_at, "target": version.target_column if version else None,
             "accuracy": q.get("accuracy"), "simple_guess_accuracy": q.get("simple_guess_accuracy"),
             "is_estimate_note": ESTIMATE_NOTE, "sklearn_version": None, "size_bytes": None, "usable": False,
-            "unusable_reason": None, "columns": [], "classes": []}
+            "unusable_reason": None, "columns": [], "classes": [], "task_type": q.get("task_type") or "classification"}
     try:
         m = load(session, storage, project, row.id)
     except ModelUnusable as exc:

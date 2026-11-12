@@ -1,0 +1,20 @@
+{
+  "id": "strange-payments",
+  "goal": "Which of my payments look strange or suspicious? I have no labels, just the payment records.",
+  "expected_dataset_kind": "payment records with no answer column",
+  "expected_first_tools": [
+    "set_task_type"
+  ],
+  "expect_dataset_chosen": false,
+  "must_not": [
+    "select_dataset",
+    "start_training",
+    "request_payment"
+  ],
+  "stop_after_first_reply": true,
+  "fake": {
+    "behavior": "set_task",
+    "task": "unusual",
+    "text": "That is finding records that look unusual. No answer column is needed, and there is no success fee for this kind of task. Bring your data."
+  }
+}

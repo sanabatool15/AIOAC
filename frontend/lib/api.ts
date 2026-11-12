@@ -10,13 +10,19 @@ export interface BModelType {
   note: string;
 }
 
+export type TaskType = "classification" | "regression" | "forecast" | "grouping" | "unusual";
+
 export interface BProject {
   id: string;
   goal: string;
   status: string;
   readiness_grade: string | null;
   trust_level: string | null;
-  baseline: { accuracy: number; simple_guess_accuracy: number } | null;
+  // The kind of prediction. Missing on old servers: read as a yes/no or group answer.
+  task_type?: TaskType;
+  task?: { id: TaskType; plain_name: string; needs_target: boolean; pays_success_fee: boolean };
+  // `plain` is set only for a number, a forecast, groups or unusual records: the screen shows these words as they are.
+  baseline: { accuracy: number; simple_guess_accuracy: number; plain?: { result: string; guess: string } } | null;
   quote: {
     id: string;
     estimate_cents: number;
@@ -66,6 +72,16 @@ export interface BForecast {
   issues: string[];
   pilot?: unknown;
   model_type?: BModelType | null;
+  task_type?: TaskType;
+  // Ready-made words for a number, a forecast, groups or unusual records (all estimates).
+  plain?: {
+    typical_error_text?: string;
+    band_text: string;
+    target_text: string;
+    confidence_text: string;
+    simple_guess_error_text?: string;
+    steadiness_text?: string;
+  } | null;
   // The forecast made on the data BEFORE a guided fix; null when no fix was applied.
   before_fix?: {
     predicted_metric: number;
@@ -151,7 +167,10 @@ export interface BTraining {
     accuracy?: number;
     simple_guess_accuracy?: number;
     runtime_seconds?: number;
-    verification?: { value: number; target: number; passed: boolean };
+    verification?: { value: number; target: number; passed: boolean; typical_error?: number };
+    // A number, a forecast, groups or unusual records: the final check in plain words (an estimate).
+    task_type?: TaskType;
+    final_check_text?: string;
     error?: string;
     stopped_by_user?: boolean;
   } | null;
@@ -242,6 +261,11 @@ export type BModel =
       unusable_reason: string | null;
       columns: BModelColumn[];
       classes: string[];
+      task_type?: TaskType;
+      // a forecast only: how often the series repeats, how far ahead it was tested and where its history ends
+      period?: string;
+      horizon?: number | null;
+      last_date?: string;
     };
 // One saved model of a project (GET /projects/{id}/model/versions, newest first).
 export interface BModelVersion {
@@ -259,9 +283,16 @@ export interface BModelVersion {
   usable: boolean;
 }
 export interface BPredict {
-  prediction: string | number;
+  prediction: string | number | number[];
   probabilities: Record<string, number> | null;
   note: string;
+  task_type?: TaskType;
+  typical_error?: number | null; // a number or a forecast: how far off it usually is on rows it never saw
+  dates?: string[]; // a forecast: the date of each predicted period
+  period?: string; // a forecast: "month", "week" and so on
+  group?: number; // grouping: which group, from 1
+  looks_unusual?: boolean; // unusual records
+  unusual_score?: number; // unusual records: 0 to 1
 }
 export interface BBatch {
   rows: number;

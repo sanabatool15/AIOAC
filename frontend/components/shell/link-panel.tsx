@@ -10,7 +10,7 @@ import { ErrorLine, useAction } from "./step-parts";
 
 // Paste the page address of an open dataset (Hugging Face, UCI or OpenML). The server fetches it under the same size
 // limits as a dataset the agent found. Choosing it is the user's click on "Use this data".
-export function LinkPanel({ projectId, onChanged, onCancel }: { projectId: string; onChanged: () => void | Promise<void>; onCancel?: () => void }) {
+export function LinkPanel({ projectId, onChanged, onCancel, needsTarget = true }: { projectId: string; onChanged: () => void | Promise<void>; onCancel?: () => void; needsTarget?: boolean }) {
   const { busy, error, run, setError } = useAction();
   const [url, setUrl] = useState("");
   const [found, setFound] = useState<{ id: string; rows: number; cols: string[]; suggested?: string } | null>(null);
@@ -65,6 +65,7 @@ export function LinkPanel({ projectId, onChanged, onCancel }: { projectId: strin
             </div>
             <Tag variant="success">Found</Tag>
           </div>
+          {needsTarget ? (
           <Field label="Which column should we predict?" htmlFor="link-target-col">
             <select
               id="link-target-col"
@@ -79,6 +80,9 @@ export function LinkPanel({ projectId, onChanged, onCancel }: { projectId: strin
               ))}
             </select>
           </Field>
+          ) : (
+            <p className="text-body text-ink-2">No answer column is needed: we look at all the columns together.</p>
+          )}
           <div className="flex justify-end gap-2">
             {onCancel && (
               <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
@@ -86,10 +90,10 @@ export function LinkPanel({ projectId, onChanged, onCancel }: { projectId: strin
               </Button>
             )}
             <Button
-              disabled={busy || !target}
+              disabled={busy || (needsTarget && !target)}
               onClick={() =>
               void run(async () => {
-                await real.selectDataset(projectId, found.id, target);
+                await real.selectDataset(projectId, found.id, needsTarget ? target : undefined);
                 await onChanged();
               })
             }

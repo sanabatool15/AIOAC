@@ -7,7 +7,7 @@ import { Field, Input } from "@/components/ui/input";
 import { ErrorState, Skeleton } from "@/components/ui/state";
 import { Tag } from "@/components/ui/tag";
 import { outOf100 } from "@/lib/adapters";
-import type { BBatch, BModel, BModelColumn, BModelVersion } from "@/lib/api";
+import type { BBatch, BModel, BModelColumn, BModelVersion, BPredict } from "@/lib/api";
 import { downloadModel, getModel, getModelVersions, predictBatch, predictOne, switchModelVersion } from "@/lib/api-real";
 import { useAsync } from "@/lib/hooks";
 import { batchProblem, buildRecord, cellText, columnTitle, compareLine, fileSize, formatWhen, sklearnNote, toPrediction, toVersions, type PredictionView } from "@/lib/screens";
@@ -161,8 +161,7 @@ function Available({
           <Tag variant={model.usable ? "success" : "neutral"}>{model.usable ? "Ready to use" : "Cannot run here"}</Tag>
         </div>
         <p className="text-body text-ink-2">
-          Predicts &quot;{model.target}&quot;. Trained {formatWhen(model.trained_at)}. Free test: about{" "}
-          {outOf100(model.accuracy)} right, a simple guess: {outOf100(model.simple_guess_accuracy)}.
+          {modelSummary(model)}
         </p>
         <p className="text-micro text-muted">{model.is_estimate_note}</p>
         {list.length > 1 && (
@@ -183,7 +182,9 @@ function Available({
           </Field>
         )}
       </Card>
-      {model.usable ? (
+      {model.usable && model.task_type === "forecast" ? (
+        <ForecastAhead key={`ahead-${model.model_id ?? "m"}`} projectId={projectId} model={model} modelId={tryId} />
+      ) : model.usable ? (
         <>
           <OneRecord key={`one-${model.model_id ?? "m"}`} projectId={projectId} columns={model.columns} modelId={tryId} />
           <BatchCard key={`batch-${model.model_id ?? "m"}`} projectId={projectId} modelId={tryId} />
@@ -285,6 +286,11 @@ export function OneRecord({ projectId, columns, modelId }: { projectId: string; 
               ))}
             </ul>
           )}
+          {result.extra.map((line) => (
+            <p key={line} className="text-body text-ink-2">
+              {line}
+            </p>
+          ))}
           <p className="text-micro text-muted">This is {result.note}.</p>
         </div>
       )}
@@ -413,6 +419,76 @@ function DownloadCard({ projectId, model, modelId }: { projectId: string; model:
       </div>
       <ErrorLine message={error} />
       {note && <p className="text-body text-ink-2">{note}</p>}
+    </Card>
+  );
+}
+
+
+// One plain sentence about the model, per kind of prediction. Only a yes/no or group model has an "out of 100 right".
+function modelSummary(model: Available): string {
+  const when = `Trained ${formatWhen(model.trained_at)}.`;
+  switch (model.task_type) {
+    case "forecast":
+      return `Forecasts "${model.target}" ahead${model.period ? `, one ${model.period} at a time` : ""}. Its history ends ${model.last_date ?? "at the last date in your data"}. ${when}`;
+    case "grouping":
+      return `Puts records into groups of similar ones. There is no right answer to check, so we only report how steady the groups are. ${when}`;
+    case "unusual":
+      return `Spots records that look unlike the rest. There is no right answer to check, so we only report how steady the flags are. ${when}`;
+    case "regression":
+      return `Predicts the number "${model.target}". ${when}`;
+    default:
+      return `Predicts "${model.target}". ${when} Free test: about ${outOf100(model.accuracy)} right, a simple guess: ${outOf100(model.simple_guess_accuracy)}.`;
+  }
+}
+
+// A forecast has no row to fill in: ask for how many periods ahead and show a dated list. Every number is an estimate.
+function ForecastAhead({ projectId, model, modelId }: { projectId: string; model: Available; modelId?: string }) {
+  const [periods, setPeriods] = useState(String(model.horizon ?? 6));
+  const [out, setOut] = useState<BPredict | null>(null);
+  const { busy, error, run, setError } = useAction();
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const n = Math.round(Number(periods));
+    if (!Number.isFinite(n) || n < 1 || n > 36) return setError("Choose between 1 and 36 periods ahead.");
+    void run(async () => {
+      setOut(null);
+      setOut(await predictOne(projectId, { periods: n }, modelId));
+    });
+  }
+  const values = Array.isArray(out?.prediction) ? (out?.prediction as number[]) : [];
+  return (
+    <Card aria-label="Forecast ahead" className="gap-3 p-5">
+      <h2 className="text-base font-semibold text-ink">Forecast ahead</h2>
+      <p className="text-body text-ink-2">How many {model.period ?? "period"}s ahead do you want to see (1 to 36)?</p>
+      <form onSubmit={submit} noValidate className="flex items-end gap-3">
+        <div className="w-32">
+          <Field label="Periods ahead" htmlFor="periods-ahead">
+            <Input id="periods-ahead" type="number" min={1} max={36} inputMode="numeric" value={periods} onChange={(e) => setPeriods(e.target.value)} />
+          </Field>
+        </div>
+        <Button type="submit" size="md" disabled={busy}>
+          {busy ? "Forecasting…" : "Forecast"}
+        </Button>
+      </form>
+      <ErrorLine message={error} />
+      {out && values.length > 0 && (
+        <div aria-label="Prediction" data-testid="prediction" className="flex flex-col gap-2 rounded-xl bg-surface p-4">
+          <ul className="flex flex-col gap-1 text-body text-ink-2">
+            {values.map((v, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span>{out.dates?.[i] ?? `Period ${i + 1}`}</span>
+                <span className="font-medium text-ink tabular-nums">{v.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>
+              </li>
+            ))}
+          </ul>
+          {out.typical_error != null && (
+            <p className="text-body text-ink-2">
+              On periods it never saw, it was typically off by about {Math.round(out.typical_error).toLocaleString("en-US")} (an estimate).
+            </p>
+          )}
+          <p className="text-micro text-muted">This is {out.note}.</p>
+        </div>
+      )}
     </Card>
   );
 }

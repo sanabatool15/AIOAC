@@ -83,3 +83,13 @@ def plain_forecast(predicted: float, band_low: float, band_high: float, target: 
             "target_text": f"typically off by no more than {miss(target)}",
             "simple_guess_error_text": f"a simple guess, always the average, is off by about {plain_amount(ref, unit)}",
             "confidence_text": f"about {round(confidence * 100)}% chance (an estimate)"}
+
+
+def plain_steadiness(task: str, predicted: float, band_low: float, band_high: float, target: float, confidence: float) -> dict:
+    """Grouping and unusual records: how steady the result is, out of 100, as an estimate. There is no answer to be off by."""
+    what = "groups" if task == "grouping" else "flagged records"
+    pct = lambda x: f"{round(x * 100)} out of 100"
+    return {"steadiness_text": f"the {what} should be about {pct(predicted)} steady when looked at again on other rows (an estimate)",
+            "band_text": f"between about {pct(band_low)} and {pct(band_high)} (an estimate)",
+            "target_text": f"at least {pct(target)} steady",
+            "confidence_text": f"about {round(confidence * 100)}% chance (an estimate)"}

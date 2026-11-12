@@ -439,7 +439,82 @@ def test_script_trains_the_regression_families(tmp_path):
             sys.modules.pop(k, None)
 
 
-def test_the_tarball_still_ships_only_the_three_shared_modules():
+def test_the_tarball_ships_the_task_modules_verbatim_and_no_app_code():
     with tarfile.open(fileobj=io.BytesIO(sm.build_source_tarball()), mode="r:gz") as tar:
         names = set(tar.getnames())
-    assert not any("tasks" in n or n.startswith("app/") for n in names)   # regression is done inside train.py, no new package
+        files = {n: tar.extractfile(n).read() for n in names if n.startswith("aioac_core/tasks/") and n.endswith(".py")}
+    assert {"aioac_core/tasks/__init__.py", *(f"aioac_core/tasks/{m}" for m in sm.TASK_MODULES)} <= names
+    for m in sm.TASK_MODULES:   # one source of truth with the local code
+        assert files[f"aioac_core/tasks/{m}"] == (sm.SERVICES_DIR / "tasks" / m).read_bytes()
+    assert files["aioac_core/tasks/__init__.py"] == b"" and not any(n.startswith("app/") for n in names)
+
+
+def test_shipped_task_modules_import_only_libraries_and_each_other():
+    import ast
+    allowed = {"io", "math", "time", "warnings", "dataclasses", "typing", "numpy", "pandas", "sklearn", "joblib"}
+    for m in sm.TASK_MODULES:
+        for node in ast.walk(ast.parse((sm.SERVICES_DIR / "tasks" / m).read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                assert all(a.name.split(".")[0] in allowed for a in node.names), (m, node.lineno)
+            elif isinstance(node, ast.ImportFrom):
+                assert node.level >= 1 or (node.module or "").split(".")[0] in allowed, (m, node.lineno)
+                if node.level >= 2:   # `from .. import x` / `from ..x import y`: only the shared modules (or the lazy trust helper)
+                    assert (node.module or "") in ("", "features", "insights") or {a.name for a in node.names} <= {"baseline", "families"}, (m, node.lineno)
+
+
+def _script_module(name):
+    import importlib.util
+    from app.services.data import model_io
+    model_io.ensure_aliases()
+    spec = importlib.util.spec_from_file_location(name, sm.SCRIPT_DIR / "train.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_script_trains_forecast_grouping_and_unusual_and_the_app_can_open_the_files(tmp_path):
+    import numpy as np
+    import pandas as pd
+    from app.services.data import model_io
+    from app.services.data.tasks import forecast as fc
+    from tests.helpers.ml_slices import sales_frame
+    mod = _script_module("sm_train_other")
+    rng = np.random.default_rng(0)
+    sets = {
+        "forecast": (sales_frame("trend", 80), "units", "ridge", {"time_column": "month"}),
+        "grouping": (pd.DataFrame(np.vstack([rng.normal(c, 1, (150, 3)) for c in ([0, 0, 0], [6, 6, 0])]), columns=list("abc")), None, "kmeans", {"n_clusters": 2}),
+        "unusual": (pd.DataFrame(rng.normal(0, 1, (400, 3)), columns=list("abc")), None, "isolation", {"contamination": 0.03}),
+    }
+    for task, (df, target, fam, cfg) in sets.items():
+        d = tmp_path / task / "t"
+        d.mkdir(parents=True)
+        df.to_csv(d / "d.csv", index=False)
+        m = mod.train(str(d), str(tmp_path / task / "m"), target, family=fam, task_type=task, config=cfg)
+        assert m["task_type"] == task and m["family"] == fam and not m["interrupted"] and m["rows"] == len(df)
+        blob = (tmp_path / task / "m" / "model.joblib").read_bytes()
+        model = model_io.load_model(blob)
+        assert model is not None
+        if task == "forecast":
+            assert len(model.forecast(3)) == 3
+    # a file written under the SAGEMAKER module name opens in the app (the app has no package called aioac_core)
+    d = tmp_path / "forecast" / "t"
+    saved = fc.ForecastModel.__module__
+    fc.ForecastModel.__module__ = "aioac_core.tasks.forecast"
+    try:
+        mod.train(str(d), str(tmp_path / "alias"), "units", family="ridge", task_type="forecast", config={"time_column": "month"})
+    finally:
+        fc.ForecastModel.__module__ = saved
+    blob = (tmp_path / "alias" / "model.joblib").read_bytes()
+    assert b"aioac_core" in blob and len(model_io.load_model(blob).forecast(2)) == 2
+
+
+def test_forecast_grouping_and_unusual_hyperparameters_and_no_refusal(csv_path):
+    for task, fam, target, cfg in (("forecast", "ridge", "units", {"time_column": "month"}), ("grouping", "kmeans", None, {"n_clusters": 3}),
+                                   ("unusual", "isolation", None, {"contamination": 0.03})):
+        b, smc, _ = backend([completed()], artifact=model_tar({"task_type": task, "family": fam, "accuracy": 0.0, "simple_guess_accuracy": 0.0,
+                                                               "train_seconds": 1.0, "sklearn_version": __import__("sklearn").__version__}))
+        res = b.run(csv_path, target, 200, family=fam, task_type=task, config=cfg)
+        hp = smc.created["HyperParameters"]
+        assert json.loads(hp["task_type"]) == task and json.loads(hp["family"]) == fam and json.loads(hp["config"]) == cfg
+        assert json.loads(hp["target"]) == (target or "")
+        assert res.task_type == task and res.score is None and res.model_bytes

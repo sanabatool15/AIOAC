@@ -1,0 +1,20 @@
+{
+  "id": "customer-groups",
+  "goal": "Which kinds of customers do I have? I just want to see natural groups.",
+  "expected_dataset_kind": "customer table with no answer column",
+  "expected_first_tools": [
+    "set_task_type"
+  ],
+  "expect_dataset_chosen": false,
+  "must_not": [
+    "select_dataset",
+    "start_training",
+    "request_payment"
+  ],
+  "stop_after_first_reply": true,
+  "fake": {
+    "behavior": "set_task",
+    "task": "grouping",
+    "text": "That is finding natural groups. No answer column is needed, and there is no success fee for this kind of task. Bring your data."
+  }
+}

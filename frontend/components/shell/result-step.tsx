@@ -130,12 +130,13 @@ export function ResultStep({ project, onChanged }: StepProps) {
           <h2 className="text-section text-ink">{v.title}</h2>
           {v.kind !== "unchecked" && <Tag variant={v.kind === "verified" ? "success" : "warning"}>{v.kind === "verified" ? "Verified" : "Not met"}</Tag>}
         </div>
-        {v.kind !== "unchecked" && (
+        {v.kind !== "unchecked" && !t?.result?.final_check_text && (
           <div className="flex gap-3">
             <Figure label="Verified result" value={`${v.value} out of 100`} />
             <Figure label="Your target" value={`${v.target} out of 100`} />
           </div>
         )}
+
         <p className="text-body text-ink-2">{v.body}</p>
         {recap && (
           <p className="text-body text-ink-2">
@@ -145,7 +146,7 @@ export function ResultStep({ project, onChanged }: StepProps) {
         <EstimateNote>One check on data the model never saw. A measured result for this data, not a promise for new data.</EstimateNote>
       </Card>
       <RetrySettle project={project} receipt={receipt} refresh={refresh} onChanged={onChanged} />
-      {v.kind === "missed" && (
+      {v.kind === "missed" && (project.task_type ?? "classification") !== "grouping" && (project.task_type ?? "classification") !== "unusual" && (
         <TargetAction
           project={project}
           onChanged={onChanged}

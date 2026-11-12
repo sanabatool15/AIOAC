@@ -210,13 +210,23 @@ export interface PredictionView {
   answer: string;
   rows: { label: string; text: string; share: number }[];
   note: string;
+  extra: string[]; // plain extra lines: how far off it usually is, how unusual a record looks
 }
 // Probabilities as "about N out of 100", biggest first. Always carries the "estimate, not a promise" note.
 export function toPrediction(r: BPredict): PredictionView {
   const rows = Object.entries(r.probabilities ?? {})
     .map(([label, p]) => ({ label, text: `about ${Math.round(p * 100)} out of 100`, share: p }))
     .sort((a, b) => b.share - a.share);
-  return { answer: String(r.prediction), rows, note: r.note || "an estimate, not a promise" };
+  const extra: string[] = [];
+  const num = typeof r.prediction === "number" ? r.prediction : null;
+  if (r.typical_error != null && r.task_type === "regression") {
+    extra.push(`On rows it never saw, a guess like this was usually off by about ${Math.round(r.typical_error).toLocaleString("en-US")} (an estimate).`);
+  }
+  if (r.task_type === "unusual" && r.unusual_score != null) {
+    extra.push(`How unusual: about ${Math.round(r.unusual_score * 100)} out of 100 (an estimate).`);
+  }
+  const answer = num !== null ? num.toLocaleString("en-US", { maximumFractionDigits: 2 }) : String(r.prediction);
+  return { answer, rows, note: r.note || "an estimate, not a promise", extra };
 }
 
 // Rows in pasted or picked CSV text (header not counted, blank lines ignored).

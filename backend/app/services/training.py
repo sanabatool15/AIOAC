@@ -218,7 +218,7 @@ def progress(session: Session, run: TrainingRun) -> dict:
             "fraction": run.progress_fraction, "elapsed_seconds": round(elapsed),
             "spend_so_far_cents": spend, "spend_is_estimate": run.status == "running",
             "cap_cents": quote.compute_cap_cents if quote else None, "eta": eta,
-            "stop_requested": run.stop_requested, "result": run.result}
+            "stop_requested": run.stop_requested, "result": _with_plain(session, run)}
 
 
 def recover_stale_runs(session: Session, provider: PaymentProvider, is_active, stale_after_seconds: int) -> list[str]:
@@ -254,3 +254,16 @@ def retry_settle(session: Session, provider: PaymentProvider, project: Project) 
     elif project.status == "training" and run.status == "done" and pay.state == "released":
         lifecycle.transition(session, project, "done")  # settlement finished; the worker never got to the last step
     return pay.state
+
+
+def _with_plain(session: Session, run: TrainingRun):
+    """The run's result, plus (for a number, a forecast, groups or unusual records) the final check in the type's own words."""
+    res = run.result
+    project = projects_repo.get(session, run.project_id)
+    task = tasks.task_of(project).id
+    if not isinstance(res, dict) or "verification" not in res or task == "classification":
+        return res
+    from .explain import _final_check_text
+    quote = gate.latest_quote(session, run.project_id)
+    forecast = forecasts_repo.get(session, quote.forecast_id) if quote and quote.forecast_id else None
+    return {**res, "task_type": task, "final_check_text": _final_check_text(task, res["verification"], forecast)}

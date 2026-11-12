@@ -1,11 +1,20 @@
 {
   "id": "house-price-number",
   "goal": "Predict the exact sale price of a house from its size and location.",
-  "expected_dataset_kind": "none or a clear explanation: this product predicts categories such as yes/no, not exact numbers",
-  "expected_first_tools": [],
+  "expected_dataset_kind": "house sales table, a number answer",
+  "expected_first_tools": [
+    "set_task_type"
+  ],
   "expect_dataset_chosen": false,
-  "reply_mentions_any": ["category", "categories", "yes/no", "yes or no", "exact number", "not an exact", "cannot", "can't", "not able", "only"],
-  "must_not": ["select_dataset", "start_training", "request_payment"],
+  "must_not": [
+    "select_dataset",
+    "start_training",
+    "request_payment"
+  ],
   "stop_after_first_reply": true,
-  "fake": {"behavior": "decline", "text": "This tool predicts categories, such as yes or no, not an exact number like a price, so I can't build that here. I could instead predict something like whether a house sells above the typical price."}
+  "fake": {
+    "behavior": "set_task",
+    "task": "regression",
+    "text": "That is a number, not a yes or no. We can predict it and tell you how far off it usually is. Bring your data: upload a file, paste a link, or tell me you have none."
+  }
 }

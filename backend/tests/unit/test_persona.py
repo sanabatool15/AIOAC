@@ -9,7 +9,7 @@ from tests.helpers.builders import call, ctx, eligible_forecast
 from tests.unit.test_agent_fixes import _results
 
 NEW_SKILLS = ["ask-like-an-analyst", "why-accuracy-is-low-and-what-helps", "reading-a-forecast", "improve-after-miss"]
-BUDGET = 5200  # long state block (dataset, known, decisions, forecast); the plain prompt is capped at 4800 in test_context.py. Raised from 4200 in Phase 2: persona, reply shape, 4 new skill descriptions
+BUDGET = 5300  # 5200 -> 5300 for the task-type rules; long state block (dataset, known, decisions, forecast); the plain prompt is capped at 4800 in test_context.py. Raised from 4200 in Phase 2: persona, reply shape, 4 new skill descriptions
 
 
 def test_persona_and_reply_shape_are_in_the_prompt(session, project):

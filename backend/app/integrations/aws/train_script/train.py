@@ -53,9 +53,41 @@ def _number(s: pd.Series) -> pd.Series:
     return pd.to_numeric(t, errors="coerce")
 
 
+OTHER_TASKS = ("forecast", "grouping", "unusual")   # fitted in one call from aioac_core.tasks; no partial model on SIGTERM
+
+
+def _train_other(train_dir: str, model_dir: str, target, family: str, task_type: str, config: dict) -> dict:
+    """A number over time, grouping or unusual records: the same code as the local backend (aioac_core.tasks), fitted on
+    every row of the work file. The only number that counts is the check on the locked rows, done by the app afterwards."""
+    from aioac_core.tasks import forecast as fc
+    from aioac_core.tasks import unsupervised as un
+    files = sorted(glob.glob(os.path.join(train_dir, "*.csv")))
+    if not files:
+        raise FileNotFoundError(f"no CSV file in {train_dir}")
+    raw = pd.read_csv(files[0])
+    t0 = time.perf_counter()
+    if task_type == "forecast":
+        if family not in families.REGRESSION_FAMILIES:
+            raise ValueError(f"unknown model family: {family}")
+        model = fc.fit_forecaster(raw, target, config, family, 300 if family == "forest" else None)
+    else:
+        model = un.fit_final(task_type, raw, config)
+    seconds = time.perf_counter() - t0
+    metrics = {"accuracy": 0.0, "simple_guess_accuracy": 0.0, "train_seconds": seconds, "trees_built": 1, "trees_planned": 1,
+               "interrupted": False, "rows": int(len(raw)), "sklearn_version": sklearn.__version__, "family": family,
+               "task_type": task_type}
+    os.makedirs(model_dir, exist_ok=True)
+    joblib.dump(model, os.path.join(model_dir, "model.joblib"))
+    with open(os.path.join(model_dir, "metrics.json"), "w", encoding="utf-8") as f:
+        json.dump(metrics, f)
+    return metrics
+
+
 def train(train_dir: str, model_dir: str, target: str, n_estimators: int = 300, should_stop=None, family: str = "forest",
-          task_type: str = "classification") -> dict:
+          task_type: str = "classification", config: dict | None = None) -> dict:
     should_stop = should_stop or (lambda: STOP["requested"])
+    if task_type in OTHER_TASKS:
+        return _train_other(train_dir, model_dir, target, family, task_type, config or {})
     if task_type not in ("classification", "regression"):
         raise ValueError(f"unknown task type: {task_type}")
     regression = task_type == "regression"
@@ -128,13 +160,16 @@ def main(argv=None):
     target = args.target
     if target is None:  # decoded hyperparameters, as a fallback
         target = json.loads(os.environ.get("SM_HPS", "{}")).get("target")
-    if not target:
+    if not target and (args.task_type or json.loads(os.environ.get("SM_HPS", "{}")).get("task_type")) not in OTHER_TASKS:
         raise SystemExit("missing --target")
     signal.signal(signal.SIGTERM, _on_sigterm)
     family = args.family or json.loads(os.environ.get("SM_HPS", "{}")).get("family") or "forest"
     task_type = args.task_type or json.loads(os.environ.get("SM_HPS", "{}")).get("task_type") or "classification"
-    m = train(os.environ["SM_CHANNEL_TRAIN"], os.environ.get("SM_MODEL_DIR", "/opt/ml/model"), target, args.n_estimators,
-              family=family, task_type=task_type)
+    config = json.loads(os.environ.get("SM_HPS", "{}")).get("config") or {}   # decoded by the container; a dict, or a JSON string
+    if isinstance(config, str):
+        config = json.loads(config)
+    m = train(os.environ["SM_CHANNEL_TRAIN"], os.environ.get("SM_MODEL_DIR", "/opt/ml/model"), target or None, args.n_estimators,
+              family=family, task_type=task_type, config=config)
     print(json.dumps(m))
 
 

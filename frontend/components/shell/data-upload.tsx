@@ -19,7 +19,7 @@ function sizeLabel(bytes: number): string {
 
 // Upload your own CSV: drop it or choose it, say which column holds the answer, then POST /data and /select.
 // The click on "Use this data" is the user's approval of the choice (specs/api.md A0).
-export function UploadPanel({ projectId, onChanged, onCancel, initialFile }: { projectId: string; onChanged: () => void | Promise<void>; onCancel?: () => void; initialFile?: File | null }) {
+export function UploadPanel({ projectId, onChanged, onCancel, initialFile, needsTarget = true }: { projectId: string; onChanged: () => void | Promise<void>; onCancel?: () => void; initialFile?: File | null; needsTarget?: boolean }) {
   const { busy, error, run, setError } = useAction();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<{ name: string; size: number; text: string; cols: string[] } | null>(null);
@@ -101,6 +101,7 @@ export function UploadPanel({ projectId, onChanged, onCancel, initialFile }: { p
       )}
       {file && (
         <>
+          {needsTarget ? (
           <Field label="Which column should we predict?" htmlFor="target-col" hint="The column that holds the answer you want.">
             <select
               id="target-col"
@@ -115,6 +116,9 @@ export function UploadPanel({ projectId, onChanged, onCancel, initialFile }: { p
               ))}
             </select>
           </Field>
+          ) : (
+            <p className="text-body text-ink-2">No answer column is needed: we look at all the columns together.</p>
+          )}
           <div className="flex justify-end gap-2">
             {onCancel && (
               <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
@@ -122,7 +126,7 @@ export function UploadPanel({ projectId, onChanged, onCancel, initialFile }: { p
               </Button>
             )}
             <Button
-              disabled={busy || !target}
+              disabled={busy || (needsTarget && !target)}
               onClick={() =>
                 run(async () => {
                   let id = candidate;
@@ -130,7 +134,7 @@ export function UploadPanel({ projectId, onChanged, onCancel, initialFile }: { p
                     id = (await real.uploadCsv(projectId, file.name, file.text)).candidate_id;
                     setCandidate(id);
                   }
-                  await real.selectDataset(projectId, id, target);
+                  await real.selectDataset(projectId, id, needsTarget ? target : undefined);
                   await onChanged();
                 })
               }
