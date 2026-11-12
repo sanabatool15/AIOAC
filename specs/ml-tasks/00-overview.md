@@ -1,6 +1,6 @@
 # All classical ML on AIOAC: overview and index
 
-Status: PLAN, nothing here is built. Written 2026-11-11 on branch `claude/ml-task-types-spec` (made from `claude/brave-hypatia-6hf77z`, tip `ce72a07`). Read `CLAUDE.md` and `specs/status.md` first.
+Status: BUILT (2026-11-12): regression, forecast, grouping and unusual records are implemented (task_wording, pilot, forecast, verification, model_use, SageMaker script, UI). Not yet run in a paid end-to-end check on AWS. The text below is the original design record. Written 2026-11-11 on branch `claude/ml-task-types-spec` (made from `claude/brave-hypatia-6hf77z`, tip `ce72a07`). Read `CLAUDE.md` and `specs/status.md` first.
 
 ## 1. Goal in one paragraph
 
@@ -35,7 +35,6 @@ HUMAN REVIEW (small diffs, explained): payments, webhooks, ledger, secrets, spen
 | `05-data-and-discovery.md` | target typing, readiness and profile per type, discovery filters, offline sample datasets |
 | `06-latency-cost-and-limits.md` | run times, quotes, caps, free-tool time budgets, calibration, benchmarks |
 | `07-audit-and-test-plan.md` | the audit test file design, slice-by-slice tests, definition of done (LAST) |
-| `NEXT-SESSION-PROMPT.md` | paste into a new session to start building |
 
 Older, related: `specs/regression-and-task-types.md` (first design), `specs/agent-data-scientist.md` (agent plan, phases 1-5 built), `specs/audit-2026-11-11.md` (fix list for the merged UI).
 
@@ -70,7 +69,7 @@ Defects in code that exists TODAY (found while reading; fix independent of the M
 - Calibration risk: replacing the 240 s startup placeholder with the measured ~65 s can make `CapTooSmall` appear AFTER the hold is placed; propose a cap floor in `create_quote` (HUMAN REVIEW). A 10-15 minute demo job is not reachable with the current families; fixed fees dominate (about 53 cents). (06)
 - Free routes `POST /projects/{id}/baseline` and `POST /chats/{id}/pilot` have no timeout (only the agent path has 60 s); one-hot encoders are dense and uncapped (memory risk). (06)
 
-Where the OWNER DECISIONS are collected (answer these before building the matching slices): `02-success-and-payments.md` D1-D10 (success fee per type, target form, wording), `01-backend-ml-core.md` OQ1-OQ10, `03-agent.md` (8 questions), `04-ui.md` (10 questions, e.g. who sets the unit label), `05-data-and-discovery.md` (7 questions), `06-latency-cost-and-limits.md` section 7.4. Use `NEXT-SESSION-PROMPT.md` Prompt C to collect them into `decisions.md`.
+Where the OWNER DECISIONS are collected (answer these before building the matching slices): `02-success-and-payments.md` D1-D10 (success fee per type, target form, wording), `01-backend-ml-core.md` OQ1-OQ10, `03-agent.md` (8 questions), `04-ui.md` (10 questions, e.g. who sets the unit label), `05-data-and-discovery.md` (7 questions), `06-latency-cost-and-limits.md` section 7.4.
 
 Other open facts:
 - 2 frontend unit tests fail on the UI-pass code (`no-raw-money`, card gradient) and 14 browser tests wait for a data picker that is not rendered; see `specs/audit-2026-11-11.md`.

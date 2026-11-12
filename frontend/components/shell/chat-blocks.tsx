@@ -93,6 +93,15 @@ export function ChatBlockView({ b, onChoose, locked = false }: { b: ChatBlock; o
   }
   if (b.type === "baseline") {
     const r = b as Extract<ChatBlock, { type: "baseline" }>;
+    if (r.plain || r.accuracy == null || r.simple_guess_accuracy == null) {
+      return (
+        <Card variant="plain" aria-label="Free test" className="gap-2 p-4">
+          <h3 className="text-body font-semibold text-ink">Free test</h3>
+          {r.plain && <p className="text-body text-ink-2">{r.plain.result} {r.plain.guess}</p>}
+          {r.trust && <p className="text-body text-muted">How much to trust this so far: {r.trust}</p>}
+        </Card>
+      );
+    }
     return (
       <Card variant="plain" aria-label="Free test" className="gap-2 p-4">
         <h3 className="text-body font-semibold text-ink">Free test</h3>

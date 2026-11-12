@@ -223,3 +223,11 @@ All routes are owner-scoped like section C (404 for a project that is not yours,
 - `POST /projects/{id}/chat` `approve` accepts a card's tool name (for example `apply_data_fix`); the server maps it to the gate action (`clean`).
 - Agent card for `apply_data_fix`: `{what, level: 1, tool: "apply_data_fix", args: {version_id}, detail: {rows_before, rows_after, rows_removed, columns_before, columns_after, columns_dropped, steps, version_id, note}}`.
 - Both fix routes are owner-scoped (404 for others) and listed in `tests/e2e/test_tenant_isolation.py`.
+
+## F. ML task types (BUILT, added 2026-11-12)
+
+- `POST /projects/{id}/task-type` body `{task_type}` (`classification` | `regression` | `forecast` | `grouping` | `unusual`); the agent tool `set_task_type` does the same. `GET /projects/{id}` gains `task_type` and `task {id, plain_name, needs_target, pays_success_fee}`.
+- For non-classification types, `baseline` gains `plain {result, guess}` and the forecast view gains `plain {...}` and `typical_error`; the training result gains `final_check_text`. Screens show these words as they are: no "out of 100 right" for a number, forecast, groups or unusual records. The chat `baseline` block carries `plain` and `accuracy: null` for them.
+- Predict responses carry `task_type`; forecast models also take a number of periods ahead and return dated rows.
+- Grouping and unusual are compute only: no success fee (no true answer to check).
+- `POST /projects/demo` (signed in, 404 unless `DEMO_PROJECT_ENABLED=true`) makes a demo project for the caller.

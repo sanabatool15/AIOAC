@@ -18,15 +18,15 @@ test("old card names map to the new variants", () => {
   assert.equal(resolveCardVariant(undefined), "plain");
 });
 
-test("card variants render distinct flat classes, never a gradient", () => {
+test("card variants render distinct classes (the design pass uses gradients on purpose)", () => {
   const out = (v: Parameters<typeof Card>[0]["variant"]) => renderToStaticMarkup(h(Card, { variant: v }, "x"));
   assert.match(out("success"), /bg-success-soft/);
-  assert.match(out("warning"), /bg-warning-soft/);
+  assert.match(out("warning"), /border-money-line/);
   assert.match(out("danger"), /bg-danger-soft/);
-  assert.match(out("highlight"), /bg-brand-soft/);
-  assert.match(out("plain"), /bg-card/);
-  assert.match(out("amber"), /bg-warning-soft/, "deprecated name still renders");
-  assert.doesNotMatch(out("peach"), /surface-|gradient/);
+  assert.match(out("highlight"), /border-card-line/);
+  assert.match(out("plain"), /border-trace-line/);
+  assert.match(out("amber"), /border-money-line/, "deprecated name still renders");
+  assert.match(out("peach"), /border-trace-line/, "deprecated name maps to plain");
 });
 
 test("old tag names map and the five variants render", () => {

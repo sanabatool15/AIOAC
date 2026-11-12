@@ -78,7 +78,7 @@ function fixFacts(d: FixCardDetail | null | undefined): { label: string; value: 
 // Typed blocks built by the server from tool results (specs/api.md A2). Unknown types are ignored by the screen.
 export type ChatBlock =
   | { type: "readiness"; grade: string; findings: { kind: string; text: string }[]; trust: string | null }
-  | { type: "baseline"; accuracy: number; simple_guess_accuracy: number; trust: string | null }
+  | { type: "baseline"; accuracy: number | null; simple_guess_accuracy: number | null; trust: string | null; plain?: { result: string; guess: string } }
   | {
       type: "quote";
       quote_id: string;

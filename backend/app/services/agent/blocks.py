@@ -54,6 +54,9 @@ def blocks_from_result(name: str, result, project) -> list[dict]:
     if name == "run_readiness":
         return [{"type": "readiness", "grade": result.get("grade"), "findings": result.get("findings", []),
                  "trust": getattr(project, "trust_level", None)}]
+    if name == "run_baseline" and "accuracy" not in result:   # number, forecast, groups, unusual: the type's own words
+        return [{"type": "baseline", "accuracy": None, "simple_guess_accuracy": None, "trust": result.get("trust_level"),
+                 "plain": {"result": result.get("result_text", ""), "guess": result.get("simple_guess_text", "")}}]
     if name == "run_baseline":
         return [{"type": "baseline", "accuracy": result["accuracy"], "simple_guess_accuracy": result["simple_guess_accuracy"],
                  "trust": result.get("trust_level")}]

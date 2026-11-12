@@ -20,7 +20,7 @@ Detailed specs (read the one you need, not all of them):
 ## Stack
 - Frontend: Next.js (TypeScript) in `frontend/`
 - Backend: Python, FastAPI in `backend/`
-- ML: scikit-learn, tabular data only (classification first)
+- ML: scikit-learn, tabular data only (classification, regression, forecast, grouping, unusual records; see specs/ml-tasks/00-overview.md)
 - Agent LLM: via OpenRouter, or Azure AI Foundry (`LLM_PROVIDER`)
 - Training: `TrainingBackend` interface. `local` runs the free baseline. `sagemaker` runs the paid job.
 - Payments: PayPal sandbox, REST API (Orders v2 authorize/capture/void + Payments v2 + webhooks), behind a `PaymentProvider` interface (`ports.py`). The app only builds the PayPal provider; the in-memory mock is a test double in `backend/doubles/`

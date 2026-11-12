@@ -29,8 +29,10 @@ export function ModelPanel({ projectId }: { projectId: string }) {
           <Tag variant={data.usable ? "success" : "warning"}>{data.usable ? "Ready" : "Cannot be tested here"}</Tag>
         </div>
         <p className="text-body text-ink-2">
-          It predicts &quot;{data.target}&quot;. {data.version_no ? `Version ${data.version_no}, ` : ""}trained {formatWhen(data.trained_at)}. On test data it
-          got about {outOf100(data.accuracy)} right. A simple guess gets {outOf100(data.simple_guess_accuracy)}.
+          It predicts &quot;{data.target}&quot;. {data.version_no ? `Version ${data.version_no}, ` : ""}trained {formatWhen(data.trained_at)}.{" "}
+          {data.task_type && data.task_type !== "classification"
+            ? "It is a different kind of model, so see the Model tab for how it did."
+            : `On test data it got about ${outOf100(data.accuracy)} right. A simple guess gets ${outOf100(data.simple_guess_accuracy)}.`}
         </p>
         {!data.usable && (
           <p className="text-body text-ink-2">

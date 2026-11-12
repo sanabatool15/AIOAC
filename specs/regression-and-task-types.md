@@ -1,6 +1,6 @@
 # Regression and other task types: design
 
-Status: design only, 2026-11-09. Nothing here is built. Items marked (inferred) were not read in code or run. Line numbers are approximate. Payment, gate, verification and quote work is HUMAN REVIEW (CLAUDE.md). Continues Phase 6 and Phase 8 of `specs/agent-data-scientist.md`.
+Status: design record, 2026-11-09. SUPERSEDED: the task types were built later (see `specs/ml-tasks/00-overview.md`); the 'not realistic before the deadline' advice below was not followed. Items marked (inferred) were not read in code or run. Line numbers are approximate. Payment, gate, verification and quote work is HUMAN REVIEW (CLAUDE.md). Continues Phase 6 and Phase 8 of `specs/agent-data-scientist.md`.
 
 ## 0. Headline
 
